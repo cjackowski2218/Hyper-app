@@ -1,0 +1,17 @@
+{
+  "name": "HYPER",
+  "short_name": "HYPER",
+  "description": "Hypertrophy training log",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#10141e",
+  "theme_color": "#10141e",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icons/icon-120.png", "sizes": "120x120", "type": "image/png" },
+    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "/icons/icon-167.png", "sizes": "167x167", "type": "image/png" },
+    { "src": "/icons/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icons/icon-1024.png", "sizes": "1024x1024", "type": "image/png" }
+  ]
+}
