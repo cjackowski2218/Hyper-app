@@ -2222,34 +2222,29 @@ export default function App(){
   const muscles=profile?getMuscles(profile.experience,profile.sex):getMuscles("intermediate","male");
 
   useEffect(()=>{
-    const load=async()=>{
-      try {
-        const saved=await window.storage.get("hyper_state");
-        if(saved&&saved.value){
-          const s=JSON.parse(saved.value);
-          if(s.profile) setProfile(s.profile);
-          if(s.meso) setMeso(s.meso);
-          if(s.program&&s.program.length>0) setProgram(s.program);
-          if(s.history) setHistory(s.history);
-          if(s.liftHistory&&s.liftHistory.length>0) setLiftHistory(s.liftHistory);
-          if(s.mesoCount) setMesoCount(s.mesoCount);
-          if(s.isDark!==undefined) setIsDark(s.isDark);
-          if(s.library&&s.library.length>0) setLibrary(s.library);
-        }
-      } catch(e){}
-      setLoaded(true);
-    };
-    load();
+    try {
+      const raw=localStorage.getItem("hyper_state");
+      const saved=raw?{value:raw}:null;
+      if(saved&&saved.value){
+        const s=JSON.parse(saved.value);
+        if(s.profile) setProfile(s.profile);
+        if(s.meso) setMeso(s.meso);
+        if(s.program&&s.program.length>0) setProgram(s.program);
+        if(s.history) setHistory(s.history);
+        if(s.liftHistory&&s.liftHistory.length>0) setLiftHistory(s.liftHistory);
+        if(s.mesoCount) setMesoCount(s.mesoCount);
+        if(s.isDark!==undefined) setIsDark(s.isDark);
+        if(s.library&&s.library.length>0) setLibrary(s.library);
+      }
+    } catch(e){}
+    setLoaded(true);
   },[]);
 
   useEffect(()=>{
     if(!loaded) return;
-    const save=async()=>{
-      try {
-        await window.storage.set("hyper_state",JSON.stringify({profile,meso,program,history,liftHistory,mesoCount,library,isDark}));
-      } catch(e){}
-    };
-    save();
+    try {
+      localStorage.setItem("hyper_state",JSON.stringify({profile,meso,program,history,liftHistory,mesoCount,library,isDark}));
+    } catch(e){}
   },[profile,meso,program,history,liftHistory,mesoCount,library,isDark,loaded]);
 
   const handleComplete=(exs,ratings,sessionNote)=>{
@@ -2382,7 +2377,7 @@ export default function App(){
   };
 
   const handleReset=async()=>{
-    try { await window.storage.delete("hyper_state"); } catch(e){}
+    try { localStorage.removeItem("hyper_state"); } catch(e){}
     setProfile(null);
     setMeso(null);
     setProgram([]);
