@@ -616,6 +616,22 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const txStart=useRef({});
   const dragRef=useRef({active:false,fromIdx:null});
 
+  // Play a short tone when rest timer hits zero
+  const playDone=()=>{
+    try {
+      const ctx=new (window.AudioContext||window.webkitAudioContext)();
+      const osc=ctx.createOscillator();
+      const gain=ctx.createGain();
+      osc.connect(gain);gain.connect(ctx.destination);
+      osc.frequency.value=880;
+      osc.type="sine";
+      gain.gain.setValueAtTime(0.4,ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.6);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime+0.6);
+    } catch(e){}
+  };
+
   // Tick rest timers down
   useEffect(()=>{
     const active=Object.values(restTimers).some(v=>v>0);
@@ -623,7 +639,12 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
     const t=setInterval(()=>{
       setRestTimers(prev=>{
         const next={...prev};
-        Object.keys(next).forEach(k=>{if(next[k]>0) next[k]--;});
+        let justFinished=false;
+        Object.keys(next).forEach(k=>{
+          if(next[k]===1) justFinished=true;
+          if(next[k]>0) next[k]--;
+        });
+        if(justFinished) playDone();
         return next;
       });
     },1000);
@@ -1074,7 +1095,7 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview}){
   );
 }
 
-function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit}){
+function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit,onExtendMeso}){
   const C=useContext(ThemeCtx);
   const [confirmAbandon,setConfirmAbandon]=useState(false);
   const TODAY=getTodayName();
@@ -1173,7 +1194,12 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
           </div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,paddingTop:8,borderTop:"1px solid "+C.border}}>
             <span>RIR target: <strong style={{color:C.text}}>{defaultRIR(meso.week,meso.totalWeeks)}</strong></span>
-            <span style={{color:meso.totalWeeks-meso.week===0?C.accent:C.muted}}>{meso.totalWeeks-meso.week===0?"Deload Week":meso.totalWeeks-meso.week+" weeks remaining"}</span>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{color:meso.totalWeeks-meso.week===0?C.accent:C.muted}}>{meso.totalWeeks-meso.week===0?"Deload Week":meso.totalWeeks-meso.week+" weeks remaining"}</span>
+              {meso.totalWeeks-meso.week===1?(
+                <button onClick={onExtendMeso} style={{background:"none",border:"1px solid "+C.border2,borderRadius:5,padding:"3px 8px",color:C.muted2,fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}}>+ 1 week</button>
+              ):null}
+            </div>
           </div>
         </Card>
         <Card hi={C.accent+"55"}>
@@ -2371,6 +2397,10 @@ export default function App(){
     setEditingSession(null);
   };
 
+  const handleExtendMeso=()=>{
+    setMeso(m=>({...m,totalWeeks:m.totalWeeks+1}));
+  };
+
   const handleOnboarding=(prof)=>{
     setProfile(prof);
     setTab("plan");
@@ -2507,7 +2537,7 @@ export default function App(){
               return;
             }
             setActiveLog(d||todayWorkout);setLoggerOpen(true);
-          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})}/>
+          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso}/>
         ):(
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",textAlign:"center"}}>
             <div style={{width:64,height:64,borderRadius:16,background:C.card,border:"1px solid "+C.border2,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
@@ -2520,7 +2550,9 @@ export default function App(){
         )
       ):null}
       {tab==="progress"?<ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>:null}
-      {tab==="plan"?<PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)}/>:null}
+      <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+        <PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)}/>
+      </div>
       {tab==="library"?<LibraryScreen library={library} setLibrary={setLibrary}/>:null}
       <div style={{background:C.surf,borderTop:"1px solid "+C.border,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>{
