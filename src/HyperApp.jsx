@@ -757,30 +757,82 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
     const suffix=needsSuffix?(tmplSeen[ti]===1?" A":" B"):"";
 
     const isNovice=experience==="new"||experience==="returning";
+    // Cap per exercise per session — scales with experience
+    const expCap={new:4,returning:4,intermediate:5,advanced:7}[experience]||5;
+
+    // Group exercises by muscle to apply tapered set distribution
+    // Role order: compound first = most sets, isolation last = fewest
+    // This mirrors how RP templates are actually written
+    const muscleExOrder={};
+    t.exs.forEach(nm=>{
+      const f=lib.find(e=>e.name===nm);
+      if(!f) return;
+      if(!muscleExOrder[f.muscle]) muscleExOrder[f.muscle]=[];
+      muscleExOrder[f.muscle].push(nm);
+    });
+
     const exercises=t.exs.map(nm=>{
       const found=lib.find(e=>e.name===nm);
       if (!found) return null;
-      // Beginners: compounds only per RP — no need for isolations
       if(isNovice && found.type==="isolation") return null;
-      // Calculate MEV-based set count for this exercise's muscle group
-      // Distribute weekly MEV sets across training days that hit this muscle
       const m=found.muscle;
       const lm=muscles&&muscles[m];
-      let setCount=3; // fallback default
+      let mevSets=3;
+
       if(lm){
         const freq=muscleFreq[m]||1;
-        // Exercises per day hitting this muscle on this template
-        const exsForMuscle=t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===m;}).length||1;
-        // Weekly MEV sets for this muscle divided by frequency and exercises per session
-        const setsPerSession=Math.max(2,Math.round(lm.mev/freq/exsForMuscle));
-        setCount=Math.min(setsPerSession,5); // cap at 5 sets per exercise
+        const exsForMuscle=muscleExOrder[m]||[nm];
+        const posInMuscle=exsForMuscle.indexOf(nm); // 0=first/main, 1=secondary, 2+=accessory
+        const totalExs=exsForMuscle.length;
+
+        // Sets per session = weekly MEV / frequency
+        const mevPerSession=lm.mev/freq;
+
+        // Taper weights: distribute sets toward main compound, less to accessory
+        // Weights sum to 1.0: [0.50, 0.32, 0.18] for 3 exercises
+        //                     [0.55, 0.45] for 2 exercises
+        //                     [1.0] for 1 exercise
+        const taperWeights=(()=>{
+          if(totalExs===1) return [1.0];
+          if(totalExs===2) return [0.55,0.45];
+          if(totalExs===3) return [0.50,0.32,0.18];
+          // 4+ exercises: diminishing returns
+          return Array(totalExs).fill(null).map((_,i)=>{
+            const w=Math.pow(0.6,i);
+            return w;
+          }).map((w,_,arr)=>w/arr.reduce((a,b)=>a+b,0));
+        })();
+
+        const weight=taperWeights[Math.min(posInMuscle,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
+        const rawSets=mevPerSession*weight;
+
+        // Minimum: compounds=3, isolations=2
+        const minSets=found.type==="compound"?3:2;
+        mevSets=Math.min(expCap,Math.max(minSets,Math.round(rawSets)));
       }
-      const mevSets=setCount;
-      // MRV sets per session: slightly more than MEV to drive progression
-      const mrvSets=lm?Math.min(Math.max(mevSets+2,Math.round(lm.mav/Math.max(muscleFreq[found.muscle]||1,1)/(t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===found.muscle;}).length||1))),mevSets+3):mevSets+2;
-      // MV sets: maintenance — what's needed during deload
-      const mvSets=lm?Math.max(1,Math.round(lm.mv/Math.max(muscleFreq[found.muscle]||1,1)/(t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===found.muscle;}).length||1))):Math.max(1,Math.ceil(mevSets/2));
-      // Apply rep range focus — override exercise min/max reps based on block focus
+
+      const mrvSets=lm?(()=>{
+        const freq=muscleFreq[m]||1;
+        const exsForMuscle=muscleExOrder[m]||[nm];
+        const pos=exsForMuscle.indexOf(nm);
+        const totalExs=exsForMuscle.length;
+        const taperWeights=totalExs===1?[1.0]:totalExs===2?[0.55,0.45]:[0.50,0.32,0.18];
+        const weight=taperWeights[Math.min(pos,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
+        const mavPerSession=lm.mav/freq;
+        const minSets=found.type==="compound"?3:2;
+        return Math.min(expCap+2,Math.max(mevSets+1,Math.round(mavPerSession*weight)));
+      })():mevSets+2;
+
+      const mvSets=lm?(()=>{
+        const freq=muscleFreq[m]||1;
+        const exsForMuscle=muscleExOrder[m]||[nm];
+        const pos=exsForMuscle.indexOf(nm);
+        const totalExs=exsForMuscle.length;
+        const taperWeights=totalExs===1?[1.0]:totalExs===2?[0.55,0.45]:[0.50,0.32,0.18];
+        const weight=taperWeights[Math.min(pos,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
+        return Math.max(1,Math.round((lm.mv/freq)*weight));
+      })():Math.max(1,Math.ceil(mevSets/2));
+
       const rrScale = {
         "hypertrophy":    {compoundMin:6,  compoundMax:15, isoMin:10, isoMax:20},
         "strength-hyp":   {compoundMin:4,  compoundMax:10, isoMin:8,  isoMax:15},
