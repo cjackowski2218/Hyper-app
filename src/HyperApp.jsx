@@ -2877,7 +2877,7 @@ function OnboardingScreen({onComplete}){
   // Intro split-path screen
   if(phase==="intro"){
     return(
-      <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+      <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:"env(safe-area-inset-bottom)"}}>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'DM Sans',sans-serif}`}</style>
         <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 28px",minHeight:"100%"}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:60,fontWeight:900,letterSpacing:4,color:C.accent,lineHeight:1,marginBottom:16}}>HYPER</div>
@@ -2900,7 +2900,7 @@ function OnboardingScreen({onComplete}){
   // How it works screen
   if(phase==="howItWorks"){
     return(
-      <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
+      <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}button,input{font-family:'DM Sans',sans-serif}`}</style>
         <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"14px 20px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <button onClick={()=>setPhase("intro")} style={{background:"none",border:"none",color:C.muted2,fontSize:13,cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:5}}>← Back</button>
@@ -2999,7 +2999,7 @@ function OnboardingScreen({onComplete}){
   ];
 
   return(
-    <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+    <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:"env(safe-area-inset-bottom)"}}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'DM Sans',sans-serif}`}</style>
       <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 28px",minHeight:"100%"}}>
         {steps[step]}
@@ -3392,7 +3392,7 @@ export default function App(){
   if(!loaded){
     return(
       <ThemeCtx.Provider value={C}>
-        <div style={{background:C.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{background:C.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",paddingBottom:"env(safe-area-inset-bottom)"}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,letterSpacing:4,color:C.accent}}>HYPER</div>
         </div>
       </ThemeCtx.Provider>
@@ -3408,7 +3408,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100%",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100%",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s"}}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:34px;padding-bottom:constant(safe-area-inset-bottom);padding-bottom:env(safe-area-inset-bottom)}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
