@@ -616,10 +616,25 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const txStart=useRef({});
   const dragRef=useRef({active:false,fromIdx:null});
 
+  // Persistent AudioContext ref — must be created during a user gesture on iOS
+  const audioCtxRef=useRef(null);
+  const getAudioCtx=()=>{
+    try {
+      if(!audioCtxRef.current){
+        audioCtxRef.current=new (window.AudioContext||window.webkitAudioContext)();
+      }
+      if(audioCtxRef.current.state==="suspended"){
+        audioCtxRef.current.resume();
+      }
+      return audioCtxRef.current;
+    } catch(e){return null;}
+  };
+
   // Play a short tone when rest timer hits zero
   const playDone=()=>{
     try {
-      const ctx=new (window.AudioContext||window.webkitAudioContext)();
+      const ctx=getAudioCtx();
+      if(!ctx) return;
       const osc=ctx.createOscillator();
       const gain=ctx.createGain();
       osc.connect(gain);gain.connect(ctx.destination);
@@ -680,6 +695,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   };
   const logSet=(eid,sid)=>{
     if(document.activeElement) document.activeElement.blur();
+    getAudioCtx(); // Prime AudioContext on user gesture (required for iOS Safari)
     setExs(p=>{
       const ex=p.find(e=>e.id===eid);
       const loggedSet=ex?ex.sets.find(s=>s.id===sid):null;
@@ -2312,12 +2328,14 @@ export default function App(){
 
     setActiveLog(null);
     setLoggerOpen(false);
+    const thisWeekSessions=updatedHistory.filter(s=>s.week===meso.week&&s.mesoNum===mesoCount);
+    const completedDays=new Set(thisWeekSessions.map(s=>s.day));
+    const allDone=program.map(d=>d.name).every(n=>completedDays.has(n));
     if(isDeload){
-      setMesoComplete({meso,mesoNum:mesoCount});
+      // Only show Meso Complete once all deload sessions are logged
+      if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
+      else setTab("home");
     } else {
-      const thisWeekSessions=updatedHistory.filter(s=>s.week===meso.week&&s.mesoNum===mesoCount);
-      const completedDays=new Set(thisWeekSessions.map(s=>s.day));
-      const allDone=program.map(d=>d.name).every(n=>completedDays.has(n));
       if(allDone) setMeso(m=>m.week===meso.week?{...m,week:Math.min(m.week+1,m.totalWeeks)}:m);
       setTab("home");
     }
@@ -2335,7 +2353,7 @@ export default function App(){
         return {...ex,lastScheme:"",lastWeight:String(w1),lastRIR:null,lastReps:"",sets:[...fresh,...drops]};
       }),
     }));
-    setMeso(m=>({...m,label:"Meso "+nextNum,week:1}));
+    setMeso(m=>({...m,label:"Meso "+nextNum,week:1,totalWeeks:5}));
     setProgram(newProgram);
     setMesoCount(nextNum);
     setMesoComplete(null);
@@ -2444,8 +2462,8 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={C}>
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,minHeight:"100vh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden;position:fixed;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
