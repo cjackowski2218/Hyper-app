@@ -14,7 +14,17 @@
     <title>HYPER</title>
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { background: #0d1117; }
+      html, body {
+        background: #0d1117;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
+      }
     </style>
   </head>
   <body>
