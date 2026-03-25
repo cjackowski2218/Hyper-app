@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, createContext, useContext } from "react";
+import { useState, useRef, useEffect, useMemo, memo, createContext, useContext } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const DARK={
@@ -14,6 +14,8 @@ const LIGHT={
   green:"#16a34a",red:"#dc2626",blue:"#3b82f6",orange:"#ea580c",
 };
 const ThemeCtx=createContext(DARK);
+let _uid=0;
+const uid=pfx=>`${pfx||"id"}${++_uid}_${Math.random().toString(36).slice(2,7)}`;
 const MC = {
   Chest:"#f97316", Shoulders:"#a78bfa", Triceps:"#34d399", Back:"#60a5fa",
   Biceps:"#fb923c", Quads:"#38bdf8", Hamstrings:"#f472b6", Glutes:"#4ade80",
@@ -165,7 +167,7 @@ function buildScheme(sets) {
   return out||null;
 }
 
-const newSet=(w,type)=>({id:"s"+Math.random().toString(36).slice(2),weight:w||"",reps:"",rir:String(defaultRIR(1)),type:type||"normal",done:false});
+const newSet=(w,type)=>({id:uid("s"),weight:w||"",reps:"",rir:String(defaultRIR(1)),type:type||"normal",done:false});
 
 function extractLiftEntries(exs, mesoNum, mesoLabel, week, isDeload) {
   const dateStr=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
@@ -176,7 +178,7 @@ function extractLiftEntries(exs, mesoNum, mesoLabel, week, isDeload) {
     if (!normalSets.length) return;
     const topSet=normalSets.reduce((best,s)=>parseFloat(s.weight)>parseFloat(best.weight)?s:best,normalSets[0]);
     entries.push({
-      id:"lh"+Date.now()+Math.random().toString(36).slice(2),
+      id:uid("lh"),
       exercise:ex.name,muscle:ex.muscle,
       mesoNum:mesoNum,mesoLabel:mesoLabel,
       week:week,isDeload:isDeload,date:dateStr,
@@ -402,9 +404,9 @@ function autoGen(split,n,lib,priority){
     const exercises=t.exs.map(nm=>{
       const found=lib.find(e=>e.name===nm);
       if (!found) return null;
-      return {...found,id:"ex"+Date.now()+Math.random().toString(36).slice(2),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
+      return {...found,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
     }).filter(Boolean);
-    return {id:"d"+Date.now()+i,day:days[i]||"Monday",name:t.name+suffix,exercises};
+    return {id:uid("d"),day:days[i]||"Monday",name:t.name+suffix,exercises};
   });
 }
 
@@ -460,8 +462,16 @@ function GlossaryModal({onClose}){
   );
 }
 
-function ProgBanner({ex,wk,totalWeeks}){
+function ProgBanner({ex,wk,totalWeeks,isDeload}){
   const C=useContext(ThemeCtx);
+  if(isDeload){
+    return(
+      <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
+        <IcoInfo/>
+        <div style={{fontSize:12,color:C.muted2,lineHeight:1.45}}>Deload week — hold last weight, easy effort, RIR 4. Recovery, not progression.</div>
+      </div>
+    );
+  }
   if (!ex.lastWeight) return null;
   const p=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks),false,C);
   if (!p) return null;
@@ -492,7 +502,7 @@ function ExPicker({library,onAdd,onClose,title}){
   return(
     <div style={{position:"fixed",inset:0,zIndex:400,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
       <div style={{position:"absolute",inset:0,background:"#000b"}} onClick={onClose}/>
-      <div style={{position:"relative",background:C.surf,borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,height:320,display:"flex",flexDirection:"column"}}>
+      <div style={{position:"relative",background:C.surf,borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,height:"85vh",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"12px 14px 8px",borderBottom:"1px solid "+C.border,flexShrink:0}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <div style={{fontSize:13,fontWeight:700}}>{title||"Add Exercise"}</div>
@@ -671,7 +681,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const addSet=eid=>setExs(p=>p.map(e=>{
     if(e.id!==eid) return e;
     const last=e.sets[e.sets.length-1];
-    const ns={id:"ns"+Date.now()+Math.random().toString(36).slice(2),weight:last?last.weight:"",reps:"",rir:last?last.rir:String(defaultRIR(wk,totalWeeks)),type:last&&last.type==="drop"?"drop":"normal",done:false};
+    const ns={id:uid("ns"),weight:last?last.weight:"",reps:"",rir:last?last.rir:String(defaultRIR(wk,totalWeeks)),type:last&&last.type==="drop"?"drop":"normal",done:false};
     return {...e,sets:[...e.sets,ns]};
   }));
   const delSet=(eid,sid)=>{
@@ -694,6 +704,10 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
     delete txStart.current[sid];
   };
   const logSet=(eid,sid)=>{
+    // Guard: don't log a set with no weight or reps entered
+    const ex=exs.find(e=>e.id===eid);
+    const set=ex?ex.sets.find(s=>s.id===sid):null;
+    if(!set||!set.weight||!set.reps) return;
     if(document.activeElement) document.activeElement.blur();
     getAudioCtx(); // Prime AudioContext on user gesture (required for iOS Safari)
     setExs(p=>{
@@ -721,8 +735,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
       return nx;
     });
     // Clear any previous timers and start a fresh one for this set
-    const ex=exs.find(e=>e.id===eid);
-    const restSecs=ex?getProfile(ex.name).type==="compound"?120:90:90;
+    const restSecs=getProfile(ex.name).type==="compound"?120:90;
     setRestTimers({[sid]:restSecs});
   };
   const undoSet=(eid,sid)=>{
@@ -856,7 +869,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                           <div style={{fontSize:12,color:C.muted2,fontWeight:500}}>{ex.lastScheme}</div>
                         </div>
                       ):null}
-                      <ProgBanner ex={ex} wk={wk} totalWeeks={totalWeeks}/>
+                      <ProgBanner ex={ex} wk={wk} totalWeeks={totalWeeks} isDeload={wk===totalWeeks}/>
                       <div style={{display:"grid",gridTemplateColumns:"18px 1fr 1fr 36px 58px 24px",gap:5,marginBottom:7,paddingBottom:6,borderBottom:"1px solid "+C.border}}>
                         {["#","Weight","Reps","RIR","",""].map((h,i)=>(
                           <span key={i} style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:1.5}}>{h}</span>
@@ -887,7 +900,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                   {iDr?<span style={{fontSize:9,color:C.orange}}>Drop</span>:<span style={{fontSize:10,color:C.muted}}>{si+1}</span>}
                                 </div>
                                 <div style={{position:"relative"}}>
-                                  <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder="lbs" style={{background:iDr?"#1e1508":C.surf,border:"1px solid "+(iDr?"#3d2800":C.border),borderRadius:6,padding:"8px 6px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%"}}/>
+                                  <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder="lbs" style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 6px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%"}}/>
                                   {(()=>{
                                     if(!set.done) return null;
                                     const w=parseFloat(set.weight)||0;
@@ -902,14 +915,14 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                 <button disabled={set.done} onClick={()=>cycleRIR(ex.id,set.id,set.rir)} style={{background:rbg,border:"1px solid "+rfg+"55",borderRadius:6,padding:"8px 0",cursor:set.done?"default":"pointer",color:rfg,fontSize:13,fontWeight:800,textAlign:"center",transition:"all .1s",width:"100%"}}>{set.rir}</button>
                                 {set.done&&restTimers[set.id]>0?(
                                   <div style={{display:"flex",alignItems:"center",justifyContent:"center",background:C.border2,border:"1px solid "+C.border2,borderRadius:6,padding:"8px 0",fontSize:12,fontWeight:700,color:C.muted2}}>{fmt(restTimers[set.id])}</div>
-                                ):(
-                                  <button onClick={()=>{
-                                    if(set.done) return;
-                                    logSet(ex.id,set.id);
-                                  }} style={{padding:"8px 0",borderRadius:6,fontWeight:800,fontSize:11,letterSpacing:1.5,cursor:set.done?"default":"pointer",transition:"all .15s",background:set.done?C.green+"22":C.accent,border:"1px solid "+(set.done?C.green+"44":C.accent),color:set.done?C.green:"#000",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                                    {set.done?<IcoCheck sz={13} col={C.green}/>:"LOG"}
-                                  </button>
-                                )}
+                                ):(()=>{
+                                  const isEmpty=!set.weight||!set.reps;
+                                  return(
+                                    <button onClick={()=>{if(set.done)return;logSet(ex.id,set.id);}} style={{padding:"8px 0",borderRadius:6,fontWeight:800,fontSize:11,letterSpacing:1.5,cursor:set.done?"default":"pointer",transition:"all .15s",background:set.done?C.green+"22":isEmpty?C.border:C.accent,border:"1px solid "+(set.done?C.green+"44":isEmpty?C.border2:C.accent),color:set.done?C.green:isEmpty?C.muted:"#000",display:"flex",alignItems:"center",justifyContent:"center",WebkitTapHighlightColor:"transparent",activeStyle:{transform:"scale(0.95)"}}}>
+                                      {set.done?<IcoCheck sz={13} col={C.green}/>:"LOG"}
+                                    </button>
+                                  );
+                                })()}
                                 <button onClick={()=>set.done&&undoSet(ex.id,set.id)} style={{background:"none",border:"none",cursor:set.done?"pointer":"default",padding:"4px 0",display:"flex",alignItems:"center",justifyContent:"center",visibility:set.done?"visible":"hidden"}}>
                                   <IcoUndo sz={13} col={set.done?C.muted:"transparent"}/>
                                 </button>
@@ -949,21 +962,34 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   );
 }
 
-function Logger({workout,wk,totalWeeks,isDeload,onComplete,onMinimize,visible,liftHistory}){
+function Logger({workout,wk,totalWeeks,isDeload,onComplete,onMinimize,visible,liftHistory,savedExs,onExsChange}){
   const C=useContext(ThemeCtx);
-  const [exs,setExs]=useState(()=>workout.exercises.map(ex=>({
-    ...ex,
-    sets:(()=>{
-      const base=ex.sets.map(s=>s.done?s:{...s,rir:String(isDeload?4:defaultRIR(wk,totalWeeks))});
-      // On deload: halve working sets (min 1), drop sets removed
-      if(isDeload){
-        const working=base.filter(s=>s.type!=="drop");
-        const halved=working.slice(0,Math.max(1,Math.ceil(working.length/2)));
-        return halved;
-      }
-      return base;
-    })()
-  })));
+  const [exs,setExsRaw]=useState(()=>{
+    // Restore in-progress sets if they were persisted (survives reload/backgrounding)
+    if(savedExs&&savedExs.length>0) return savedExs;
+    return workout.exercises.map(ex=>({
+      ...ex,
+      sets:(()=>{
+        const base=ex.sets.map(s=>s.done?s:{...s,rir:String(isDeload?4:defaultRIR(wk,totalWeeks))});
+        if(isDeload){
+          const working=base.filter(s=>s.type!=="drop");
+          const halved=working.slice(0,Math.max(1,Math.ceil(working.length/2)));
+          return halved;
+        }
+        return base;
+      })()
+    }));
+  });
+  // Wrap setExs so every update is also bubbled up to App for persistence
+  const setExs=useRef(null);
+  setExs.current=(updater)=>{
+    setExsRaw(prev=>{
+      const next=typeof updater==="function"?updater(prev):updater;
+      onExsChange&&onExsChange(next);
+      return next;
+    });
+  };
+  const setExsFn=(...args)=>setExs.current(...args);
   const [expId,setExpId]=useState(null);
   const [phase,setPhase]=useState("log");
   const [elapsed,setElapsed]=useState(0);
@@ -983,7 +1009,7 @@ function Logger({workout,wk,totalWeeks,isDeload,onComplete,onMinimize,visible,li
       {phase==="summary"?(
         <SessionSummary workout={workout} exs={exs} ratings={ratings} setRatings={setRatings} don={don} totalVol={totalVol} elapsed={elapsed} sessionNote={sessionNote} setSessionNote={setSessionNote} onComplete={onComplete}/>
       ):(
-        <LoggerInner workout={workout} wk={wk} totalWeeks={totalWeeks} onMinimize={onMinimize} setPhase={setPhase} exs={exs} setExs={setExs} expId={expId} setExpId={setExpId} elapsed={elapsed} don={don} tot={tot} pct={pct} liftHistory={liftHistory}/>
+        <LoggerInner workout={workout} wk={wk} totalWeeks={totalWeeks} onMinimize={onMinimize} setPhase={setPhase} exs={exs} setExs={setExsFn} expId={expId} setExpId={setExpId} elapsed={elapsed} don={don} tot={tot} pct={pct} liftHistory={liftHistory}/>
       )}
     </div>
   );
@@ -1376,13 +1402,38 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
   );
 }
 
+function ChartDot(props){
+  const C=useContext(ThemeCtx);
+  const {cx,cy,payload}=props;
+  if(!cx||!cy) return null;
+  if(payload&&payload.deload) return <circle cx={cx} cy={cy} r={3} fill={C.muted} opacity={0.5}/>;
+  return <circle cx={cx} cy={cy} r={4} fill={C.accent}/>;
+}
+
 function HistoryTab({onGlossary,liftHistory}){
   const C=useContext(ThemeCtx);
+  if(!liftHistory||liftHistory.length===0){
+    return(
+      <div style={{padding:"40px 0",textAlign:"center"}}>
+        <div style={{fontSize:32,marginBottom:12}}>📈</div>
+        <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>No lift history yet</div>
+        <div style={{fontSize:12,color:C.muted2,lineHeight:1.7}}>Log your first session to start tracking progress across mesocycles.</div>
+      </div>
+    );
+  }
   const allExercises=[...new Set(liftHistory.map(e=>e.exercise))].sort();
   const allMuscles=[...new Set(liftHistory.map(e=>e.muscle))].sort((a,b)=>Object.keys(MC).indexOf(a)-Object.keys(MC).indexOf(b));
   const [aMuscle,setAMuscle]=useState(allMuscles[0]||"");
   const [aEx,setAEx]=useState(allExercises[0]||"");
   const [zoom,setZoom]=useState("alltime");
+  // Reset selections when history grows (e.g. after a session is completed)
+  useEffect(()=>{
+    if(allMuscles.length>0&&!allMuscles.includes(aMuscle)){
+      setAMuscle(allMuscles[0]);
+      const exs=allExercises.filter(n=>{const f=liftHistory.find(e=>e.exercise===n);return f&&f.muscle===allMuscles[0];});
+      if(exs.length>0) setAEx(exs[0]);
+    }
+  },[liftHistory.length]);
   const exsForMuscle=allExercises.filter(n=>{const f=liftHistory.find(e=>e.exercise===n);return f&&f.muscle===aMuscle;});
   const pickMuscle=m=>{
     setAMuscle(m);
@@ -1417,12 +1468,6 @@ function HistoryTab({onGlossary,liftHistory}){
     }
   });
   const prs=Object.values(prMap).sort((a,b)=>Object.keys(MC).indexOf(a.muscle)-Object.keys(MC).indexOf(b.muscle)).slice(0,6);
-  const Dot=(props)=>{
-    const {cx,cy,payload}=props;
-    if(!cx||!cy) return null;
-    if(payload&&payload.deload) return <circle cx={cx} cy={cy} r={3} fill={C.muted} opacity={0.5}/>;
-    return <circle cx={cx} cy={cy} r={4} fill={C.accent}/>;
-  };
   return(
     <div>
       <Card>
@@ -1458,7 +1503,7 @@ function HistoryTab({onGlossary,liftHistory}){
                     <YAxis tick={{fontSize:10,fill:C.muted}} axisLine={false} tickLine={false} domain={["auto","auto"]}/>
                     <Tooltip contentStyle={{background:C.card2,border:"1px solid "+C.border2,borderRadius:8,fontSize:12}} itemStyle={{color:C.accent}} labelStyle={{color:C.muted2}} formatter={(v,_,entry)=>[v+" lbs"+(entry.payload&&entry.payload.deload?" (deload)":""),""]}/>
                     {zoom==="alltime"?bounds.map(b=><ReferenceLine key={b} x={b} stroke={C.border2} strokeDasharray="3 3"/>):null}
-                    <Line type="monotone" dataKey="v" stroke={C.accent} strokeWidth={2} dot={<Dot/>} activeDot={{r:6,fill:C.accent}} connectNulls/>
+                    <Line type="monotone" dataKey="v" stroke={C.accent} strokeWidth={2} dot={<ChartDot/>} activeDot={{r:6,fill:C.accent}} connectNulls/>
                   </LineChart>
                 </ResponsiveContainer>
                 {zoom==="alltime"?(
@@ -1695,14 +1740,14 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
   const addDay=()=>{
     const used=bDays.map(d=>d.day);
     const next=WEEK_DAYS.find(d=>!used.includes(d))||"Monday";
-    setBDays(p=>[...p,{id:"d"+Date.now(),day:next,name:"",exercises:[]}]);
+    setBDays(p=>[...p,{id:uid("d"),day:next,name:"",exercises:[]}]);
   };
   const rmDay=id=>setBDays(p=>p.filter(d=>d.id!==id));
   const updDay=(id,f,v)=>setBDays(p=>p.map(d=>d.id!==id?d:{...d,[f]:v}));
   const addEx=(dayId,ex)=>setBDays(p=>p.map(d=>{
     if(d.id!==dayId) return d;
     if(d.exercises.find(e=>e.name===ex.name)) return d;
-    const nx={...ex,id:"ex"+Date.now()+Math.random().toString(36).slice(2),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
+    const nx={...ex,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
     return {...d,exercises:[...d.exercises,nx]};
   }));
   const rmEx=(dayId,exName)=>setBDays(p=>p.map(d=>d.id!==dayId?d:{...d,exercises:d.exercises.filter(e=>e.name!==exName)}));
@@ -1731,7 +1776,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
               if(d.id!==dayId) return d;
               return {...d,exercises:d.exercises.map(e=>{
                 if(e.name!==oldName) return e;
-                return {...ex,id:"ex"+Date.now()+Math.random().toString(36).slice(2),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
+                return {...ex,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
               })};
             }));
           } else {
@@ -2116,7 +2161,7 @@ function OnboardingScreen({onComplete}){
   if(phase==="intro"){
     return(
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'DM Sans',sans-serif}`}</style>
+        <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'DM Sans',sans-serif}`}</style>
         <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 28px",minHeight:"100%"}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:60,fontWeight:900,letterSpacing:4,color:C.accent,lineHeight:1,marginBottom:16}}>HYPER</div>
           <div style={{fontSize:14,color:C.muted2,lineHeight:1.8,marginBottom:48}}>A hypertrophy training log that tells you what to lift, guides your progression week to week, and tracks your gains across training blocks so you can see real progress over time.</div>
@@ -2139,7 +2184,7 @@ function OnboardingScreen({onComplete}){
   if(phase==="howItWorks"){
     return(
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}button,input{font-family:'DM Sans',sans-serif}`}</style>
+        <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}button,input{font-family:'DM Sans',sans-serif}`}</style>
         <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"14px 20px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,letterSpacing:2,color:C.text}}>HOW IT WORKS</div>
           <button onClick={()=>setPhase("form")} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"6px 14px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Skip →</button>
@@ -2234,7 +2279,7 @@ function OnboardingScreen({onComplete}){
 
   return(
     <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'DM Sans',sans-serif}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'DM Sans',sans-serif}`}</style>
       <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 28px",minHeight:"100%"}}>
         {steps[step]}
       </div>
@@ -2256,6 +2301,7 @@ export default function App(){
   const [mesoCount,setMesoCount]=useState(0);
   const [profile,setProfile]=useState(null); // {name, sex, experience, bodyweight}
   const [activeLog,setActiveLog]=useState(null);
+  const [activeLogExs,setActiveLogExs]=useState(null); // persisted in-progress set data
   const [loggerOpen,setLoggerOpen]=useState(false);
   const [showGlossary,setShowGlossary]=useState(false);
   const [mesoComplete,setMesoComplete]=useState(null);
@@ -2277,6 +2323,8 @@ export default function App(){
         if(s.mesoCount) setMesoCount(s.mesoCount);
         if(s.isDark!==undefined) setIsDark(s.isDark);
         if(s.library&&s.library.length>0) setLibrary(s.library);
+        if(s.activeLog) setActiveLog(s.activeLog);
+        if(s.activeLogExs) setActiveLogExs(s.activeLogExs);
       }
     } catch(e){}
     setLoaded(true);
@@ -2284,10 +2332,13 @@ export default function App(){
 
   useEffect(()=>{
     if(!loaded) return;
-    try {
-      localStorage.setItem("hyper_state",JSON.stringify({profile,meso,program,history,liftHistory,mesoCount,library,isDark}));
-    } catch(e){}
-  },[profile,meso,program,history,liftHistory,mesoCount,library,isDark,loaded]);
+    const t=setTimeout(()=>{
+      try {
+        localStorage.setItem("hyper_state",JSON.stringify({profile,meso,program,history,liftHistory,mesoCount,library,isDark,activeLog,activeLogExs}));
+      } catch(e){}
+    },600);
+    return ()=>clearTimeout(t);
+  },[profile,meso,program,history,liftHistory,mesoCount,library,isDark,activeLog,activeLogExs,loaded]);
 
   const handleComplete=(exs,ratings,sessionNote)=>{
     const sets=exs.reduce((a,e)=>a+e.sets.filter(s=>s.done&&!s.incomplete&&s.type!=="drop").length,0);
@@ -2327,16 +2378,16 @@ export default function App(){
     }));
 
     setActiveLog(null);
+    setActiveLogExs(null);
     setLoggerOpen(false);
     const thisWeekSessions=updatedHistory.filter(s=>s.week===meso.week&&s.mesoNum===mesoCount);
     const completedDays=new Set(thisWeekSessions.map(s=>s.day));
     const allDone=program.map(d=>d.name).every(n=>completedDays.has(n));
     if(isDeload){
-      // Only show Meso Complete once all deload sessions are logged
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
       else setTab("home");
     } else {
-      if(allDone) setMeso(m=>m.week===meso.week?{...m,week:Math.min(m.week+1,m.totalWeeks)}:m);
+      if(allDone) setMeso(m=>m&&m.week===meso.week?{...m,week:Math.min(m.week+1,m.totalWeeks)}:m);
       setTab("home");
     }
   };
@@ -2383,7 +2434,7 @@ export default function App(){
     setProgram(p=>p.map(d=>{
       if(d.id!==dayId) return d;
       if(d.exercises.find(e=>e.name===newEx.name)) return d;
-      const nx={...newEx,id:"ex"+Date.now()+Math.random().toString(36).slice(2),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
+      const nx={...newEx,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
       return {...d,exercises:[...d.exercises,nx]};
     }));
   };
@@ -2411,12 +2462,65 @@ export default function App(){
         const newEntries=extractLiftEntries(exs,sessionMesoNum,s.mesoLabel||meso?.label||"",s.week,false);
         return [...filtered,...newEntries];
       });
+      // Sync progression engine so next session banner reflects the edited weights
+      setProgram(p=>p.map(day=>{
+        if(day.name!==s.day) return day;
+        return {...day,exercises:day.exercises.map(pex=>{
+          const logged=exs.find(e=>e.name===pex.name);
+          if(!logged) return pex;
+          const doneSets=logged.sets.filter(s=>s.done&&!s.incomplete&&s.weight&&s.reps);
+          const normalSets=doneSets.filter(s=>s.type!=="drop");
+          if(!normalSets.length) return pex;
+          const topSet=normalSets.reduce((best,s)=>parseFloat(s.weight)>parseFloat(best.weight)?s:best,normalSets[0]);
+          return {
+            ...pex,
+            lastWeight:String(topSet.weight),
+            lastRIR:parseInt(topSet.rir)||0,
+            lastReps:String(topSet.reps||""),
+            lastScheme:buildScheme(logged.sets)||pex.lastScheme,
+          };
+        })};
+      }));
     }
     setEditingSession(null);
   };
 
   const handleExtendMeso=()=>{
     setMeso(m=>({...m,totalWeeks:m.totalWeeks+1}));
+  };
+
+  const handleExport=()=>{
+    try {
+      const data=JSON.stringify({profile,meso,program,history,liftHistory,mesoCount,library,isDark,exportedAt:new Date().toISOString()},null,2);
+      const blob=new Blob([data],{type:"application/json"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;
+      a.download=`hyper-backup-${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}).replace(/[^a-z0-9]/gi,"-")}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch(e){alert("Export failed.");}
+  };
+
+  const handleImport=(file)=>{
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try {
+        const s=JSON.parse(e.target.result);
+        if(s.profile) setProfile(s.profile);
+        if(s.meso) setMeso(s.meso);
+        if(s.program&&s.program.length>0) setProgram(s.program);
+        if(s.history) setHistory(s.history);
+        if(s.liftHistory&&s.liftHistory.length>0) setLiftHistory(s.liftHistory);
+        if(s.mesoCount) setMesoCount(s.mesoCount);
+        if(s.isDark!==undefined) setIsDark(s.isDark);
+        if(s.library&&s.library.length>0) setLibrary(s.library);
+        setShowProfile(false);
+        alert("Data imported successfully.");
+      } catch(err){alert("Import failed — invalid file.");}
+    };
+    reader.readAsText(file);
   };
 
   const handleOnboarding=(prof)=>{
@@ -2435,6 +2539,7 @@ export default function App(){
     setLibrary(INIT_LIBRARY);
     setIsDark(true);
     setActiveLog(null);
+    setActiveLogExs(null);
     setLoggerOpen(false);
     setMesoComplete(null);
     setShowProfile(false);
@@ -2462,8 +2567,8 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={C}>
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Barlow+Condensed:wght@700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden;position:fixed;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s"}}>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden;position:fixed;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -2511,7 +2616,17 @@ export default function App(){
                 <button key={opt.id} onClick={()=>setProfile(p=>({...p,experience:opt.id}))} style={{width:"100%",padding:"10px 12px",marginBottom:6,borderRadius:8,border:"1px solid "+(profile.experience===opt.id?C.accent:C.border),background:profile.experience===opt.id?C.accent+"15":C.card,color:profile.experience===opt.id?C.accent:C.muted2,fontSize:13,fontWeight:profile.experience===opt.id?700:400,cursor:"pointer",textAlign:"left",display:"block"}}>{opt.l}</button>
               ))}
             </div>
-            <div style={{marginTop:32,paddingTop:20,borderTop:"1px solid "+C.border}}>
+            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border,display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Data</div>
+              <button onClick={handleExport} style={{width:"100%",padding:"10px 14px",background:C.card,border:"1px solid "+C.border2,borderRadius:9,color:C.text,fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
+                Export backup (JSON)
+              </button>
+              <label style={{width:"100%",padding:"10px 14px",background:C.card,border:"1px solid "+C.border2,borderRadius:9,color:C.text,fontSize:13,fontWeight:600,cursor:"pointer",display:"block",boxSizing:"border-box"}}>
+                Import backup
+                <input type="file" accept=".json" style={{display:"none"}} onChange={e=>handleImport(e.target.files[0])}/>
+              </label>
+            </div>
+            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
               {showResetConfirm?(
                 <div style={{background:C.card,border:"1px solid "+C.border2,borderRadius:10,padding:"14px"}}>
                   <div style={{fontSize:12,color:C.muted2,marginBottom:12,lineHeight:1.6}}>All training data, history, and records will be permanently deleted.</div>
@@ -2545,7 +2660,7 @@ export default function App(){
         </div>
       ):null}
       {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} onStartNext={()=>handleStartNextMeso(false)} onReview={()=>handleStartNextMeso(true)}/>:null}
-      {activeLog?<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory}/>:null}
+      {activeLog?<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs}/>:null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
       {tab==="home"?(
         (meso&&program&&program.length>0)?(
@@ -2555,7 +2670,7 @@ export default function App(){
               return;
             }
             setActiveLog(d||todayWorkout);setLoggerOpen(true);
-          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso}/>
+          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso}/>
         ):(
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",textAlign:"center"}}>
             <div style={{width:64,height:64,borderRadius:16,background:C.card,border:"1px solid "+C.border2,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
