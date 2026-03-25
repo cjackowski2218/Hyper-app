@@ -652,6 +652,42 @@ const SPLIT_DAYS={
     "6":["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
   },
 };
+// Distribute n training sessions across available days with maximum rest spacing
+function distributeDays(n, availDays) {
+  if (!availDays || availDays.length === 0) return WEEK_DAYS.slice(0, n);
+  if (n >= availDays.length) return availDays.slice(0, n);
+  // Score each combination of n days from availDays by minimizing consecutive pairs
+  // and maximizing minimum gap between any two training days
+  const dayIdx = {};
+  WEEK_DAYS.forEach((d, i) => { dayIdx[d] = i; });
+  const sorted = availDays.slice().sort((a, b) => dayIdx[a] - dayIdx[b]);
+  // Generate all C(avail, n) combinations and pick the one with best spacing
+  function combos(arr, k) {
+    if (k === 0) return [[]];
+    if (arr.length < k) return [];
+    const [first, ...rest] = arr;
+    return [...combos(rest, k - 1).map(c => [first, ...c]), ...combos(rest, k)];
+  }
+  const all = combos(sorted, n);
+  let best = sorted.slice(0, n);
+  let bestScore = -1;
+  all.forEach(combo => {
+    const idxs = combo.map(d => dayIdx[d]);
+    // Gaps between consecutive training days (wrapping week)
+    const gaps = [];
+    for (let i = 0; i < idxs.length; i++) {
+      const next = idxs[(i + 1) % idxs.length];
+      const cur = idxs[i];
+      gaps.push(next > cur ? next - cur : 7 + next - cur);
+    }
+    const minGap = Math.min(...gaps);
+    const evenness = -Math.max(...gaps); // prefer even distribution
+    const score = minGap * 10 + evenness;
+    if (score > bestScore) { bestScore = score; best = combo; }
+  });
+  return best;
+}
+
 function splitNeedsPriority(split,n){
   // Only PPL creates a meaningful priority choice — it has 3 distinct day types
   // and uneven distribution means one gets noticeably more frequency than others
@@ -675,7 +711,7 @@ function getPplSequence(n,priority){
   if (n===6) return [0,1,2,0,1,2];
   return Array(n).fill(null).map((_,i)=>i%3);
 }
-function autoGen(split,n,lib,priority,muscles,experience){
+function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
   const tmpl=AUTO_SPLITS[split];
   if (!tmpl) return [];
   const tc=tmpl.length;
@@ -695,7 +731,8 @@ function autoGen(split,n,lib,priority,muscles,experience){
   } else {
     seq=Array(n).fill(null).map((_,i)=>i%tc);
   }
-  const days=(SPLIT_DAYS[split]&&SPLIT_DAYS[split][String(n)])||WEEK_DAYS.slice(0,n);
+  // Use distributeDays to space sessions across user's available days
+  const days=distributeDays(n, availDays);
 
   // Count how many sessions per week each muscle group appears across all days
   const muscleFreq={};
@@ -740,15 +777,32 @@ function autoGen(split,n,lib,priority,muscles,experience){
       const mrvSets=lm?Math.min(Math.max(mevSets+2,Math.round(lm.mav/Math.max(muscleFreq[found.muscle]||1,1)/(t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===found.muscle;}).length||1))),mevSets+3):mevSets+2;
       // MV sets: maintenance — what's needed during deload
       const mvSets=lm?Math.max(1,Math.round(lm.mv/Math.max(muscleFreq[found.muscle]||1,1)/(t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===found.muscle;}).length||1))):Math.max(1,Math.ceil(mevSets/2));
+      // Apply rep range focus — override exercise min/max reps based on block focus
+      const rrScale = {
+        "hypertrophy":    {compoundMin:6,  compoundMax:15, isoMin:10, isoMax:20},
+        "strength-hyp":   {compoundMin:4,  compoundMax:10, isoMin:8,  isoMax:15},
+        "power-hyp":      {compoundMin:3,  compoundMax:6,  isoMin:6,  isoMax:10},
+      }[repRange||"hypertrophy"]||{compoundMin:6,compoundMax:15,isoMin:10,isoMax:20};
+      const isCompound=found.type==="compound";
+      const repOverride=isCompound
+        ?{minReps:rrScale.compoundMin, maxReps:rrScale.compoundMax}
+        :{minReps:rrScale.isoMin, maxReps:rrScale.isoMax};
       const sets=Array(mevSets).fill(null).map(()=>newSet("","normal"));
-      return {...found,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,mvSets,sets};
+      return {...found,...repOverride,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,mvSets,sets};
     }).filter(Boolean);
 
     return {id:uid("d"),day:days[i]||"Monday",name:t.name+suffix,exercises};
   });
 }
 
-const Tag=({label,color})=>{const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:4,padding:"2px 7px",letterSpacing:1,fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
+// Rep range cycle per RP: Hypertrophy → Strength-Hyp → Power-Hyp → Hypertrophy
+const REP_RANGE_CYCLE=["hypertrophy","strength-hyp","power-hyp"];
+const REP_RANGE_LABELS={"hypertrophy":"Hypertrophy","strength-hyp":"Strength-Hyp","power-hyp":"Power-Hyp"};
+const REP_RANGE_SUBS={"hypertrophy":"8–20 reps","strength-hyp":"4–12 reps","power-hyp":"3–8 reps"};
+const nextRepRange=current=>{
+  const idx=REP_RANGE_CYCLE.indexOf(current||"hypertrophy");
+  return REP_RANGE_CYCLE[(idx+1)%REP_RANGE_CYCLE.length];
+};const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:4,padding:"2px 7px",letterSpacing:1,fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
 const SLbl=({children})=>{const C=useContext(ThemeCtx);return(<div style={{fontSize:10,color:C.muted,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>{children}</div>);};
 const Card=({children,style,hi})=>{const C=useContext(ThemeCtx);return(<div style={{background:C.card,border:"1px solid "+(hi||C.border),borderRadius:12,padding:"14px 15px",marginBottom:10,...(style||{})}}>{children}</div>);};
 
@@ -800,15 +854,18 @@ function GlossaryModal({onClose}){
   );
 }
 
-function ProgBanner({ex,wk,totalWeeks,isDeload}){
+function ProgBanner({ex,wk,totalWeeks,isDeload,deloadStyle}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
   if(isDeload){
+    const msg=deloadStyle==="intensity"
+      ?"Intensity deload — same sets as last week, ~50% weight, RIR 4. Physical relief, not just volume reduction."
+      :"Volume deload — same weight as last session, sets cut to minimum. Easy effort, RIR 4.";
     return(
       <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
         <IcoInfo/>
-        <div style={{fontSize:12,color:C.muted2,lineHeight:1.45}}>Deload week — hold last weight, easy effort, RIR 4. Recovery, not progression.</div>
+        <div style={{fontSize:12,color:C.muted2,lineHeight:1.45}}>{msg}</div>
       </div>
     );
   }
@@ -893,7 +950,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 14px 24px"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:32,fontWeight:900,marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
-          GREAT WORK <IcoFlame sz={28} col={C.accent}/>
+          {don===0?"SESSION LOGGED":don<tot?"SESSION DONE":"GREAT WORK"} {don>0?<IcoFlame sz={28} col={C.accent}/>:null}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
           {[{l:"SETS",v:don},{l:"VOLUME",v:totalVol>=1000?(totalVol/1000).toFixed(1)+"k":totalVol},{l:"TIME",v:fmt(elapsed)}].map(s=>(
@@ -905,7 +962,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
         </div>
         <div style={{marginBottom:16}}>
           <SLbl>Session Note</SLbl>
-          <textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} placeholder="Performance vs last week? Soreness going in? Any muscles that didn't fire? PRs, injuries, notes for next session..." rows={2} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+          <textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} placeholder="Performance vs last week? Soreness going in? Any muscles that didn't fire? PRs, injuries, notes for next session..." rows={4} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
         </div>
         <SLbl>Rate Each Exercise (SFR)</SLbl>
         <div style={{fontSize:11,color:C.muted,marginBottom:12,lineHeight:1.6}}>
@@ -1218,7 +1275,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                           <div style={{fontSize:12,color:C.muted2,fontWeight:500}}>{ex.lastScheme}</div>
                         </div>
                       ):null}
-                      <ProgBanner ex={ex} wk={wk} totalWeeks={totalWeeks} isDeload={wk===totalWeeks}/>
+                      <ProgBanner ex={ex} wk={wk} totalWeeks={totalWeeks} isDeload={wk===totalWeeks} deloadStyle={deloadStyle}/>
                       {getProfile(ex.name).type==="compound"&&!ex.lastWeight&&wk===1?(
                         <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
                           <IcoInfo/>
@@ -1315,14 +1372,14 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
           setExs(p=>p.map(e=>({...e,sets:e.sets.map(s=>s.done?s:{...s,done:true,weight:s.weight||"0",reps:"0",incomplete:true})})));
           setPhase("summary");
         }} disabled={pct<100&&don===0} style={{width:"100%",padding:"14px",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:pct<100&&don===0?"default":"pointer",transition:"all .2s",background:pct===100?C.accent:don===0?C.border:C.card2,border:"1px solid "+(pct===100?C.accent:don===0?C.border:C.border2),color:pct===100?"#000":don===0?C.muted+"66":C.muted}}>
-          {pct===100?"FINISH WORKOUT":"FINISH EARLY  -  "+don+"/"+tot+" SETS"}
+          {pct===100?"FINISH WORKOUT":"FINISH EARLY — "+don+" of "+tot+" sets done"}
         </button>
       </div>
     </div>
   );
 }
 
-function Logger({workout,wk,totalWeeks,isDeload,onComplete,onMinimize,visible,liftHistory,savedExs,onExsChange}){
+function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimize,visible,liftHistory,savedExs,onExsChange}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
@@ -1332,26 +1389,40 @@ function Logger({workout,wk,totalWeeks,isDeload,onComplete,onMinimize,visible,li
     return workout.exercises.map(ex=>({
       ...ex,
       sets:(()=>{
+        const allSets=ex.sets||[];
+        const working=allSets.filter(s=>s.type!=="drop");
+        const dropSets=allSets.filter(s=>s.type==="drop");
+
         if(isDeload){
-          // Deload targets MV (maintenance volume) — just enough to not lose muscle
-          const mev=ex.mevSets||working.length;
-          const mvSets=ex.mvSets||Math.max(1,Math.ceil(mev/2));
-          return working.slice(0,Math.max(1,mvSets));
+          const style=deloadStyle||"volume";
+          if(style==="intensity"){
+            // Intensity deload: keep all working sets, cut weight ~50%
+            const halfSets=working.map(s=>({
+              ...s,
+              rir:"4",
+              weight:s.weight?String(snap(parseFloat(s.weight)*0.5)):"",
+            }));
+            return [...halfSets,...dropSets.map(s=>({...s,rir:"4"}))];
+          } else {
+            // Volume deload (default): cut to MV set count, keep weight
+            const mev=ex.mevSets||working.length||3;
+            const mvSets=ex.mvSets||Math.max(1,Math.ceil(mev/2));
+            const reduced=working.slice(0,Math.max(1,mvSets)).map(s=>({...s,rir:"4"}));
+            return reduced;
+          }
         }
+
         // Ramp sets from MEV to MRV across working weeks
-        const mev=ex.mevSets||ex.sets.filter(s=>s.type!=="drop").length||3;
+        const mev=ex.mevSets||working.length||3;
         const mrv=ex.mrvSets||mev+2;
         const targetCount=rampedSets(mev,mrv,wk,totalWeeks);
-        const currentCount=ex.sets.filter(s=>s.type!=="drop").length;
-        const dropSets=ex.sets.filter(s=>s.type==="drop");
         let workingSets;
-        if(targetCount>currentCount){
-          // Add sets — copy last set as template
-          const last=ex.sets.filter(s=>s.type!=="drop").slice(-1)[0];
-          const extras=Array(targetCount-currentCount).fill(null).map(()=>newSet(last?last.weight:"","normal"));
-          workingSets=[...ex.sets.filter(s=>s.type!=="drop"),...extras];
+        if(targetCount>working.length){
+          const last=working.slice(-1)[0];
+          const extras=Array(targetCount-working.length).fill(null).map(()=>newSet(last?last.weight:"","normal"));
+          workingSets=[...working,...extras];
         } else {
-          workingSets=ex.sets.filter(s=>s.type!=="drop").slice(0,targetCount);
+          workingSets=working.slice(0,targetCount);
         }
         return [...workingSets.map(s=>({...s,rir:String(defaultRIR(wk,totalWeeks,exp))})),...dropSets];
       })()
@@ -1444,6 +1515,7 @@ function SessionEditModal({session,onSave,onClose}){
 
 function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,program}){
   const C=useContext(ThemeCtx);
+  const suggested=nextRepRange(meso.repRange);
   const mesoEntries=liftHistory.filter(e=>e.mesoNum===mesoNum&&!e.isDeload);
   const uniqueExs=[...new Set(mesoEntries.map(e=>e.exercise))];
   const prs=uniqueExs.map(name=>{
@@ -1534,17 +1606,36 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,progr
             <div style={{fontSize:11,color:C.muted2,marginTop:10,lineHeight:1.5}}>Tap "Review &amp; Edit Program" to make swaps before launching.</div>
           </Card>
         ):null}
-        <button onClick={onStartNext} style={{width:"100%",padding:"15px",background:C.accent,color:"#000",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer",marginBottom:10}}>START NEXT MESO</button>
-        <button onClick={onReview} style={{width:"100%",padding:"13px",background:"none",color:C.muted2,border:"1px solid "+C.border2,borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,cursor:"pointer"}}>REVIEW &amp; EDIT PROGRAM FIRST</button>
+        <Card hi={C.blue+"33"}>
+          <SLbl>Rep Range — Next Meso</SLbl>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+            <div style={{flex:1,background:C.surf,borderRadius:8,padding:"10px 12px",textAlign:"center",opacity:0.6}}>
+              <div style={{fontSize:11,fontWeight:600,color:C.muted2}}>{REP_RANGE_LABELS[meso.repRange||"hypertrophy"]}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2}}>{REP_RANGE_SUBS[meso.repRange||"hypertrophy"]}</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:3,letterSpacing:1,textTransform:"uppercase"}}>This meso</div>
+            </div>
+            <div style={{fontSize:16,color:C.muted}}>→</div>
+            <div style={{flex:1,background:C.accent+"18",border:"1px solid "+C.accent+"44",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.accent}}>{REP_RANGE_LABELS[suggested]}</div>
+              <div style={{fontSize:10,color:C.muted2,marginTop:2}}>{REP_RANGE_SUBS[suggested]}</div>
+              <div style={{fontSize:9,color:C.accent,marginTop:3,letterSpacing:1,textTransform:"uppercase"}}>Suggested next</div>
+            </div>
+          </div>
+          <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>RP recommends rotating rep ranges across mesos to prevent accommodation and protect joints.</div>
+        </Card>
+        <button onClick={()=>onStartNext(suggested)} style={{width:"100%",padding:"15px",background:C.accent,color:"#000",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer",marginBottom:10}}>START NEXT MESO</button>
+        <button onClick={()=>onReview(suggested)} style={{width:"100%",padding:"13px",background:"none",color:C.muted2,border:"1px solid "+C.border2,borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,cursor:"pointer"}}>REVIEW &amp; EDIT PROGRAM FIRST</button>
       </div>
     </div>
   );
 }
 
-function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit,onExtendMeso}){
+function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit,onExtendMeso,onSetDeloadStyle}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
+  const isDeloadWeek=meso.week===meso.totalWeeks;
+  const needsDeloadChoice=isDeloadWeek&&!meso.deloadStyle;
   const [confirmAbandon,setConfirmAbandon]=useState(false);
   const TODAY=getTodayName();
   const todayWorkout=program.find(d=>d.day===TODAY)||null;
@@ -1650,6 +1741,27 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
             </div>
           </div>
         </Card>
+        {needsDeloadChoice?(
+          <Card hi={C.blue+"44"}>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:900,letterSpacing:1,marginBottom:4}}>DELOAD WEEK</div>
+            <div style={{fontSize:12,color:C.muted2,lineHeight:1.6,marginBottom:16}}>Choose your deload style for this week. This can't be changed once selected.</div>
+            <div style={{display:"flex",gap:10,marginBottom:4}}>
+              <button onClick={()=>onSetDeloadStyle("volume")} style={{flex:1,padding:"14px 10px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10,cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>Volume Deload</div>
+                <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Same weight, sets cut in half. Best when you're tired but joints feel okay.</div>
+              </button>
+              <button onClick={()=>onSetDeloadStyle("intensity")} style={{flex:1,padding:"14px 10px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10,cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
+                <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>Intensity Deload</div>
+                <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Same sets, weight cut ~50%. Best when joints are sore and you need physical relief.</div>
+              </button>
+            </div>
+          </Card>
+        ):isDeloadWeek&&meso.deloadStyle?(
+          <div style={{display:"flex",alignItems:"center",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:10,padding:"10px 14px",marginBottom:10}}>
+            <IcoInfo/>
+            <span style={{fontSize:12,color:C.muted2}}><strong style={{color:C.text}}>{meso.deloadStyle==="intensity"?"Intensity":"Volume"} Deload</strong> — {meso.deloadStyle==="intensity"?"Same sets, ~50% weight.":"Same weight, sets halved."} RIR 4 throughout.</span>
+          </div>
+        ):null}
         <Card hi={C.accent+"55"}>
           <SLbl>Today - {TODAY}</SLbl>
           {todayWorkout?(
@@ -1724,6 +1836,19 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
     const mrv=ex.mrvSets||mev+2;
     weeklyVol[ex.muscle]+=rampedSets(mev,mrv,meso.week,meso.totalWeeks);
   });});
+
+  // Actual sets logged this week per muscle — from session history
+  const actualVol={};
+  thisWeekSessions.forEach(session=>{
+    if(!session.exercises) return;
+    session.exercises.forEach(ex=>{
+      if(!ex.muscle||!ex.sets) return;
+      const done=ex.sets.filter(s=>s.done&&!s.incomplete&&s.type!=="drop").length;
+      if(!actualVol[ex.muscle]) actualVol[ex.muscle]=0;
+      actualVol[ex.muscle]+=done;
+    });
+  });
+
   const programMuscles=Object.keys(weeklyVol).filter(m=>muscles[m]);
   return(
     <div>
@@ -1767,7 +1892,7 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
           <div>
             <SLbl>Volume vs Landmarks</SLbl>
-            <div style={{fontSize:11,color:C.muted,marginTop:-4}}>Week {meso.week} - sets per muscle</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:-4}}>Week {meso.week} — actual vs planned sets per muscle</div>
           </div>
           <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:20,padding:"3px 10px",color:C.muted2,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
@@ -1778,17 +1903,24 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
           {[{l:"Below MEV",c:C.muted+"66"},{l:"In range",c:C.green},{l:"High",c:C.accent},{l:"At MRV",c:C.red}].map(x=>(
             <div key={x.l} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:x.c}}/>{x.l}</div>
           ))}
+          <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:C.muted+"44",border:"1px solid "+C.border2}}/><span>Planned</span></div>
         </div>
         {programMuscles.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>Build your program to see volume tracking</div>:programMuscles.map(m=>{
           const lm=muscles[m];
-          const sv=weeklyVol[m]||0;
+          const planned=weeklyVol[m]||0;
+          const actual=actualVol[m]||0;
+          const hasActual=actual>0;
+          // Status and color based on actual if we have it, otherwise planned
+          const sv=hasActual?actual:planned;
           const pv=Math.min(sv/lm.mrv,1);
+          const plannedPv=Math.min(planned/lm.mrv,1);
           const mc=MC[m]||"#888";
           const sl=sv<lm.mev?"BELOW MEV":sv<=lm.mav?"IN RANGE":sv<lm.mrv?"HIGH VOL":"AT MRV";
           const fc=sv>=lm.mrv?C.red:sv>lm.mav?C.accent:sv>=lm.mev?C.green:C.muted+"66";
           const sc=fc===C.muted+"66"?C.muted:fc;
-          // Count training days per week for this muscle (#9)
           const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===m)?1:0),0);
+          // Have all planned sessions for this muscle been done this week?
+          const muscleSessionsDone=program.filter(d=>d.exercises.some(e=>e.muscle===m)).every(d=>completedDayNames.has(d.name));
           return(
             <div key={m} style={{marginBottom:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
@@ -1798,19 +1930,36 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
                   <span style={{fontSize:9,color:C.muted,background:C.card2,borderRadius:3,padding:"1px 5px"}}>{freq}×/wk</span>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:12,fontWeight:700}}>{sv}<span style={{fontSize:10,color:C.muted,fontWeight:400}}>/{lm.mrv}</span></span>
-                  <Tag label={sl} color={sc}/>
+                  <span style={{fontSize:12,fontWeight:700,color:hasActual?C.text:C.muted}}>
+                    {hasActual?(
+                      <>{actual}<span style={{fontSize:10,fontWeight:400,color:C.muted}}>/{planned} planned</span></>
+                    ):(
+                      <>{planned}<span style={{fontSize:10,fontWeight:400,color:C.muted}}>/{lm.mrv} mrv</span></>
+                    )}
+                  </span>
+                  <Tag label={hasActual?sl:(muscleSessionsDone?"DONE":"PLANNED")} color={hasActual?sc:C.muted}/>
                 </div>
               </div>
               <div style={{position:"relative",height:8,background:C.border2,borderRadius:4}}>
+                {/* Landmark tick marks */}
                 <div style={{position:"absolute",left:(lm.mv/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff22",borderRadius:1,zIndex:3}}/>
                 <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff33",borderRadius:1,zIndex:3}}/>
                 <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff33",borderRadius:1,zIndex:3}}/>
-                <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:fc,borderRadius:4,zIndex:2}}/>
+                {/* Planned bar — ghost/muted, shown behind actual */}
+                {hasActual?(
+                  <div style={{position:"absolute",top:0,left:0,height:"100%",width:(plannedPv*100)+"%",background:C.border2,borderRadius:4,zIndex:1,border:"1px solid "+C.border2,boxSizing:"border-box"}}/>
+                ):null}
+                {/* Actual bar — solid, on top */}
+                <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:hasActual?fc:C.muted+"44",borderRadius:4,zIndex:2,transition:"width .4s"}}/>
               </div>
               <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:C.muted}}>
                 <span>MV {lm.mv}</span><span>MEV {lm.mev}</span><span>MAV {lm.mav}</span><span>MRV {lm.mrv}</span>
               </div>
+              {hasActual&&actual<planned&&!muscleSessionsDone?(
+                <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
+                  <IcoWarn sz={9} col={C.muted2}/> {planned-actual} sets still to go this week
+                </div>
+              ):null}
               {freq===1&&sv>=lm.mev?(
                 <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
                   <IcoWarn sz={9} col={C.muted2}/> Training 2×/week improves SRA for this muscle
@@ -1884,8 +2033,9 @@ function HistoryTab({onGlossary,liftHistory}){
   const prMap={};
   liftHistory.forEach(e=>{
     if(!e.isDeload){
-      if(!prMap[e.exercise]||e.topSetWeight>prMap[e.exercise].weight){
-        prMap[e.exercise]={name:e.exercise,weight:e.topSetWeight,date:e.date,muscle:e.muscle};
+      const est=e1rm(e.topSetWeight,e.topSetReps||1);
+      if(!prMap[e.exercise]||est>prMap[e.exercise].e1rmVal){
+        prMap[e.exercise]={name:e.exercise,weight:e.topSetWeight,reps:e.topSetReps||1,e1rmVal:est,date:e.date,muscle:e.muscle};
       }
     }
   });
@@ -2013,7 +2163,10 @@ function HistoryTab({onGlossary,liftHistory}){
             </div>
             <div style={{display:"flex",alignItems:"center",gap:6}}>
               <IcoTrophy sz={15} col={C.accent}/>
-              <span style={{fontSize:14,fontWeight:800,color:C.accent}}>{p.weight} lbs</span>
+              <div style={{textAlign:"right"}}>
+                <span style={{fontSize:14,fontWeight:800,color:C.accent}}>{p.weight} lbs</span>
+                {p.reps>1?<div style={{fontSize:10,color:C.muted}}>×{p.reps} reps</div>:null}
+              </div>
             </div>
           </div>
         ))}
@@ -2024,8 +2177,11 @@ function HistoryTab({onGlossary,liftHistory}){
 
 function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,muscles}){
   const C=useContext(ThemeCtx);
-  const [sub,setSub]=useState("meso");
-  if(!meso||!program||program.length===0){
+  const hasData=liftHistory&&liftHistory.length>0;
+  const hasMeso=meso&&program&&program.length>0;
+  // Default to history tab if no active meso but data exists
+  const [sub,setSub]=useState(hasMeso?"meso":hasData?"history":"meso");
+  if(!hasMeso&&!hasData){
     return(
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 24px",textAlign:"center"}}>
         <div style={{color:C.muted,fontSize:13,lineHeight:1.7}}>Build your first mesocycle to start tracking progress.</div>
@@ -2035,13 +2191,14 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{display:"flex",background:C.surf,borderBottom:"1px solid "+C.border,flexShrink:0}}>
-        {[{id:"meso",l:"This Meso"},{id:"history",l:"History"}].map(t=>(
-          <button key={t.id} onClick={()=>setSub(t.id)} style={{flex:1,padding:"11px 0",background:"none",border:"none",borderBottom:"2px solid "+(sub===t.id?C.accent:"transparent"),color:sub===t.id?C.accent:C.muted,fontSize:13,fontWeight:sub===t.id?700:400,cursor:"pointer",transition:"all .15s"}}>{t.l}</button>
+        {[{id:"meso",l:"This Meso",disabled:!hasMeso},{id:"history",l:"History"}].map(t=>(
+          <button key={t.id} onClick={()=>!t.disabled&&setSub(t.id)} style={{flex:1,padding:"11px 0",background:"none",border:"none",borderBottom:"2px solid "+(sub===t.id?C.accent:"transparent"),color:sub===t.id?C.accent:t.disabled?C.muted+"44":C.muted,fontSize:13,fontWeight:sub===t.id?700:400,cursor:t.disabled?"default":"pointer",transition:"all .15s"}}>{t.l}</button>
         ))}
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{padding:"14px 14px 100px"}}>
-          {sub==="meso"?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles}/>:null}
+          {sub==="meso"&&hasMeso?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles}/>:null}
+          {sub==="meso"&&!hasMeso?<div style={{padding:"40px 0",textAlign:"center",color:C.muted,fontSize:13,lineHeight:1.7}}>No active mesocycle. Your lift history is in the History tab.</div>:null}
           {sub==="history"?<HistoryTab onGlossary={onGlossary} liftHistory={liftHistory}/>:null}
         </div>
       </div>
@@ -2051,6 +2208,7 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
 
 function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary}){
   const C=useContext(ThemeCtx);
+  const P=useContext(ProfileCtx);
   const [expDay,setExpDay]=useState(null);
   const [confirmNew,setConfirmNew]=useState(false);
   const [picker,setPicker]=useState(null);
@@ -2072,7 +2230,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
         {confirmNew?(
           <div style={{background:C.card2,border:"1px solid "+C.accent+"44",borderRadius:10,padding:"14px",marginBottom:12}}>
             <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Start a new mesocycle?</div>
-            <div style={{fontSize:11,color:C.muted2,marginBottom:12}}>Your current meso will be saved to history.</div>
+            <div style={{fontSize:11,color:C.muted2,marginBottom:12}}>Your logged sessions are preserved. Your current program will be replaced.</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setConfirmNew(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border,borderRadius:8,color:C.muted2,cursor:"pointer",fontSize:12}}>Cancel</button>
               <button onClick={()=>{setConfirmNew(false);onNewMeso();}} style={{flex:2,padding:"9px",background:C.accent,border:"none",borderRadius:8,color:"#000",cursor:"pointer",fontSize:12,fontWeight:700}}>Build New Meso</button>
@@ -2090,11 +2248,11 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
             {Array(meso.totalWeeks).fill(null).map((_,i)=>(
               <div key={i} style={{flex:1,background:i===meso.week-1?C.accent+"20":C.surf,border:"1px solid "+(i===meso.week-1?C.accent:C.border),borderRadius:8,padding:"10px 4px",textAlign:"center"}}>
                 <div style={{fontSize:12,fontWeight:800,color:i===meso.week-1?C.accent:C.muted2}}>{i===meso.totalWeeks-1?"DL":"W"+(i+1)}</div>
-                <div style={{fontSize:9,color:C.muted,marginTop:3}}>RIR {defaultRIR(i+1,meso.totalWeeks)}</div>
+                <div style={{fontSize:9,color:C.muted,marginTop:3}}>RIR {defaultRIR(i+1,meso.totalWeeks,P?.experience||"intermediate")}</div>
               </div>
             ))}
           </div>
-          <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Sets ramp toward MRV each week. Deload cuts volume 50%, RIR 4.</div>
+          <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Sets ramp from MEV toward MRV each week. Deload targets maintenance volume (MV), RIR 4.</div>
         </Card>
         <SLbl>Training Days</SLbl>
         {program.map((day,di)=>(
@@ -2153,11 +2311,12 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
   const [mode,setMode]=useState(null);
   const [bName,setBName]=useState("");
   const [bWeeks,setBWeeks]=useState(5);
-  const [repRange,setRepRange]=useState("hypertrophy"); // hypertrophy|strength-hyp|power-hyp
   const [bDays,setBDays]=useState([]);
   const [qSplit,setQSplit]=useState("Push/Pull/Legs");
   const [qDays,setQDays]=useState(3);
   const [qPriority,setQPriority]=useState(null);
+  const [availDays,setAvailDays]=useState(["Monday","Tuesday","Wednesday","Thursday","Friday"]);
+  const [repRange,setRepRange]=useState(meso?.repRange||"hypertrophy");
   const [picker,setPicker]=useState(null);
 
   const needsPriority=splitNeedsPriority(qSplit,qDays);
@@ -2167,12 +2326,18 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
     const next=WEEK_DAYS.find(d=>!used.includes(d))||"Monday";
     setBDays(p=>[...p,{id:uid("d"),day:next,name:"",exercises:[]}]);
   };
+  const dupDays=bDays.filter((d,i)=>bDays.findIndex(x=>x.day===d.day)!==i).map(d=>d.day);
   const rmDay=id=>setBDays(p=>p.filter(d=>d.id!==id));
   const updDay=(id,f,v)=>setBDays(p=>p.map(d=>d.id!==id?d:{...d,[f]:v}));
   const addEx=(dayId,ex)=>setBDays(p=>p.map(d=>{
     if(d.id!==dayId) return d;
     if(d.exercises.find(e=>e.name===ex.name)) return d;
-    const nx={...ex,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
+    // Calculate MEV-based set counts using profile — consistent with Quick Build
+    const lm=muscles[ex.muscle];
+    const mevS=lm?Math.max(2,Math.min(5,Math.round(lm.mev/2))):3;
+    const mrvS=lm?Math.max(mevS+1,Math.min(mevS+3,Math.round(lm.mav/2))):mevS+2;
+    const mvS=lm?Math.max(1,Math.round(lm.mv/2)):Math.ceil(mevS/2);
+    const nx={...ex,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets:mevS,mrvSets:mrvS,mvSets:mvS,sets:Array(mevS).fill(null).map(()=>newSet("","normal"))};
     return {...d,exercises:[...d.exercises,nx]};
   }));
   const rmEx=(dayId,exName)=>setBDays(p=>p.map(d=>d.id!==dayId?d:{...d,exercises:d.exercises.filter(e=>e.name!==exName)}));
@@ -2187,7 +2352,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
   }));
 
   const canLaunch=bName.trim()&&bDays.length>0&&bDays.every(d=>d.name.trim()&&d.exercises.length>0);
-  const doLaunch=()=>onLaunch({label:bName.trim(),week:1,totalWeeks:bWeeks},bDays.map(d=>({...d,name:d.name.trim()})));
+  const doLaunch=()=>onLaunch({label:bName.trim(),week:1,totalWeeks:bWeeks,repRange:repRange||"hypertrophy"},bDays.map(d=>({...d,name:d.name.trim()})));
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -2242,64 +2407,117 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
               {mode==="quick"?(
                 <div>
                   <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
+
                   <div style={{marginBottom:16}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Meso name</div>
                     <input value={bName} onChange={e=>setBName(e.target.value)} placeholder="e.g. Spring Block" style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"12px 14px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
                   </div>
+
+                  <div style={{marginBottom:16}}>
+                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Days you can train</div>
+                    <div style={{display:"flex",gap:5}}>
+                      {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((short,i)=>{
+                        const full=WEEK_DAYS[i];
+                        const on=availDays.includes(full);
+                        return(
+                          <button key={full} onClick={()=>setAvailDays(p=>on&&p.length>2?p.filter(d=>d!==full):[...p.filter(d=>d!==full),full].sort((a,b)=>WEEK_DAYS.indexOf(a)-WEEK_DAYS.indexOf(b)))} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid "+(on?C.accent:C.border),background:on?C.accent+"18":C.card,color:on?C.accent:C.muted,fontSize:11,fontWeight:on?700:400,cursor:"pointer",transition:"all .12s"}}>{short}</button>
+                        );
+                      })}
+                    </div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>The app will space sessions optimally across your available days.</div>
+                  </div>
+
                   <div style={{marginBottom:16}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Total weeks (incl. deload)</div>
                     <div style={{display:"flex",gap:8}}>
-                      {[4,5,6].map(w=>(
+                      {[3,4,5,6].map(w=>(
                         <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"12px 0",borderRadius:9,border:"1px solid "+(bWeeks===w?C.accent:C.border),background:bWeeks===w?C.accent+"15":C.card,color:bWeeks===w?C.accent:C.muted2,fontWeight:bWeeks===w?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>
-                          {w}<div style={{fontSize:9,color:bWeeks===w?C.accent+"aa":C.muted,marginTop:2,letterSpacing:1}}>WKS</div>
+                          {w}<div style={{fontSize:9,color:bWeeks===w?C.accent+"aa":C.muted,marginTop:2,letterSpacing:1}}>{w===5?"★ REC":"WKS"}</div>
                         </button>
                       ))}
                     </div>
+                    {bWeeks===3?<div style={{fontSize:10,color:C.muted2,marginTop:6}}>2 working weeks + 1 deload. Good for specialization or returning lifters.</div>:null}
                   </div>
+
                   <div style={{marginBottom:16}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Training split</div>
                     {[
-                      {id:"Push/Pull/Legs",sub:"Classic push, pull, legs separation — 3 to 6 days"},
-                      {id:"Hybrid Split",sub:"Combine muscle groups to hit everything in 2 to 4 days — great for busy schedules"},
-                      {id:"Upper/Lower",sub:"Upper body and lower body alternating — 2 to 6 days"},
-                      {id:"Full Body",sub:"Hit everything every session — 2 to 6 days"},
-                      {id:"Bro Split",sub:"One muscle group per day — 3 to 6 days"},
+                      {id:"Upper/Lower",     sub:"Best for most — every muscle 2x/week. 4 days recommended."},
+                      {id:"Push/Pull/Legs",  sub:"Classic PPL — great on 6 days. Needs 3+ days."},
+                      {id:"Full Body",       sub:"Hit everything every session — best for beginners and 3 days."},
+                      {id:"Hybrid Split",    sub:"Push+Legs / Pull+Legs combos — ideal for 3–4 days."},
+                      {id:"Bro Split",       sub:"One muscle per day — each muscle trains once per week."},
                     ].map(s=>(
                       <button key={s.id} onClick={()=>{
                         setQSplit(s.id);setQPriority(null);
                         const defaults={"Push/Pull/Legs":3,"Upper/Lower":4,"Full Body":3,"Bro Split":5,"Hybrid Split":4};
-                        setQDays(defaults[s.id]||3);
+                        setQDays(Math.min(defaults[s.id]||3,availDays.length));
                       }} style={{width:"100%",padding:"11px 14px",marginBottom:6,borderRadius:9,border:"1px solid "+(qSplit===s.id?C.accent:C.border),background:qSplit===s.id?C.accent+"12":C.card,cursor:"pointer",textAlign:"left",transition:"all .15s",display:"block"}}>
                         <div style={{fontSize:13,fontWeight:qSplit===s.id?700:400,color:qSplit===s.id?C.accent:C.text,marginBottom:2}}>{s.id}</div>
                         <div style={{fontSize:11,color:C.muted2,lineHeight:1.3}}>{s.sub}</div>
                       </button>
                     ))}
                   </div>
-                  <div style={{marginBottom:needsPriority?12:24}}>
+
+                  <div style={{marginBottom:needsPriority?12:16}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Days per week</div>
                     <div style={{display:"flex",gap:6}}>
-                      {(qSplit==="Push/Pull/Legs"?[3,4,5,6]:qSplit==="Bro Split"?[3,4,5,6]:qSplit==="Hybrid Split"?[2,3,4,5]:[2,3,4,5,6]).map(d=>(
-                        <button key={d} onClick={()=>{setQDays(d);setQPriority(null);}} style={{flex:1,padding:"11px 0",borderRadius:9,border:"1px solid "+(qDays===d?C.accent:C.border),background:qDays===d?C.accent+"15":C.card,color:qDays===d?C.accent:C.muted2,fontWeight:qDays===d?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>{d}</button>
-                      ))}
+                      {(qSplit==="Push/Pull/Legs"?[3,4,5,6]:qSplit==="Bro Split"?[3,4,5,6]:qSplit==="Hybrid Split"?[2,3,4,5]:[2,3,4,5,6]).map(d=>{
+                        const tooMany=d>availDays.length;
+                        return(
+                          <button key={d} onClick={()=>{if(!tooMany){setQDays(d);setQPriority(null);}}} style={{flex:1,padding:"11px 0",borderRadius:9,border:"1px solid "+(qDays===d?C.accent:tooMany?C.border:C.border),background:qDays===d?C.accent+"15":C.card,color:qDays===d?C.accent:tooMany?C.muted+"66":C.muted2,fontWeight:qDays===d?700:400,fontSize:15,cursor:tooMany?"default":"pointer",transition:"all .15s",opacity:tooMany?0.35:1}}>{d}</button>
+                        );
+                      })}
                     </div>
+                    {qDays>availDays.length?<div style={{fontSize:10,color:C.red,marginTop:6}}>Select more available days or reduce sessions per week.</div>:null}
                   </div>
+
+                  {(()=>{
+                    const warnings=[];
+                    if(qSplit==="Bro Split") warnings.push("Each muscle trains once per week. RP recommends 2× for better growth — consider Upper/Lower instead.");
+                    if(qSplit==="Push/Pull/Legs"&&qDays===4) warnings.push("4-day PPL means "+(qPriority?["Push","Pull","Legs"].filter(g=>g!==qPriority).join(" and "):two groups)+" only train once this week. 6 days gives every group 2×.");
+                    if(qSplit==="Push/Pull/Legs"&&qDays===5){
+                      const once=qPriority==="Push"?"Pull":qPriority==="Pull"?"Push":qPriority==="Legs"?"Pull":"Legs";
+                      warnings.push("5-day PPL: "+once+" will only train once this week. 6 days is optimal for PPL.");
+                    }
+                    if((qSplit==="Upper/Lower"||qSplit==="Full Body")&&qDays===2) warnings.push("2 days is the minimum — very low weekly volume. 4 days is the sweet spot.");
+                    if(availDays.length===qDays) warnings.push("Training every available day leaves no buffer. Consider one day off for recovery.");
+                    return warnings.map((w,i)=>(
+                      <div key={i} style={{display:"flex",alignItems:"flex-start",gap:7,background:C.orange+"12",border:"1px solid "+C.orange+"33",borderRadius:8,padding:"9px 11px",marginBottom:10,fontSize:11,color:C.muted2,lineHeight:1.5}}>
+                        <IcoWarn sz={12} col={C.orange}/><span>{w}</span>
+                      </div>
+                    ));
+                  })()}
+
                   {needsPriority?(
-                    <div style={{marginBottom:24,padding:"14px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10}}>
-                      <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group do you want to prioritize?</div>
+                    <div style={{marginBottom:16,padding:"14px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10}}>
+                      <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group to prioritize?</div>
                       <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>
-                        {qDays===4?"With 4 days on PPL, one group trains twice and two train once. Which matters most this block?":"With 5 days, two groups get a double session. Which one should definitely be included?"}
+                        {qDays===4?"4-day PPL: one group trains twice, two only train once.":"5-day PPL: two groups train twice, one only trains once."}
                       </div>
                       <div style={{display:"flex",gap:8}}>
                         {["Push","Pull","Legs"].map(opt=>(
                           <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
                         ))}
                       </div>
-                      {!qPriority?<div style={{fontSize:10,color:C.accent,marginTop:10,display:"flex",alignItems:"center",gap:5}}>
-                        <IcoWarn sz={10} col={C.accent}/> Select one to continue
-                      </div>:null}
+                      {!qPriority?<div style={{fontSize:10,color:C.accent,marginTop:10,display:"flex",alignItems:"center",gap:5}}><IcoWarn sz={10} col={C.accent}/> Select one to continue</div>:null}
                     </div>
                   ):null}
-                  <button onClick={()=>{setBDays(autoGen(qSplit,qDays,library,qPriority,muscles,P.experience||"intermediate"));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority))?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority))?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority))?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
+
+                  <div style={{marginBottom:24}}>
+                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Rep range focus</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[{id:"hypertrophy",l:"Hypertrophy",sub:"8–20 reps"},{id:"strength-hyp",l:"Strength-Hyp",sub:"4–12 reps"},{id:"power-hyp",l:"Power-Hyp",sub:"3–8 reps"}].map(opt=>(
+                        <button key={opt.id} onClick={()=>setRepRange(opt.id)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(repRange===opt.id?C.accent:C.border),background:repRange===opt.id?C.accent+"15":C.card,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+                          <div style={{fontSize:11,fontWeight:repRange===opt.id?700:500,color:repRange===opt.id?C.accent:C.muted2}}>{opt.l}</div>
+                          <div style={{fontSize:9,color:C.muted,marginTop:2}}>{opt.sub}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>RP recommends rotating rep ranges across mesos for long-term development.</div>
+                  </div>
+
+                  <button onClick={()=>{setBDays(autoGen(qSplit,qDays,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)||availDays.length<2||qDays>availDays.length} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2&&qDays<=availDays.length)?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2&&qDays<=availDays.length)?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2&&qDays<=availDays.length)?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
@@ -2312,20 +2530,9 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   <div style={{marginBottom:24}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:10,fontWeight:600}}>Total weeks (including deload)</div>
                     <div style={{display:"flex",gap:8}}>
-                      {[4,5,6].map(w=>(
+                      {[3,4,5,6].map(w=>(
                         <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"14px 0",borderRadius:9,border:"1px solid "+(bWeeks===w?C.accent:C.border),background:bWeeks===w?C.accent+"15":C.card,color:bWeeks===w?C.accent:C.muted2,fontWeight:bWeeks===w?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>
                           {w}<div style={{fontSize:9,color:bWeeks===w?C.accent+"aa":C.muted,marginTop:3,letterSpacing:1}}>WEEKS</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{marginBottom:24}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:10,fontWeight:600}}>Rep range focus</div>
-                    <div style={{display:"flex",gap:8}}>
-                      {[{id:"hypertrophy",l:"Hypertrophy",sub:"10–20"},{id:"strength-hyp",l:"Strength-Hyp",sub:"6–12"},{id:"power-hyp",l:"Power-Hyp",sub:"4–8"}].map(opt=>(
-                        <button key={opt.id} onClick={()=>setRepRange(opt.id)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(repRange===opt.id?C.accent:C.border),background:repRange===opt.id?C.accent+"15":C.card,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
-                          <div style={{fontSize:11,fontWeight:repRange===opt.id?700:500,color:repRange===opt.id?C.accent:C.muted2}}>{opt.l}</div>
-                          <div style={{fontSize:9,color:C.muted,marginTop:2,letterSpacing:0.5}}>{opt.sub} reps</div>
                         </button>
                       ))}
                     </div>
@@ -2338,6 +2545,11 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
           {step===1?(
             <div>
               <div style={{fontSize:11,color:C.muted,marginBottom:16,lineHeight:1.6}}>Add your training days and build out each session.</div>
+              {dupDays.length>0?(
+                <div style={{display:"flex",alignItems:"flex-start",gap:7,background:C.orange+"12",border:"1px solid "+C.orange+"33",borderRadius:8,padding:"9px 11px",marginBottom:12,fontSize:11,color:C.muted2,lineHeight:1.5}}>
+                  <IcoWarn sz={12} col={C.orange}/><span>Multiple sessions on the same day ({dupDays.join(", ")}). Each day can only have one session.</span>
+                </div>
+              ):null}
               {bDays.map(day=>(
                 <div key={day.id} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:12,marginBottom:10,overflow:"hidden"}}>
                   <div style={{padding:"12px 14px",borderBottom:"1px solid "+C.border}}>
@@ -2384,12 +2596,12 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
               <div style={{fontSize:11,color:C.muted2,marginBottom:16,lineHeight:1.6}}>Review your program. Swap or remove any exercises before launching. Weights start blank — Week 1 is your baseline.</div>
               <Card>
                 <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{bName}</div>
-                <div style={{fontSize:11,color:C.muted2}}>{bWeeks} weeks · Week {bWeeks} deload</div>
+                <div style={{fontSize:11,color:C.muted2}}>{bWeeks} weeks · Week {bWeeks} deload · {repRange==="strength-hyp"?"Strength-Hyp":repRange==="power-hyp"?"Power-Hyp":"Hypertrophy"}</div>
                 <div style={{display:"flex",gap:6,marginTop:10}}>
                   {Array(bWeeks).fill(null).map((_,i)=>(
                     <div key={i} style={{flex:1,background:i===0?C.accent+"20":C.surf,border:"1px solid "+(i===0?C.accent:C.border),borderRadius:6,padding:"8px 4px",textAlign:"center"}}>
                       <div style={{fontSize:11,fontWeight:700,color:i===0?C.accent:C.muted2}}>{i===bWeeks-1?"DL":"W"+(i+1)}</div>
-                      <div style={{fontSize:9,color:C.muted,marginTop:2}}>RIR {defaultRIR(i+1,bWeeks)}</div>
+                      <div style={{fontSize:9,color:C.muted,marginTop:2}}>RIR {defaultRIR(i+1,bWeeks,P.experience||"intermediate")}</div>
                     </div>
                   ))}
                 </div>
@@ -2405,7 +2617,12 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                       <div style={{width:7,height:7,borderRadius:"50%",background:MC[ex.muscle]||"#888",flexShrink:0}}/>
                       <div style={{flex:1}}>
                         <div style={{fontSize:13,fontWeight:600}}>{ex.name}</div>
-                        <div style={{fontSize:11,color:C.muted}}>{ex.muscle} · {ex.sets.filter(s=>s.type!=="drop").length} sets</div>
+                        <div style={{fontSize:11,color:C.muted}}>{ex.muscle}</div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <button onClick={()=>chgSets(day.id,ex.name,-1)} style={{width:22,height:22,borderRadius:5,background:C.surf,border:"1px solid "+C.border,color:C.muted2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>-</button>
+                        <span style={{fontSize:12,fontWeight:700,minWidth:20,textAlign:"center"}}>{ex.sets.filter(s=>s.type!=="drop").length}</span>
+                        <button onClick={()=>chgSets(day.id,ex.name,1)} style={{width:22,height:22,borderRadius:5,background:C.surf,border:"1px solid "+C.border,color:C.muted2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>+</button>
                       </div>
                       <button onClick={()=>setPicker(day.id+"__swap__"+ex.name)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"4px 9px",color:C.muted2,fontSize:11,cursor:"pointer"}}>Swap</button>
                       {day.exercises.length>1?(
@@ -2425,7 +2642,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                 Week 1 is your baseline. Start conservative — RIR 3 or higher. Log your RIR and the app takes over from Week 2.
               </div>
               <div style={{display:"flex",gap:8,marginTop:4}}>
-                <button onClick={()=>setStep(mode==="quick"?0:1)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:10,color:C.muted2,cursor:"pointer",fontSize:13}}>Back</button>
+                <button onClick={()=>{if(mode==="quick"){setBDays(autoGen(qSplit,qDays,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}else setStep(1);}} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:10,color:C.muted2,cursor:"pointer",fontSize:13}}>Regenerate</button>
                 <button onClick={doLaunch} disabled={!canLaunch} style={{flex:2,padding:"13px",background:canLaunch?C.accent:C.card,color:canLaunch?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:canLaunch?"pointer":"default",transition:"all .2s"}}>LAUNCH MESO</button>
               </div>
             </div>
@@ -2622,6 +2839,7 @@ function OnboardingScreen({onComplete}){
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}button,input{font-family:'DM Sans',sans-serif}`}</style>
         <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"14px 20px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <button onClick={()=>setPhase("intro")} style={{background:"none",border:"none",color:C.muted2,fontSize:13,cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:5}}>← Back</button>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,letterSpacing:2,color:C.text}}>HOW IT WORKS</div>
           <button onClick={()=>setPhase("form")} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"6px 14px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Skip →</button>
         </div>
@@ -2651,7 +2869,10 @@ function OnboardingScreen({onComplete}){
       <div style={{marginBottom:28}}>
         <input ref={nameRef} value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&name.trim()) setStep(1);}} placeholder="Your name" style={{width:"100%",background:C.card2,border:"1px solid "+C.border2,borderRadius:10,padding:"14px 16px",color:C.text,fontSize:16,outline:"none",boxSizing:"border-box"}}/>
       </div>
-      <BtnNext onClick={()=>setStep(1)} disabled={!name.trim()} label="CONTINUE"/>
+      <div style={{display:"flex",gap:10}}>
+        <BtnBack onClick={()=>setPhase("intro")}/>
+        <BtnNext onClick={()=>setStep(1)} disabled={!name.trim()} label="CONTINUE"/>
+      </div>
     </div>,
 
     // Step 1: Biological sex
@@ -2886,7 +3107,7 @@ export default function App(){
     }
   };
 
-  const handleStartNextMeso=(goToPlanner)=>{
+  const handleStartNextMeso=(goToPlanner,suggestedRepRange)=>{
     const nextNum=mesoCount+1;
     const exp=profile?.experience||"intermediate";
     const newProgram=program.map(day=>({
@@ -2895,15 +3116,13 @@ export default function App(){
         const peak=findPeakWeight(liftHistory,ex.name,mesoCount);
         const isIso=getProfile(ex.name).type==="isolation";
         const w1=peak?rollbackWeight(peak,exp,isIso):(ex.lastWeight||"");
-        // Restore MEV set count for Week 1 of next meso
         const mev=ex.mevSets||Math.max(2,ex.sets.filter(s=>s.type!=="drop").length);
         const fresh=Array(mev).fill(null).map(()=>newSet(String(w1),"normal"));
         const drops=ex.sets.filter(s=>s.type==="drop").map(()=>newSet(String(snap(parseFloat(w1)*0.6)),"drop"));
         return {...ex,lastScheme:"",lastWeight:String(w1),lastRIR:null,lastReps:"",sets:[...fresh,...drops]};
       }),
     }));
-    // Inherit previous meso totalWeeks — don't arbitrarily reset to 5 (#5)
-    setMeso(m=>({...m,label:"Meso "+nextNum,week:1,totalWeeks:m.totalWeeks}));
+    setMeso(m=>({...m,label:"Meso "+nextNum,week:1,totalWeeks:m.totalWeeks,repRange:suggestedRepRange||nextRepRange(m.repRange),deloadStyle:null}));
     setProgram(newProgram);
     setMesoCount(nextNum);
     setMesoComplete(null);
@@ -2945,6 +3164,10 @@ export default function App(){
   const [confirmStart,setConfirmStart]=useState(null); // stores the workout to start after confirmation
   const [showProfile,setShowProfile]=useState(false);
   const [showResetConfirm,setShowResetConfirm]=useState(false);
+  const [toast,setToast]=useState(null); // {msg, ok}
+  const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3000);};
+  const [profileDraft,setProfileDraft]=useState(null); // local edits before save
+  const [profileUpdatePrompt,setProfileUpdatePrompt]=useState(null); // {oldProfile, newProfile}
   const [editingSession,setEditingSession]=useState(null);
 
   const handleEditSession=(note,exs)=>{
@@ -2988,6 +3211,10 @@ export default function App(){
     setMeso(m=>({...m,totalWeeks:m.totalWeeks+1}));
   };
 
+  const handleSetDeloadStyle=(style)=>{
+    setMeso(m=>({...m,deloadStyle:style}));
+  };
+
   const handleExport=()=>{
     try {
       const data=JSON.stringify({profile,meso,program,history,liftHistory,mesoCount,library,isDark,exportedAt:new Date().toISOString()},null,2);
@@ -2998,7 +3225,7 @@ export default function App(){
       a.download=`hyper-backup-${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}).replace(/[^a-z0-9]/gi,"-")}.json`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch(e){alert("Export failed.");}
+    } catch(e){showToast("Export failed.",false);}
   };
 
   const handleImport=(file)=>{
@@ -3016,8 +3243,8 @@ export default function App(){
         if(s.isDark!==undefined) setIsDark(s.isDark);
         if(s.library&&s.library.length>0) setLibrary(s.library);
         setShowProfile(false);
-        alert("Data imported successfully.");
-      } catch(err){alert("Import failed — invalid file.");}
+        showToast("Data imported successfully.");
+      } catch(err){showToast("Import failed — invalid file.",false);}
     };
     reader.readAsText(file);
   };
@@ -3025,6 +3252,55 @@ export default function App(){
   const handleOnboarding=(prof)=>{
     setProfile(prof);
     setTab("plan");
+  };
+
+  // Apply updated profile's volume landmarks to all exercises in the current program
+  const handleApplyProfileToProgram=(newProf)=>{
+    const newMuscles=getMuscles(newProf.experience,newProf.sex);
+    setProgram(p=>p.map(day=>({
+      ...day,
+      exercises:day.exercises.map(ex=>{
+        const lm=newMuscles[ex.muscle];
+        if(!lm) return ex;
+        // Recalculate set counts for this exercise based on new MEV/MRV
+        // Keep same ratio of exercises per muscle per day
+        const sameMuscleSiblings=day.exercises.filter(e=>e.muscle===ex.muscle).length||1;
+        const mevSets=Math.max(2,Math.min(5,Math.round(lm.mev/sameMuscleSiblings)));
+        const mrvSets=Math.max(mevSets+1,Math.min(mevSets+3,Math.round(lm.mav/sameMuscleSiblings)));
+        const mvSets=Math.max(1,Math.round(lm.mv/sameMuscleSiblings));
+        // Resize sets array to new MEV count, preserving any logged weight
+        const current=ex.sets.filter(s=>s.type!=="drop");
+        let newSets;
+        if(mevSets>current.length){
+          const last=current[current.length-1];
+          const extras=Array(mevSets-current.length).fill(null).map(()=>newSet(last?last.weight:"","normal"));
+          newSets=[...current,...extras];
+        } else {
+          newSets=current.slice(0,mevSets);
+        }
+        const drops=ex.sets.filter(s=>s.type==="drop");
+        return {...ex,mevSets,mrvSets,mvSets,sets:[...newSets,...drops]};
+      })
+    })));
+  };
+
+  const handleProfileSave=()=>{
+    if(!profileDraft) return;
+    const experienceChanged=profileDraft.experience!==profile.experience;
+    const sexChanged=profileDraft.sex!==profile.sex;
+    // Always save the draft first
+    setProfile(profileDraft);
+    setShowProfile(false);
+    setShowResetConfirm(false);
+    setProfileDraft(null);
+    // Sex change: apply to program silently (it's a correction, not a training decision)
+    if(sexChanged&&program&&program.length>0){
+      handleApplyProfileToProgram(profileDraft);
+    }
+    // Experience change: ask the user — it's a meaningful training decision
+    if(experienceChanged&&program&&program.length>0){
+      setProfileUpdatePrompt({oldProfile:profile,newProfile:profileDraft});
+    }
   };
 
   const handleReset=async()=>{
@@ -3068,22 +3344,30 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s"}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:env(safe-area-inset-bottom);padding-bottom:max(env(safe-area-inset-bottom),0px)}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {meso?<div style={{fontSize:10,background:C.card,border:"1px solid "+C.border2,borderRadius:5,padding:"4px 9px",color:C.muted2,transition:"background .25s"}}>{meso.label} - WK {meso.week}</div>:null}
-          <div onClick={()=>setShowProfile(true)} style={{width:28,height:28,borderRadius:"50%",background:C.accent+"22",border:"1px solid "+C.accent+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:C.accent,cursor:"pointer"}}>{initLetter}</div>
+          <div onClick={()=>{setProfileDraft({...profile});setShowProfile(true);}} style={{width:28,height:28,borderRadius:"50%",background:C.accent+"22",border:"1px solid "+C.accent+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:C.accent,cursor:"pointer"}}>{initLetter}</div>
         </div>
       </div>
-      {showProfile?(
-        <div style={{position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>{setShowProfile(false);setShowResetConfirm(false);}}>
+      {toast?(
+        <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:900,background:toast.ok?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px #0006",whiteSpace:"nowrap",pointerEvents:"none",transition:"opacity .3s"}}>
+          {toast.msg}
+        </div>
+      ):null}
+      {showProfile&&profileDraft?(
+        <div style={{position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>{setShowProfile(false);setShowResetConfirm(false);setProfileDraft(null);}}>
           <div style={{position:"absolute",inset:0,background:"#000a"}}/>
           <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"20px 16px 16px",flexShrink:0}}>
               <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:1}}>PROFILE</div>
-              <button onClick={()=>{setShowProfile(false);setShowResetConfirm(false);}} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:8,padding:"6px 12px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Done</button>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>{setShowProfile(false);setShowResetConfirm(false);setProfileDraft(null);}} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"6px 12px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Cancel</button>
+                <button onClick={handleProfileSave} style={{background:C.accent,border:"none",borderRadius:8,padding:"6px 14px",color:"#000",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save</button>
+              </div>
             </div>
             <div style={{flex:1,overflowY:"auto",padding:"0 16px 40px"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",marginBottom:8,borderBottom:"1px solid "+C.border}}>
@@ -3097,25 +3381,18 @@ export default function App(){
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Name</div>
-              <input value={profile.name||""} onChange={e=>setProfile(p=>({...p,name:e.target.value}))} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+              <input value={profileDraft.name||""} onChange={e=>setProfileDraft(p=>({...p,name:e.target.value}))} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Bodyweight (lbs)</div>
-              <input type="number" inputMode="decimal" value={profile.bodyweight||""} onChange={e=>setProfile(p=>({...p,bodyweight:parseFloat(e.target.value)||0}))} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+              <input type="number" inputMode="decimal" value={profileDraft.bodyweight||""} onChange={e=>setProfileDraft(p=>({...p,bodyweight:parseFloat(e.target.value)||0}))} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
             </div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Biological Sex</div>
-              <div style={{display:"flex",gap:8}}>
-                {["male","female"].map(s=>(
-                  <button key={s} onClick={()=>setProfile(p=>({...p,sex:s}))} style={{flex:1,padding:"10px",borderRadius:8,border:"1px solid "+(profile.sex===s?C.accent:C.border),background:profile.sex===s?C.accent+"15":C.card,color:profile.sex===s?C.accent:C.muted2,fontSize:13,fontWeight:profile.sex===s?700:400,cursor:"pointer",textTransform:"capitalize"}}>{s}</button>
-                ))}
-              </div>
-            </div>
-            <div>
+            <div style={{marginBottom:8}}>
               <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Training Experience</div>
               {[{id:"new",l:"Just getting started"},{id:"returning",l:"Getting back into it"},{id:"intermediate",l:"Lifting regularly"},{id:"advanced",l:"Long-term lifter"}].map(opt=>(
-                <button key={opt.id} onClick={()=>setProfile(p=>({...p,experience:opt.id}))} style={{width:"100%",padding:"10px 12px",marginBottom:6,borderRadius:8,border:"1px solid "+(profile.experience===opt.id?C.accent:C.border),background:profile.experience===opt.id?C.accent+"15":C.card,color:profile.experience===opt.id?C.accent:C.muted2,fontSize:13,fontWeight:profile.experience===opt.id?700:400,cursor:"pointer",textAlign:"left",display:"block"}}>{opt.l}</button>
+                <button key={opt.id} onClick={()=>setProfileDraft(p=>({...p,experience:opt.id}))} style={{width:"100%",padding:"10px 12px",marginBottom:6,borderRadius:8,border:"1px solid "+(profileDraft.experience===opt.id?C.accent:C.border),background:profileDraft.experience===opt.id?C.accent+"15":C.card,color:profileDraft.experience===opt.id?C.accent:C.muted2,fontSize:13,fontWeight:profileDraft.experience===opt.id?700:400,cursor:"pointer",textAlign:"left",display:"block"}}>{opt.l}</button>
               ))}
+              {profileDraft.experience!==profile.experience&&program?.length>0?<div style={{fontSize:10,color:C.muted2,marginTop:2,display:"flex",alignItems:"center",gap:4}}><IcoWarn sz={10} col={C.muted2}/>Saving will prompt you to update your current program.</div>:null}
             </div>
             <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
               <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Data</div>
@@ -3129,6 +3406,16 @@ export default function App(){
                   Import
                   <input type="file" accept=".json" style={{display:"none"}} onChange={e=>handleImport(e.target.files[0])}/>
                 </label>
+              </div>
+            </div>
+            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
+              <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Correct onboarding data</div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>These were set during setup. Only change if you made a mistake.</div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Biological Sex</div>
+              <div style={{display:"flex",gap:8,marginBottom:4}}>
+                {["male","female"].map(s=>(
+                  <button key={s} onClick={()=>setProfileDraft(p=>({...p,sex:s}))} style={{flex:1,padding:"9px",borderRadius:8,border:"1px solid "+(profileDraft.sex===s?C.accent:C.border),background:profileDraft.sex===s?C.accent+"15":C.card,color:profileDraft.sex===s?C.accent:C.muted2,fontSize:13,fontWeight:profileDraft.sex===s?700:400,cursor:"pointer",textTransform:"capitalize"}}>{s}</button>
+                ))}
               </div>
             </div>
             <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
@@ -3150,6 +3437,25 @@ export default function App(){
           </div>
         </div>
       ):null}
+      {profileUpdatePrompt?(
+        <div style={{position:"fixed",inset:0,zIndex:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 24px"}}>
+          <div style={{position:"absolute",inset:0,background:"#000a"}}/>
+          <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:14,padding:"22px 20px",width:"100%",maxWidth:340}}>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>Update current program?</div>
+            <div style={{fontSize:12,color:C.muted2,lineHeight:1.7,marginBottom:20}}>
+              Your {profileUpdatePrompt.oldProfile.experience!==profileUpdatePrompt.newProfile.experience?"experience level":"profile"} changed. The app can recalculate your current program's set counts to match your updated {profileUpdatePrompt.oldProfile.experience!==profileUpdatePrompt.newProfile.experience?"training level":"profile"}.
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <button onClick={()=>{handleApplyProfileToProgram(profileUpdatePrompt.newProfile);setProfileUpdatePrompt(null);}} style={{width:"100%",padding:"12px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:900,letterSpacing:2,cursor:"pointer"}}>
+                UPDATE NOW
+              </button>
+              <button onClick={()=>setProfileUpdatePrompt(null)} style={{width:"100%",padding:"11px",background:"none",border:"1px solid "+C.border2,borderRadius:10,color:C.muted2,fontSize:13,cursor:"pointer"}}>
+                Apply from next meso only
+              </button>
+            </div>
+          </div>
+        </div>
+      ):null}
       {editingSession?<SessionEditModal session={editingSession.session} onSave={handleEditSession} onClose={()=>setEditingSession(null)}/>:null}
       {confirmStart?(
         <div style={{position:"fixed",inset:0,zIndex:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 24px"}} onClick={()=>setConfirmStart(null)}>
@@ -3164,8 +3470,8 @@ export default function App(){
           </div>
         </div>
       ):null}
-      {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={()=>handleStartNextMeso(false)} onReview={()=>handleStartNextMeso(true)}/>:null}
-      {activeLog?<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs}/>:null}
+      {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)}/>:null}
+      {activeLog?<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs}/>:null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
       {tab==="home"?(
         (meso&&program&&program.length>0)?(
@@ -3175,14 +3481,14 @@ export default function App(){
               return;
             }
             setActiveLog(d||todayWorkout);setLoggerOpen(true);
-          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso}/>
+          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso} onSetDeloadStyle={handleSetDeloadStyle}/>
         ):(
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",textAlign:"center"}}>
             <div style={{width:64,height:64,borderRadius:16,background:C.card,border:"1px solid "+C.border2,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
               <IcoPlan active={false}/>
             </div>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:900,letterSpacing:-0.5,marginBottom:8}}>NO ACTIVE MESO</div>
-            <div style={{fontSize:13,color:C.muted2,lineHeight:1.7,marginBottom:28,maxWidth:280}}>Build your first mesocycle in the Plan tab. Add your training days, pick your exercises, and launch.</div>
+            <div style={{fontSize:13,color:C.muted2,lineHeight:1.7,marginBottom:28,maxWidth:280}}>Go to the Plan tab and use Quick Build — pick your split, available days, and the app fills in the rest.</div>
             <button onClick={()=>setTab("plan")} style={{padding:"14px 32px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>BUILD PROGRAM</button>
           </div>
         )
@@ -3192,7 +3498,7 @@ export default function App(){
         <PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)}/>
       </div>
       {tab==="library"?<LibraryScreen library={library} setLibrary={setLibrary}/>:null}
-      <div style={{background:C.surf,borderTop:"1px solid "+C.border,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border,display:"flex",flexShrink:0}}>
         {TABS.map(t=>{
           const Icon=TICONS[t.id];
           const active=tab===t.id;
