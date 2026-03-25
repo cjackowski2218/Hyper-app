@@ -23,15 +23,15 @@ const MC = {
   Calves:"#fbbf24", Core:"#e879f9", "Full Body":"#94a3b8",
 };
 const BASE_MUSCLES = {
-  Chest:     {mev:8,  mav:16, mrv:20},
-  Back:      {mev:10, mav:20, mrv:25},
-  Shoulders: {mev:8,  mav:16, mrv:20},
-  Biceps:    {mev:6,  mav:14, mrv:20},
-  Triceps:   {mev:6,  mav:14, mrv:20},
-  Quads:     {mev:8,  mav:16, mrv:20},
-  Hamstrings:{mev:6,  mav:12, mrv:18},
-  Glutes:    {mev:6,  mav:12, mrv:16},
-  Calves:    {mev:6,  mav:12, mrv:16},
+  Chest:     {mv:4,  mev:8,  mav:16, mrv:20},
+  Back:      {mv:6,  mev:10, mav:20, mrv:25},
+  Shoulders: {mv:4,  mev:8,  mav:16, mrv:20},
+  Biceps:    {mv:3,  mev:6,  mav:14, mrv:20},
+  Triceps:   {mv:3,  mev:6,  mav:14, mrv:20},
+  Quads:     {mv:4,  mev:8,  mav:16, mrv:20},
+  Hamstrings:{mv:3,  mev:6,  mav:12, mrv:18},
+  Glutes:    {mv:3,  mev:6,  mav:12, mrv:16},
+  Calves:    {mv:3,  mev:6,  mav:12, mrv:16},
 };
 function getMuscles(experience, sex) {
   const scales = {new:0.70, returning:0.75, intermediate:1.00, advanced:1.25};
@@ -41,6 +41,7 @@ function getMuscles(experience, sex) {
   Object.keys(BASE_MUSCLES).forEach(function(m) {
     const v = BASE_MUSCLES[m];
     result[m] = {
+      mv:  Math.round(v.mv  * s * femMod),
       mev: Math.round(v.mev * s * femMod),
       mav: Math.round(v.mav * s * femMod),
       mrv: Math.round(v.mrv * s * femMod),
@@ -52,7 +53,7 @@ function getMuscles(experience, sex) {
 const EX_PROFILE = {
   // Chest — barbell compounds 5-10, dumbbell/machine 8-15, isolation 10-20
   "Machine Press":           {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
-  "Incline Dumbbell Press":  {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Incline Dumbbell Press":  {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15, stretchFocused:true},
   "Flat Barbell Bench":      {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
   "Dumbbell Bench Press":    {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
   "Close Grip Bench Press":  {type:"compound",  pct:0.025, preferReps:false, minReps:5,  maxReps:10},
@@ -60,8 +61,8 @@ const EX_PROFILE = {
   "Decline Dumbbell Press":  {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
   "Landmine Press":          {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
   "Machine Fly":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Cable Fly":               {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Dumbbell Fly":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Cable Fly":               {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
+  "Dumbbell Fly":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
   "Pec Deck":                {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
   "Push-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:30},
   // Shoulders — pressing 8-15, lateral/rear delt isolation 15-30
@@ -74,14 +75,14 @@ const EX_PROFILE = {
   "Arnold Press":            {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
   "Upright Row":             {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
   "Reverse Pec Deck":        {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
-  "Face Pull":               {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:25},
-  "Rear Delt Fly":           {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
+  "Face Pull":               {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:25, stretchFocused:true},
+  "Rear Delt Fly":           {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30, stretchFocused:true},
   // Triceps — compounds 5-10, isolation 10-20
   "Tri Machine":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
   "Tricep Pushdown":         {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
   "Skull Crusher":           {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
-  "Overhead Tricep Extension":{type:"isolation",pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Cable Overhead Extension": {type:"isolation",pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Overhead Tricep Extension":{type:"isolation",pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
+  "Cable Overhead Extension": {type:"isolation",pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
   "JM Press":                {type:"compound",  pct:0.025, preferReps:false, minReps:5,  maxReps:10},
   "Tate Press":              {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
   "Dip":                     {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:20},
@@ -93,41 +94,41 @@ const EX_PROFILE = {
   "Single Arm Cable Row":    {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
   "Meadows Row":             {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
   "Rack Pull":               {type:"compound",  pct:0.035, preferReps:false, minReps:3,  maxReps:8},
-  "Lat Pulldown":            {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Lat Pulldown":            {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15, stretchFocused:true},
   "Seated Cable Row":        {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
-  "Straight Arm Pulldown":   {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Cable Pullover":          {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Pull-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:3,  maxReps:20},
-  "Chin-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:3,  maxReps:20},
+  "Straight Arm Pulldown":   {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
+  "Cable Pullover":          {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
+  "Pull-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:3,  maxReps:20, stretchFocused:true},
+  "Chin-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:3,  maxReps:20, stretchFocused:true},
   // Biceps — all isolation 10-20, higher end for cable
   "Barbell Curl":            {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
   "EZ Bar Curl":             {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
   "Hammer Curl":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Incline Dumbbell Curl":   {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Cable Curl":              {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Incline Dumbbell Curl":   {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
+  "Cable Curl":              {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
   "Preacher Curl":           {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
-  "Spider Curl":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Spider Curl":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
   "Concentration Curl":      {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
   "Reverse Curl":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
   "Machine Curl":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
   // Quads — barbell 5-10, machine/dumbbell 8-15, isolation 10-20
   "Back Squat":              {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
   "Front Squat":             {type:"compound",  pct:0.025, preferReps:false, minReps:5,  maxReps:10},
-  "Bulgarian Split Squat":   {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Bulgarian Split Squat":   {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15, stretchFocused:true},
   "Hack Squat":              {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
   "Goblet Squat":            {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
   "Walking Lunge":           {type:"compound",  pct:0.020, preferReps:true,  minReps:10, maxReps:20},
   "Leg Press":               {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
   "Leg Extension":           {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
   "Step Up":                 {type:"compound",  pct:0.020, preferReps:true,  minReps:10, maxReps:20},
-  "Sissy Squat":             {type:"isolation", pct:0.000, preferReps:true,  minReps:8,  maxReps:20},
+  "Sissy Squat":             {type:"isolation", pct:0.000, preferReps:true,  minReps:8,  maxReps:20, stretchFocused:true},
   // Hamstrings — RDL/SLDL 6-12, leg curl 10-20
-  "Romanian Deadlift":       {type:"compound",  pct:0.025, preferReps:false, minReps:6,  maxReps:12},
-  "Stiff Leg Deadlift":      {type:"compound",  pct:0.025, preferReps:false, minReps:6,  maxReps:12},
+  "Romanian Deadlift":       {type:"compound",  pct:0.025, preferReps:false, minReps:6,  maxReps:12, stretchFocused:true},
+  "Stiff Leg Deadlift":      {type:"compound",  pct:0.025, preferReps:false, minReps:6,  maxReps:12, stretchFocused:true},
   "Good Morning":            {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
-  "Nordic Curl":             {type:"isolation", pct:0.000, preferReps:true,  minReps:3,  maxReps:12},
+  "Nordic Curl":             {type:"isolation", pct:0.000, preferReps:true,  minReps:3,  maxReps:12, stretchFocused:true},
   "Leg Curl":                {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
-  "Lying Leg Curl":          {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
+  "Lying Leg Curl":          {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20, stretchFocused:true},
   "Seated Leg Curl":         {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
   "Single Leg Romanian Deadlift":{type:"compound",pct:0.020,preferReps:false,minReps:8, maxReps:15},
   // Glutes — hip thrust/bridge 8-15, isolation 15-25
@@ -136,13 +137,13 @@ const EX_PROFILE = {
   "Sumo Deadlift":           {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
   "Glute Bridge":            {type:"compound",  pct:0.025, preferReps:false, minReps:10, maxReps:20},
   "Single Leg Hip Thrust":   {type:"compound",  pct:0.020, preferReps:false, minReps:10, maxReps:20},
-  "Cable Pull Through":      {type:"compound",  pct:0.020, preferReps:true,  minReps:12, maxReps:20},
+  "Cable Pull Through":      {type:"compound",  pct:0.020, preferReps:true,  minReps:12, maxReps:20, stretchFocused:true},
   "Abductor Machine":        {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:25},
   "Reverse Hyper":           {type:"compound",  pct:0.015, preferReps:true,  minReps:12, maxReps:20},
   "Cable Kickback":          {type:"isolation", pct:0.015, preferReps:true,  minReps:12, maxReps:20},
   // Calves — higher rep ranges per RP (10-20 standing, 15-30 seated)
   "Calf Raise":              {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
-  "Seated Calf Raise":       {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:30},
+  "Seated Calf Raise":       {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:30, stretchFocused:true},
   "Leg Press Calf Raise":    {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:25},
   "Single Leg Calf Raise":   {type:"isolation", pct:0.000, preferReps:true,  minReps:10, maxReps:25},
   "Tibialis Raise":          {type:"isolation", pct:0.000, preferReps:true,  minReps:15, maxReps:30},
@@ -172,9 +173,10 @@ const EX_PROFILE = {
 const getProfile = n => EX_PROFILE[n] || {type:"compound", pct:0.025, preferReps:false, minReps:5, maxReps:15};
 const snap = v => Math.max(Math.round(v/2.5)*2.5, 2.5);
 // Compute ramped set count for the current week (MEV→MRV across working weeks)
-function rampedSets(mevSets, mrvSets, week, totalWeeks) {
-  const workingWeeks = totalWeeks - 1; // last week is deload
-  if (week >= totalWeeks) return Math.max(1, Math.ceil(mevSets / 2)); // deload: ~50% of MEV
+// Deload targets MV (maintenance volume) per RP — just enough to not lose muscle
+function rampedSets(mevSets, mrvSets, week, totalWeeks, mvSets) {
+  const workingWeeks = totalWeeks - 1;
+  if (week >= totalWeeks) return Math.max(1, mvSets||Math.ceil(mevSets/2)); // deload at MV
   if (workingWeeks <= 1) return mevSets;
   const progress = (week - 1) / (workingWeeks - 1);
   return Math.round(mevSets + progress * (mrvSets - mevSets));
@@ -460,111 +462,159 @@ const WEEK_DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","
 const AUTO_SPLITS={
   "Push/Pull/Legs":[
     {name:"Push",exs:[
-      "Machine Press","Incline Dumbbell Press",
+      // Chest: best compound + stretch isolation
+      "Flat Barbell Bench","Cable Fly",
+      // Shoulders: compound press + lateral isolation
       "Dumbbell Shoulder Press","Cable Lateral Raise",
-      "Tricep Pushdown","Overhead Tricep Extension",
+      // Triceps: stretch-position isolation
+      "Overhead Tricep Extension",
     ]},
     {name:"Pull",exs:[
-      "Barbell Row","Lat Pulldown","Seated Cable Row",
+      // Back: vertical pull + horizontal row (different angles)
+      "Lat Pulldown","Barbell Row",
+      // Back isolation: stretch-position
+      "Straight Arm Pulldown",
+      // Rear delts
       "Face Pull",
-      "Barbell Curl","Hammer Curl",
+      // Biceps: stretch + neutral grip
+      "Incline Dumbbell Curl","Hammer Curl",
     ]},
     {name:"Legs",exs:[
-      "Back Squat","Leg Press","Leg Extension",
-      "Romanian Deadlift","Leg Curl",
-      "Hip Thrust","Calf Raise",
+      // Quads: compound + isolation
+      "Back Squat","Leg Extension",
+      // Hamstrings: stretch-position hinge + leg curl
+      "Romanian Deadlift","Lying Leg Curl",
+      // Glutes
+      "Hip Thrust",
+      // Calves
+      "Calf Raise",
     ]},
   ],
   "Upper/Lower":[
     {name:"Upper A",exs:[
+      // Chest compound + back compound (antagonist pair)
       "Flat Barbell Bench","Barbell Row",
-      "Dumbbell Shoulder Press","Lat Pulldown",
+      // Shoulder press
+      "Dumbbell Shoulder Press",
+      // Vertical pull
+      "Lat Pulldown",
+      // Arms
       "Tricep Pushdown","Barbell Curl",
     ]},
     {name:"Lower A",exs:[
-      "Back Squat","Leg Press","Leg Extension",
-      "Romanian Deadlift","Leg Curl",
+      // Quad dominant
+      "Back Squat","Leg Extension",
+      // Hamstring dominant
+      "Romanian Deadlift","Lying Leg Curl",
+      // Calves
       "Calf Raise",
     ]},
     {name:"Upper B",exs:[
-      "Incline Dumbbell Press","Chest Supported Row",
-      "Cable Lateral Raise","Seated Cable Row",
-      "Skull Crusher","Hammer Curl",
+      // Incline press + stretch isolation (different angle from Upper A)
+      "Incline Dumbbell Press","Cable Fly",
+      // Horizontal row + lateral raise
+      "Chest Supported Row","Cable Lateral Raise",
+      // Arms: stretch-position
+      "Overhead Tricep Extension","Incline Dumbbell Curl",
     ]},
     {name:"Lower B",exs:[
-      "Bulgarian Split Squat","Hack Squat",
-      "Seated Leg Curl","Hip Thrust",
-      "Glute Bridge","Seated Calf Raise",
+      // Unilateral quad + glute dominant
+      "Bulgarian Split Squat","Hip Thrust",
+      // Hamstring: seated curl (different feel from lying)
+      "Seated Leg Curl",
+      // Glute isolation
+      "Glute Bridge",
+      // Calves: seated for soleus emphasis
+      "Seated Calf Raise",
     ]},
   ],
   "Full Body":[
     {name:"Full Body A",exs:[
+      // One press, one pull, one squat, one hinge
       "Flat Barbell Bench","Barbell Row",
       "Back Squat","Romanian Deadlift",
+      // Arms
       "Tricep Pushdown","Barbell Curl",
     ]},
     {name:"Full Body B",exs:[
+      // Different angles from A
       "Incline Dumbbell Press","Lat Pulldown",
       "Leg Press","Hip Thrust",
+      // Isolation variety
       "Overhead Tricep Extension","Hammer Curl",
       "Calf Raise",
     ]},
     {name:"Full Body C",exs:[
+      // Machine/cable variation for variety
       "Machine Press","Seated Cable Row",
-      "Bulgarian Split Squat","Leg Curl",
-      "Dumbbell Shoulder Press","Cable Curl",
+      "Bulgarian Split Squat","Lying Leg Curl",
+      "Dumbbell Shoulder Press","Incline Dumbbell Curl",
       "Seated Calf Raise",
     ]},
   ],
   "Hybrid Split":[
     {name:"Push + Legs",exs:[
-      "Machine Press","Incline Dumbbell Press",
+      // Push: one compound + isolation (not two compounds)
+      "Machine Press","Cable Fly",
       "Cable Lateral Raise","Tricep Pushdown",
-      "Back Squat","Leg Press","Calf Raise",
+      // Legs: squat + isolation
+      "Back Squat","Leg Extension","Calf Raise",
     ]},
     {name:"Pull + Legs",exs:[
-      "Barbell Row","Lat Pulldown",
-      "Face Pull","Barbell Curl",
-      "Romanian Deadlift","Leg Curl","Hip Thrust",
+      // Pull: vertical + horizontal
+      "Lat Pulldown","Barbell Row",
+      "Face Pull","Incline Dumbbell Curl",
+      // Legs: hinge dominant
+      "Romanian Deadlift","Lying Leg Curl","Hip Thrust",
     ]},
     {name:"Upper",exs:[
-      "Flat Barbell Bench","Barbell Row",
-      "Dumbbell Shoulder Press","Seated Cable Row",
-      "Skull Crusher","Hammer Curl",
+      // Balanced upper: press + row + shoulder + arm
+      "Flat Barbell Bench","Chest Supported Row",
+      "Dumbbell Shoulder Press","Straight Arm Pulldown",
+      "Overhead Tricep Extension","Hammer Curl",
     ]},
     {name:"Legs",exs:[
-      "Back Squat","Leg Press","Leg Extension",
-      "Romanian Deadlift","Leg Curl",
+      // Complete legs: quad compound + isolation + hinge + glute + calf
+      "Back Squat","Leg Extension",
+      "Romanian Deadlift","Lying Leg Curl",
       "Hip Thrust","Calf Raise",
     ]},
   ],
   "Bro Split":[
     {name:"Chest",exs:[
-      "Flat Barbell Bench","Incline Dumbbell Press",
-      "Machine Press","Pec Deck","Cable Fly",
+      // One compound + stretch isolations only (no redundant compounds)
+      "Flat Barbell Bench",
+      "Cable Fly","Pec Deck",
+      "Incline Dumbbell Press",
     ]},
     {name:"Back",exs:[
-      "Barbell Row","Lat Pulldown",
-      "Seated Cable Row","Chest Supported Row",
-      "Straight Arm Pulldown",
+      // Vertical pull + horizontal row + stretch isolation
+      "Lat Pulldown","Barbell Row",
+      "Seated Cable Row","Straight Arm Pulldown",
     ]},
     {name:"Shoulders",exs:[
-      "Dumbbell Shoulder Press","Lateral Machine",
-      "Cable Lateral Raise","Face Pull","Rear Delt Fly",
+      // Press + lateral + rear delt (all three heads)
+      "Dumbbell Shoulder Press",
+      "Cable Lateral Raise","Lateral Machine",
+      "Face Pull","Rear Delt Fly",
     ]},
     {name:"Arms",exs:[
-      "Barbell Curl","Incline Dumbbell Curl","Cable Curl",
-      "Tricep Pushdown","Skull Crusher","Overhead Tricep Extension",
+      // Biceps: stretch + neutral + peak
+      "Incline Dumbbell Curl","Barbell Curl","Hammer Curl",
+      // Triceps: stretch + pushdown
+      "Overhead Tricep Extension","Tricep Pushdown",
     ]},
     {name:"Legs",exs:[
-      "Back Squat","Leg Press","Leg Extension",
-      "Romanian Deadlift","Seated Leg Curl",
+      // Complete legs
+      "Back Squat","Leg Extension",
+      "Romanian Deadlift","Lying Leg Curl",
       "Hip Thrust","Calf Raise",
     ]},
     {name:"Specialization",exs:[
+      // Upper body weak points + stretch focus
       "Incline Barbell Press","Cable Fly",
-      "T-Bar Row","Cable Pullover",
-      "Hammer Curl","Tricep Pushdown",
+      "Lat Pulldown","Cable Pullover",
+      "Incline Dumbbell Curl","Overhead Tricep Extension",
     ]},
   ],
 };
@@ -625,7 +675,7 @@ function getPplSequence(n,priority){
   if (n===6) return [0,1,2,0,1,2];
   return Array(n).fill(null).map((_,i)=>i%3);
 }
-function autoGen(split,n,lib,priority,muscles){
+function autoGen(split,n,lib,priority,muscles,experience){
   const tmpl=AUTO_SPLITS[split];
   if (!tmpl) return [];
   const tc=tmpl.length;
@@ -666,9 +716,12 @@ function autoGen(split,n,lib,priority,muscles){
     const needsSuffix=tmplCount[ti]>1&&!alreadyLabeled;
     const suffix=needsSuffix?(tmplSeen[ti]===1?" A":" B"):"";
 
+    const isNovice=experience==="new"||experience==="returning";
     const exercises=t.exs.map(nm=>{
       const found=lib.find(e=>e.name===nm);
       if (!found) return null;
+      // Beginners: compounds only per RP — no need for isolations
+      if(isNovice && found.type==="isolation") return null;
       // Calculate MEV-based set count for this exercise's muscle group
       // Distribute weekly MEV sets across training days that hit this muscle
       const m=found.muscle;
@@ -685,8 +738,10 @@ function autoGen(split,n,lib,priority,muscles){
       const mevSets=setCount;
       // MRV sets per session: slightly more than MEV to drive progression
       const mrvSets=lm?Math.min(Math.max(mevSets+2,Math.round(lm.mav/Math.max(muscleFreq[found.muscle]||1,1)/(t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===found.muscle;}).length||1))),mevSets+3):mevSets+2;
+      // MV sets: maintenance — what's needed during deload
+      const mvSets=lm?Math.max(1,Math.round(lm.mv/Math.max(muscleFreq[found.muscle]||1,1)/(t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===found.muscle;}).length||1))):Math.max(1,Math.ceil(mevSets/2));
       const sets=Array(mevSets).fill(null).map(()=>newSet("","normal"));
-      return {...found,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,sets};
+      return {...found,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,mvSets,sets};
     }).filter(Boolean);
 
     return {id:uid("d"),day:days[i]||"Monday",name:t.name+suffix,exercises};
@@ -850,10 +905,12 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
         </div>
         <div style={{marginBottom:16}}>
           <SLbl>Session Note</SLbl>
-          <textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} placeholder="How did it feel? Any injuries, PRs, notes for next time..." rows={2} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+          <textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} placeholder="Performance vs last week? Soreness going in? Any muscles that didn't fire? PRs, injuries, notes for next session..." rows={2} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
         </div>
         <SLbl>Rate Each Exercise (SFR)</SLbl>
-        <div style={{fontSize:11,color:C.muted,marginBottom:12,lineHeight:1.5}}>Optional — low ratings flag exercises for rotation next meso.</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:12,lineHeight:1.6}}>
+          How well did this exercise work? <strong style={{color:C.muted2}}>5</strong> = great pump, felt in muscle, no joint pain. <strong style={{color:C.muted2}}>1</strong> = joint pain, couldn't feel target muscle. Low ratings flag for rotation next meso.
+        </div>
         {lifts.map(ex=>{
           const mc=MC[ex.muscle]||"#888";
           const r=ratings[ex.id]||0;
@@ -1023,8 +1080,10 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
       }
       return nx;
     });
-    // Clear any previous timers and start a fresh one for this set
-    const restSecs=getProfile(ex.name).type==="compound"?120:90;
+    // Rest time per RP: heavy compounds 3min, other compounds 2min, isolation 90s
+    const prof=getProfile(ex.name);
+    const isHeavyCompound=prof.type==="compound"&&prof.pct>=0.025;
+    const restSecs=isHeavyCompound?180:prof.type==="compound"?120:90;
     setRestTimers({[sid]:restSecs});
   };
   const undoSet=(eid,sid)=>{
@@ -1081,6 +1140,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
           <div style={{flex:1}}>
             <div style={{fontSize:13,fontWeight:700}}><span style={{color:C.muted,fontWeight:500}}>{workout.day} - </span>{workout.name}</div>
             <div style={{fontSize:10,color:C.muted}}>Week {wk} - RIR target {defaultRIR(wk,totalWeeks,exp)}</div>
+            <div style={{fontSize:10,color:C.muted2,marginTop:2}}>Do compounds first — heavier loads, more rest.</div>
           </div>
           <div style={{fontSize:13,fontWeight:600,color:elapsed>3600?C.red:C.muted2}}>{fmt(elapsed)}</div>
         </div>
@@ -1159,6 +1219,12 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                         </div>
                       ):null}
                       <ProgBanner ex={ex} wk={wk} totalWeeks={totalWeeks} isDeload={wk===totalWeeks}/>
+                      {getProfile(ex.name).type==="compound"&&!ex.lastWeight&&wk===1?(
+                        <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
+                          <IcoInfo/>
+                          <div style={{fontSize:12,color:C.muted2,lineHeight:1.5}}>Warm up first — do 2–3 sets ramping from ~50% to ~80% of your working weight before logging sets here.</div>
+                        </div>
+                      ):null}
                       <div style={{display:"grid",gridTemplateColumns:"18px 1fr 1fr 36px 58px 24px",gap:5,marginBottom:7,paddingBottom:6,borderBottom:"1px solid "+C.border}}>
                         {["#","Weight","Reps","RIR","",""].map((h,i)=>(
                           <span key={i} style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:1.5}}>{h}</span>
@@ -1267,11 +1333,10 @@ function Logger({workout,wk,totalWeeks,isDeload,onComplete,onMinimize,visible,li
       ...ex,
       sets:(()=>{
         if(isDeload){
-          // Deload: 50% of MEV sets (or stored set count), min 1
-          const base=ex.sets.map(s=>({...s,rir:"4"}));
-          const working=base.filter(s=>s.type!=="drop");
-          const deloadCount=Math.max(1,Math.ceil((ex.mevSets||working.length)/2));
-          return working.slice(0,deloadCount);
+          // Deload targets MV (maintenance volume) — just enough to not lose muscle
+          const mev=ex.mevSets||working.length;
+          const mvSets=ex.mvSets||Math.max(1,Math.ceil(mev/2));
+          return working.slice(0,Math.max(1,mvSets));
         }
         // Ramp sets from MEV to MRV across working weeks
         const mev=ex.mevSets||ex.sets.filter(s=>s.type!=="drop").length||3;
@@ -1377,7 +1442,7 @@ function SessionEditModal({session,onSave,onClose}){
   );
 }
 
-function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview}){
+function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,program}){
   const C=useContext(ThemeCtx);
   const mesoEntries=liftHistory.filter(e=>e.mesoNum===mesoNum&&!e.isDeload);
   const uniqueExs=[...new Set(mesoEntries.map(e=>e.exercise))];
@@ -1390,6 +1455,14 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview}){
     if(pct<=0) return null;
     return {name,muscle:ents[0].muscle,first,peak,pct};
   }).filter(Boolean).sort((a,b)=>b.pct-a.pct);
+
+  // Collect exercises flagged with low SFR (≤2 stars) across this meso
+  const flagged=[];
+  (program||[]).forEach(day=>{
+    day.exercises.forEach(ex=>{
+      if(ex.lastSFR&&ex.lastSFR<=2) flagged.push({name:ex.name,muscle:ex.muscle,sfr:ex.lastSFR});
+    });
+  });
   return(
     <div style={{position:"fixed",inset:0,zIndex:400,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
@@ -1440,8 +1513,27 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview}){
         ):null}
         <Card hi={C.green+"44"}>
           <div style={{fontSize:13,color:C.text,fontWeight:600,marginBottom:6}}>Next meso auto-calculated</div>
-          <div style={{fontSize:12,color:C.muted2,lineHeight:1.7}}>Week 1 weights are set to ~92% of your peak from this meso. RIR resets to 3. Same exercise structure, fresh block.</div>
+          <div style={{fontSize:12,color:C.muted2,lineHeight:1.7}}>Week 1 weights are rolled back from your peak. RIR resets to 3. Volume starts at MEV and ramps toward MRV.</div>
         </Card>
+        {flagged.length>0?(
+          <Card hi={C.accent+"44"}>
+            <SLbl>Consider swapping next meso</SLbl>
+            <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>These exercises were rated low on SFR. Consider swapping for a variation with better stimulus-to-fatigue ratio.</div>
+            {flagged.map((ex,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:8,paddingBottom:i<flagged.length-1?10:0,marginBottom:i<flagged.length-1?10:0,borderBottom:i<flagged.length-1?"1px solid "+C.border:"none"}}>
+                <div style={{width:7,height:7,borderRadius:"50%",background:MC[ex.muscle]||"#888",flexShrink:0}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600}}>{ex.name}</div>
+                  <div style={{fontSize:11,color:C.muted}}>{ex.muscle}</div>
+                </div>
+                <div style={{display:"flex",gap:2}}>
+                  {[1,2,3,4,5].map(s=><div key={s} style={{width:8,height:8,borderRadius:"50%",background:ex.sfr>=s?C.accent:C.border2}}/>)}
+                </div>
+              </div>
+            ))}
+            <div style={{fontSize:11,color:C.muted2,marginTop:10,lineHeight:1.5}}>Tap "Review &amp; Edit Program" to make swaps before launching.</div>
+          </Card>
+        ):null}
         <button onClick={onStartNext} style={{width:"100%",padding:"15px",background:C.accent,color:"#000",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer",marginBottom:10}}>START NEXT MESO</button>
         <button onClick={onReview} style={{width:"100%",padding:"13px",background:"none",color:C.muted2,border:"1px solid "+C.border2,borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,cursor:"pointer"}}>REVIEW &amp; EDIT PROGRAM FIRST</button>
       </div>
@@ -1711,12 +1803,13 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
                 </div>
               </div>
               <div style={{position:"relative",height:8,background:C.border2,borderRadius:4}}>
+                <div style={{position:"absolute",left:(lm.mv/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff22",borderRadius:1,zIndex:3}}/>
                 <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff33",borderRadius:1,zIndex:3}}/>
                 <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff33",borderRadius:1,zIndex:3}}/>
                 <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:fc,borderRadius:4,zIndex:2}}/>
               </div>
               <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:C.muted}}>
-                <span>0</span><span>MEV {lm.mev}</span><span>MAV {lm.mav}</span><span>MRV {lm.mrv}</span>
+                <span>MV {lm.mv}</span><span>MEV {lm.mev}</span><span>MAV {lm.mav}</span><span>MRV {lm.mrv}</span>
               </div>
               {freq===1&&sv>=lm.mev?(
                 <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
@@ -2060,6 +2153,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
   const [mode,setMode]=useState(null);
   const [bName,setBName]=useState("");
   const [bWeeks,setBWeeks]=useState(5);
+  const [repRange,setRepRange]=useState("hypertrophy"); // hypertrophy|strength-hyp|power-hyp
   const [bDays,setBDays]=useState([]);
   const [qSplit,setQSplit]=useState("Push/Pull/Legs");
   const [qDays,setQDays]=useState(3);
@@ -2205,7 +2299,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                       </div>:null}
                     </div>
                   ):null}
-                  <button onClick={()=>{setBDays(autoGen(qSplit,qDays,library,qPriority,muscles));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority))?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority))?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority))?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
+                  <button onClick={()=>{setBDays(autoGen(qSplit,qDays,library,qPriority,muscles,P.experience||"intermediate"));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority))?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority))?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority))?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
@@ -2221,6 +2315,17 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                       {[4,5,6].map(w=>(
                         <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"14px 0",borderRadius:9,border:"1px solid "+(bWeeks===w?C.accent:C.border),background:bWeeks===w?C.accent+"15":C.card,color:bWeeks===w?C.accent:C.muted2,fontWeight:bWeeks===w?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>
                           {w}<div style={{fontSize:9,color:bWeeks===w?C.accent+"aa":C.muted,marginTop:3,letterSpacing:1}}>WEEKS</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{marginBottom:24}}>
+                    <div style={{fontSize:11,color:C.muted2,marginBottom:10,fontWeight:600}}>Rep range focus</div>
+                    <div style={{display:"flex",gap:8}}>
+                      {[{id:"hypertrophy",l:"Hypertrophy",sub:"10–20"},{id:"strength-hyp",l:"Strength-Hyp",sub:"6–12"},{id:"power-hyp",l:"Power-Hyp",sub:"4–8"}].map(opt=>(
+                        <button key={opt.id} onClick={()=>setRepRange(opt.id)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(repRange===opt.id?C.accent:C.border),background:repRange===opt.id?C.accent+"15":C.card,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
+                          <div style={{fontSize:11,fontWeight:repRange===opt.id?700:500,color:repRange===opt.id?C.accent:C.muted2}}>{opt.l}</div>
+                          <div style={{fontSize:9,color:C.muted,marginTop:2,letterSpacing:0.5}}>{opt.sub} reps</div>
                         </button>
                       ))}
                     </div>
@@ -2728,6 +2833,19 @@ export default function App(){
     const newEntries=extractLiftEntries(exs,mesoCount,meso.label,meso.week,isDeload);
     setLiftHistory(p=>[...p,...newEntries]);
 
+    // Persist SFR ratings on program exercises for next-meso rotation review
+    if(Object.keys(ratings).length>0){
+      setProgram(p=>p.map(day=>{
+        if(day.name!==dayName) return day;
+        return {...day,exercises:day.exercises.map(pex=>{
+          const loggedEx=exs.find(e=>e.name===pex.name);
+          if(!loggedEx||!ratings[loggedEx.id]) return pex;
+          const prev=pex.sfrHistory||[];
+          return {...pex,lastSFR:ratings[loggedEx.id],sfrHistory:[...prev,ratings[loggedEx.id]].slice(-6)};
+        })};
+      }));
+    }
+
     // Update program with what was just logged so progression engine works next session
     setProgram(p=>p.map(day=>{
       if(day.name!==dayName) return day;
@@ -3046,7 +3164,7 @@ export default function App(){
           </div>
         </div>
       ):null}
-      {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} onStartNext={()=>handleStartNextMeso(false)} onReview={()=>handleStartNextMeso(true)}/>:null}
+      {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={()=>handleStartNextMeso(false)} onReview={()=>handleStartNextMeso(true)}/>:null}
       {activeLog?<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs}/>:null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
       {tab==="home"?(
