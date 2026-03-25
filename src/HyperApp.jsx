@@ -2425,7 +2425,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                         );
                       })}
                     </div>
-                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>{availDays.length} day{availDays.length!==1?"s":"}/week — sessions spaced optimally across your schedule.</div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>{availDays.length} day{availDays.length!==1?"s":""}/week — sessions spaced optimally across your schedule.</div>
                   </div>
 
                   <div style={{marginBottom:16}}>
