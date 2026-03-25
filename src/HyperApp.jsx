@@ -2320,7 +2320,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
   const [repRange,setRepRange]=useState(meso?.repRange||"hypertrophy");
   const [picker,setPicker]=useState(null);
 
-  const needsPriority=splitNeedsPriority(qSplit,qDays);
+  const needsPriority=splitNeedsPriority(qSplit,availDays.length);
 
   const addDay=()=>{
     const used=bDays.map(d=>d.day);
@@ -2397,7 +2397,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   <div style={{fontSize:11,color:C.muted,marginBottom:20,lineHeight:1.6}}>How do you want to build your mesocycle?</div>
                   <button onClick={()=>setMode("quick")} style={{width:"100%",background:C.card2,border:"1px solid "+C.accent+"44",borderRadius:12,padding:"18px 16px",marginBottom:10,textAlign:"left",cursor:"pointer",display:"block"}}>
                     <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Quick Build</div>
-                    <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Pick your split and days per week. The app fills in exercises — you can edit before launching.</div>
+                    <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Pick your training days and split. The app fills in exercises — you can edit before launching.</div>
                   </button>
                   <button onClick={()=>setMode("manual")} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"18px 16px",textAlign:"left",cursor:"pointer",display:"block"}}>
                     <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Build Manually</div>
@@ -2415,7 +2415,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   </div>
 
                   <div style={{marginBottom:16}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Days you can train</div>
+                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Training days</div>
                     <div style={{display:"flex",gap:5}}>
                       {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((short,i)=>{
                         const full=WEEK_DAYS[i];
@@ -2425,7 +2425,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                         );
                       })}
                     </div>
-                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>The app will space sessions optimally across your available days.</div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>{availDays.length} day{availDays.length!==1?"s":"}/week — sessions spaced optimally across your schedule.</div>
                   </div>
 
                   <div style={{marginBottom:16}}>
@@ -2443,46 +2443,31 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   <div style={{marginBottom:16}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Training split</div>
                     {[
-                      {id:"Upper/Lower",     sub:"Best for most — every muscle 2x/week. 4 days recommended."},
-                      {id:"Push/Pull/Legs",  sub:"Classic PPL — great on 6 days. Needs 3+ days."},
-                      {id:"Full Body",       sub:"Hit everything every session — best for beginners and 3 days."},
+                      {id:"Upper/Lower",     sub:"Every muscle 2×/week — best for most. Great on 4 days."},
+                      {id:"Push/Pull/Legs",  sub:"Classic PPL — optimal on 6 days. Needs at least 3."},
+                      {id:"Full Body",       sub:"Hit everything every session — ideal for 3 days or fewer."},
                       {id:"Hybrid Split",    sub:"Push+Legs / Pull+Legs combos — ideal for 3–4 days."},
                       {id:"Bro Split",       sub:"One muscle per day — each muscle trains once per week."},
                     ].map(s=>(
-                      <button key={s.id} onClick={()=>{
-                        setQSplit(s.id);setQPriority(null);
-                        const defaults={"Push/Pull/Legs":3,"Upper/Lower":4,"Full Body":3,"Bro Split":5,"Hybrid Split":4};
-                        setQDays(Math.min(defaults[s.id]||3,availDays.length));
-                      }} style={{width:"100%",padding:"11px 14px",marginBottom:6,borderRadius:9,border:"1px solid "+(qSplit===s.id?C.accent:C.border),background:qSplit===s.id?C.accent+"12":C.card,cursor:"pointer",textAlign:"left",transition:"all .15s",display:"block"}}>
+                      <button key={s.id} onClick={()=>{setQSplit(s.id);setQPriority(null);}} style={{width:"100%",padding:"11px 14px",marginBottom:6,borderRadius:9,border:"1px solid "+(qSplit===s.id?C.accent:C.border),background:qSplit===s.id?C.accent+"12":C.card,cursor:"pointer",textAlign:"left",transition:"all .15s",display:"block"}}>
                         <div style={{fontSize:13,fontWeight:qSplit===s.id?700:400,color:qSplit===s.id?C.accent:C.text,marginBottom:2}}>{s.id}</div>
                         <div style={{fontSize:11,color:C.muted2,lineHeight:1.3}}>{s.sub}</div>
                       </button>
                     ))}
                   </div>
 
-                  <div style={{marginBottom:needsPriority?12:16}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Days per week</div>
-                    <div style={{display:"flex",gap:6}}>
-                      {(qSplit==="Push/Pull/Legs"?[3,4,5,6]:qSplit==="Bro Split"?[3,4,5,6]:qSplit==="Hybrid Split"?[2,3,4,5]:[2,3,4,5,6]).map(d=>{
-                        const tooMany=d>availDays.length;
-                        return(
-                          <button key={d} onClick={()=>{if(!tooMany){setQDays(d);setQPriority(null);}}} style={{flex:1,padding:"11px 0",borderRadius:9,border:"1px solid "+(qDays===d?C.accent:tooMany?C.border:C.border),background:qDays===d?C.accent+"15":C.card,color:qDays===d?C.accent:tooMany?C.muted+"66":C.muted2,fontWeight:qDays===d?700:400,fontSize:15,cursor:tooMany?"default":"pointer",transition:"all .15s",opacity:tooMany?0.35:1}}>{d}</button>
-                        );
-                      })}
-                    </div>
-                    {qDays>availDays.length?<div style={{fontSize:10,color:C.red,marginTop:6}}>Select more available days or reduce sessions per week.</div>:null}
-                  </div>
-
                   {(()=>{
+                    const n=availDays.length;
                     const warnings=[];
                     if(qSplit==="Bro Split") warnings.push("Each muscle trains once per week. RP recommends 2× for better growth — consider Upper/Lower instead.");
-                    if(qSplit==="Push/Pull/Legs"&&qDays===4) warnings.push("4-day PPL means "+(qPriority?["Push","Pull","Legs"].filter(g=>g!==qPriority).join(" and "):"two groups")+" only train once this week. 6 days gives every group 2×.");
-                    if(qSplit==="Push/Pull/Legs"&&qDays===5){
+                    if(qSplit==="Push/Pull/Legs"&&n===4) warnings.push("4-day PPL: "+(qPriority?["Push","Pull","Legs"].filter(g=>g!==qPriority).join(" and "):"two groups")+" only train once this week. 6 days gives every group 2×.");
+                    if(qSplit==="Push/Pull/Legs"&&n===5){
                       const once=qPriority==="Push"?"Pull":qPriority==="Pull"?"Push":qPriority==="Legs"?"Pull":"Legs";
-                      warnings.push("5-day PPL: "+once+" will only train once this week. 6 days is optimal for PPL.");
+                      warnings.push("5-day PPL: "+once+" only trains once this week. 6 days is optimal for PPL.");
                     }
-                    if((qSplit==="Upper/Lower"||qSplit==="Full Body")&&qDays===2) warnings.push("2 days is the minimum — very low weekly volume. 4 days is the sweet spot.");
-                    if(availDays.length===qDays) warnings.push("Training every available day leaves no buffer. Consider one day off for recovery.");
+                    if(qSplit==="Push/Pull/Legs"&&n<3) warnings.push("PPL needs at least 3 days. Add more training days or switch split.");
+                    if((qSplit==="Upper/Lower"||qSplit==="Full Body")&&n===2) warnings.push("2 days is the minimum — very low weekly volume. 4 days is the sweet spot.");
+                    if(qSplit==="Bro Split"&&n<3) warnings.push("Bro Split needs at least 3 days to cover all muscle groups.");
                     return warnings.map((w,i)=>(
                       <div key={i} style={{display:"flex",alignItems:"flex-start",gap:7,background:C.orange+"12",border:"1px solid "+C.orange+"33",borderRadius:8,padding:"9px 11px",marginBottom:10,fontSize:11,color:C.muted2,lineHeight:1.5}}>
                         <IcoWarn sz={12} col={C.orange}/><span>{w}</span>
@@ -2494,7 +2479,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                     <div style={{marginBottom:16,padding:"14px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10}}>
                       <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group to prioritize?</div>
                       <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>
-                        {qDays===4?"4-day PPL: one group trains twice, two only train once.":"5-day PPL: two groups train twice, one only trains once."}
+                        {availDays.length===4?"4-day PPL: one group trains twice, two only train once.":"5-day PPL: two groups train twice, one only trains once."}
                       </div>
                       <div style={{display:"flex",gap:8}}>
                         {["Push","Pull","Legs"].map(opt=>(
@@ -2518,7 +2503,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                     <div style={{fontSize:10,color:C.muted2,marginTop:6}}>RP recommends rotating rep ranges across mesos for long-term development.</div>
                   </div>
 
-                  <button onClick={()=>{setBDays(autoGen(qSplit,qDays,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)||availDays.length<2||qDays>availDays.length} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2&&qDays<=availDays.length)?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2&&qDays<=availDays.length)?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2&&qDays<=availDays.length)?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
+                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
@@ -2643,7 +2628,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                 Week 1 is your baseline. Start conservative — RIR 3 or higher. Log your RIR and the app takes over from Week 2.
               </div>
               <div style={{display:"flex",gap:8,marginTop:4}}>
-                <button onClick={()=>{if(mode==="quick"){setBDays(autoGen(qSplit,qDays,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}else setStep(1);}} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:10,color:C.muted2,cursor:"pointer",fontSize:13}}>Regenerate</button>
+                <button onClick={()=>{if(mode==="quick"){setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}else setStep(1);}} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:10,color:C.muted2,cursor:"pointer",fontSize:13}}>Regenerate</button>
                 <button onClick={doLaunch} disabled={!canLaunch} style={{flex:2,padding:"13px",background:canLaunch?C.accent:C.card,color:canLaunch?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:canLaunch?"pointer":"default",transition:"all .2s"}}>LAUNCH MESO</button>
               </div>
             </div>
