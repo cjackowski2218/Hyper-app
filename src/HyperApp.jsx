@@ -2494,7 +2494,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                       {availDays.length===4?(
                         <>
                           <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group trains twice?</div>
-                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>With 4 days, one group gets a second session. Pick whichever is your weakest or most important this block.</div>
+                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>Pick the one you want to train twice per week throughout this block — your weakest or most important group.</div>
                           <div style={{display:"flex",gap:8}}>
                             {["Push","Pull","Legs"].map(opt=>(
                               <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
@@ -2504,7 +2504,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                       ):(
                         <>
                           <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group only trains once?</div>
-                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>With 5 days, two groups get a second session. Pick whichever is least important this block to train once.</div>
+                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>Pick the one you're happy training only once per week throughout this block.</div>
                           <div style={{display:"flex",gap:8}}>
                             {["Push","Pull","Legs"].map(opt=>(
                               <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
@@ -3356,8 +3356,8 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100svh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%;overflow:hidden;position:fixed}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:env(safe-area-inset-bottom);padding-bottom:max(env(safe-area-inset-bottom),0px)}`}</style>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100svh",minHeight:"-webkit-fill-available",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:env(safe-area-inset-bottom);padding-bottom:max(env(safe-area-inset-bottom),0px)}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
