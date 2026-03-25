@@ -802,7 +802,8 @@ const REP_RANGE_SUBS={"hypertrophy":"8–20 reps","strength-hyp":"4–12 reps","
 const nextRepRange=current=>{
   const idx=REP_RANGE_CYCLE.indexOf(current||"hypertrophy");
   return REP_RANGE_CYCLE[(idx+1)%REP_RANGE_CYCLE.length];
-};const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:4,padding:"2px 7px",letterSpacing:1,fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
+};
+const Tag=({label,color})=>{const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:4,padding:"2px 7px",letterSpacing:1,fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
 const SLbl=({children})=>{const C=useContext(ThemeCtx);return(<div style={{fontSize:10,color:C.muted,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>{children}</div>);};
 const Card=({children,style,hi})=>{const C=useContext(ThemeCtx);return(<div style={{background:C.card,border:"1px solid "+(hi||C.border),borderRadius:12,padding:"14px 15px",marginBottom:10,...(style||{})}}>{children}</div>);};
 
@@ -950,7 +951,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 14px 24px"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:32,fontWeight:900,marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
-          {don===0?"SESSION LOGGED":don<tot?"SESSION DONE":"GREAT WORK"} {don>0?<IcoFlame sz={28} col={C.accent}/>:null}
+          {(()=>{const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);return don===0?"SESSION LOGGED":don<tot?"SESSION DONE":"GREAT WORK";})()}{don>0?<IcoFlame sz={28} col={C.accent}/>:null}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
           {[{l:"SETS",v:don},{l:"VOLUME",v:totalVol>=1000?(totalVol/1000).toFixed(1)+"k":totalVol},{l:"TIME",v:fmt(elapsed)}].map(s=>(
@@ -2475,7 +2476,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   {(()=>{
                     const warnings=[];
                     if(qSplit==="Bro Split") warnings.push("Each muscle trains once per week. RP recommends 2× for better growth — consider Upper/Lower instead.");
-                    if(qSplit==="Push/Pull/Legs"&&qDays===4) warnings.push("4-day PPL means "+(qPriority?["Push","Pull","Legs"].filter(g=>g!==qPriority).join(" and "):two groups)+" only train once this week. 6 days gives every group 2×.");
+                    if(qSplit==="Push/Pull/Legs"&&qDays===4) warnings.push("4-day PPL means "+(qPriority?["Push","Pull","Legs"].filter(g=>g!==qPriority).join(" and "):"two groups")+" only train once this week. 6 days gives every group 2×.");
                     if(qSplit==="Push/Pull/Legs"&&qDays===5){
                       const once=qPriority==="Push"?"Pull":qPriority==="Pull"?"Push":qPriority==="Legs"?"Pull":"Legs";
                       warnings.push("5-day PPL: "+once+" will only train once this week. 6 days is optimal for PPL.");
