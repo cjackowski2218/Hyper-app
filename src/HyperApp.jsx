@@ -2460,10 +2460,22 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                     const n=availDays.length;
                     const warnings=[];
                     if(qSplit==="Bro Split") warnings.push("Each muscle trains once per week. RP recommends 2× for better growth — consider Upper/Lower instead.");
-                    if(qSplit==="Push/Pull/Legs"&&n===4) warnings.push("4-day PPL: "+(qPriority?["Push","Pull","Legs"].filter(g=>g!==qPriority).join(" and "):"two groups")+" only train once this week. 6 days gives every group 2×.");
+                    if(qSplit==="Push/Pull/Legs"&&n===4){
+                      if(qPriority){
+                        const deprived=["Push","Pull","Legs"].filter(g=>g!==qPriority);
+                        warnings.push("4-day PPL: "+deprived.join(" and ")+" only train once this week. "+qPriority+" trains twice.");
+                      } else {
+                        warnings.push("4-day PPL: one group will only train once this week. Select a priority group below.");
+                      }
+                    }
                     if(qSplit==="Push/Pull/Legs"&&n===5){
-                      const once=qPriority==="Push"?"Pull":qPriority==="Pull"?"Push":qPriority==="Legs"?"Pull":"Legs";
-                      warnings.push("5-day PPL: "+once+" only trains once this week. 6 days is optimal for PPL.");
+                      if(qPriority){
+                        const all=["Push","Pull","Legs"];
+                        const once=all.find(g=>g!==qPriority&&all.filter(x=>x!==g).includes(qPriority))||all.find(g=>g!==qPriority);
+                        warnings.push("5-day PPL: "+once+" only trains once this week. "+qPriority+" and one other train twice.");
+                      } else {
+                        warnings.push("5-day PPL: one group will only train once this week. Select a priority group below.");
+                      }
                     }
                     if(qSplit==="Push/Pull/Legs"&&n<3) warnings.push("PPL needs at least 3 days. Add more training days or switch split.");
                     if((qSplit==="Upper/Lower"||qSplit==="Full Body")&&n===2) warnings.push("2 days is the minimum — very low weekly volume. 4 days is the sweet spot.");
