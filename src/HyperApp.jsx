@@ -703,9 +703,12 @@ function getPplSequence(n,priority){
     return [pi,others[0],others[1],pi];
   }
   if (n===5){
-    if (priority==="Push") return [0,2,1,0,2];
-    if (priority==="Pull") return [0,1,2,1,2];
-    if (priority==="Legs") return [0,1,2,0,2];
+    // For 4-day: priority = group that trains twice
+    // For 5-day: priority = group that trains once (others train twice)
+    // We detect context by caller but use same param — here priority means "trains once" for n===5
+    if (priority==="Push") return [1,2,1,0,2];  // Pull×2, Legs×2, Push×1
+    if (priority==="Pull") return [0,2,0,1,2];  // Push×2, Legs×2, Pull×1
+    if (priority==="Legs") return [0,1,0,1,2];  // Push×2, Pull×2, Legs×1
     return [0,1,2,0,1];
   }
   if (n===6) return [0,1,2,0,1,2];
@@ -2462,19 +2465,18 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                     if(qSplit==="Bro Split") warnings.push("Each muscle trains once per week. RP recommends 2× for better growth — consider Upper/Lower instead.");
                     if(qSplit==="Push/Pull/Legs"&&n===4){
                       if(qPriority){
-                        const deprived=["Push","Pull","Legs"].filter(g=>g!==qPriority);
-                        warnings.push("4-day PPL: "+deprived.join(" and ")+" only train once this week. "+qPriority+" trains twice.");
+                        const once=["Push","Pull","Legs"].filter(g=>g!==qPriority);
+                        warnings.push("4-day PPL: "+qPriority+" trains twice. "+once.join(" and ")+" each train once.");
                       } else {
-                        warnings.push("4-day PPL: one group will only train once this week. Select a priority group below.");
+                        warnings.push("4-day PPL: one group trains twice, the other two train once. Choose below.");
                       }
                     }
                     if(qSplit==="Push/Pull/Legs"&&n===5){
                       if(qPriority){
-                        const all=["Push","Pull","Legs"];
-                        const once=all.find(g=>g!==qPriority&&all.filter(x=>x!==g).includes(qPriority))||all.find(g=>g!==qPriority);
-                        warnings.push("5-day PPL: "+once+" only trains once this week. "+qPriority+" and one other train twice.");
+                        const twice=["Push","Pull","Legs"].filter(g=>g!==qPriority);
+                        warnings.push("5-day PPL: "+qPriority+" trains once. "+twice.join(" and ")+" each train twice.");
                       } else {
-                        warnings.push("5-day PPL: one group will only train once this week. Select a priority group below.");
+                        warnings.push("5-day PPL: two groups train twice, one trains once. Choose below.");
                       }
                     }
                     if(qSplit==="Push/Pull/Legs"&&n<3) warnings.push("PPL needs at least 3 days. Add more training days or switch split.");
@@ -2489,15 +2491,27 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
 
                   {needsPriority?(
                     <div style={{marginBottom:16,padding:"14px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10}}>
-                      <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group to prioritize?</div>
-                      <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>
-                        {availDays.length===4?"4-day PPL: one group trains twice, two only train once.":"5-day PPL: two groups train twice, one only trains once."}
-                      </div>
-                      <div style={{display:"flex",gap:8}}>
-                        {["Push","Pull","Legs"].map(opt=>(
-                          <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
-                        ))}
-                      </div>
+                      {availDays.length===4?(
+                        <>
+                          <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group trains twice?</div>
+                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>With 4 days, one group gets a second session. Pick whichever is your weakest or most important this block.</div>
+                          <div style={{display:"flex",gap:8}}>
+                            {["Push","Pull","Legs"].map(opt=>(
+                              <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
+                            ))}
+                          </div>
+                        </>
+                      ):(
+                        <>
+                          <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group only trains once?</div>
+                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>With 5 days, two groups get a second session. Pick whichever is least important this block to train once.</div>
+                          <div style={{display:"flex",gap:8}}>
+                            {["Push","Pull","Legs"].map(opt=>(
+                              <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
+                            ))}
+                          </div>
+                        </>
+                      )}
                       {!qPriority?<div style={{fontSize:10,color:C.accent,marginTop:10,display:"flex",alignItems:"center",gap:5}}><IcoWarn sz={10} col={C.accent}/> Select one to continue</div>:null}
                     </div>
                   ):null}
@@ -3342,8 +3356,8 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:env(safe-area-inset-bottom);padding-bottom:max(env(safe-area-inset-bottom),0px)}`}</style>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100svh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%;overflow:hidden;position:fixed}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:env(safe-area-inset-bottom);padding-bottom:max(env(safe-area-inset-bottom),0px)}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
