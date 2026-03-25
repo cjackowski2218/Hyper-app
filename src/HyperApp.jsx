@@ -14,12 +14,13 @@ const LIGHT={
   green:"#16a34a",red:"#dc2626",blue:"#3b82f6",orange:"#ea580c",
 };
 const ThemeCtx=createContext(DARK);
+const ProfileCtx=createContext({experience:"intermediate",sex:"male",bodyweight:185});
 let _uid=0;
 const uid=pfx=>`${pfx||"id"}${++_uid}_${Math.random().toString(36).slice(2,7)}`;
 const MC = {
   Chest:"#f97316", Shoulders:"#a78bfa", Triceps:"#34d399", Back:"#60a5fa",
   Biceps:"#fb923c", Quads:"#38bdf8", Hamstrings:"#f472b6", Glutes:"#4ade80",
-  Calves:"#fbbf24",
+  Calves:"#fbbf24", Core:"#e879f9", "Full Body":"#94a3b8",
 };
 const BASE_MUSCLES = {
   Chest:     {mev:8,  mav:16, mrv:20},
@@ -40,8 +41,8 @@ function getMuscles(experience, sex) {
   Object.keys(BASE_MUSCLES).forEach(function(m) {
     const v = BASE_MUSCLES[m];
     result[m] = {
-      mev: Math.round(v.mev * s),
-      mav: Math.round(v.mav * s),
+      mev: Math.round(v.mev * s * femMod),
+      mav: Math.round(v.mav * s * femMod),
       mrv: Math.round(v.mrv * s * femMod),
     };
   });
@@ -49,103 +50,217 @@ function getMuscles(experience, sex) {
 }
 
 const EX_PROFILE = {
-  // Chest
-  "Machine Press":           {type:"compound",  pct:0.030, preferReps:false},
-  "Incline Dumbbell Press":  {type:"compound",  pct:0.025, preferReps:false},
-  "Flat Barbell Bench":      {type:"compound",  pct:0.030, preferReps:false},
-  "Dumbbell Bench Press":    {type:"compound",  pct:0.025, preferReps:false},
-  "Close Grip Bench Press":  {type:"compound",  pct:0.025, preferReps:false},
-  "Machine Fly":             {type:"isolation", pct:0.015, preferReps:true},
-  "Cable Fly":               {type:"isolation", pct:0.015, preferReps:true},
-  "Dumbbell Fly":            {type:"isolation", pct:0.015, preferReps:true},
-  "Push-Up":                 {type:"compound",  pct:0.000, preferReps:true},
-  // Shoulders
-  "Lateral Overheads":       {type:"isolation", pct:0.010, preferReps:true},
-  "Lateral Machine":         {type:"isolation", pct:0.010, preferReps:true},
-  "Dumbbell Lateral Raise":  {type:"isolation", pct:0.010, preferReps:true},
-  "Cable Lateral Raise":     {type:"isolation", pct:0.010, preferReps:true},
-  "Standing Barbell Press":  {type:"compound",  pct:0.020, preferReps:false},
-  "Dumbbell Shoulder Press": {type:"compound",  pct:0.020, preferReps:false},
-  "Arnold Press":            {type:"compound",  pct:0.020, preferReps:false},
-  "Face Pull":               {type:"isolation", pct:0.015, preferReps:true},
-  "Rear Delt Fly":           {type:"isolation", pct:0.010, preferReps:true},
-  // Triceps
-  "Tri Machine":             {type:"isolation", pct:0.015, preferReps:true},
-  "Tricep Pushdown":         {type:"isolation", pct:0.015, preferReps:true},
-  "Skull Crusher":           {type:"isolation", pct:0.015, preferReps:true},
-  "Overhead Tricep Extension":{type:"isolation",pct:0.015, preferReps:true},
-  "Cable Overhead Extension": {type:"isolation",pct:0.015, preferReps:true},
-  "Dip":                     {type:"compound",  pct:0.000, preferReps:true},
-  // Back
-  "Barbell Row":             {type:"compound",  pct:0.030, preferReps:false},
-  "Dumbbell Row":            {type:"compound",  pct:0.025, preferReps:false},
-  "T-Bar Row":               {type:"compound",  pct:0.030, preferReps:false},
-  "Chest Supported Row":     {type:"compound",  pct:0.025, preferReps:false},
-  "Lat Pulldown":            {type:"compound",  pct:0.025, preferReps:false},
-  "Seated Cable Row":        {type:"compound",  pct:0.025, preferReps:false},
-  "Pull-Up":                 {type:"compound",  pct:0.000, preferReps:true},
-  "Chin-Up":                 {type:"compound",  pct:0.000, preferReps:true},
-  // Biceps
-  "Barbell Curl":            {type:"isolation", pct:0.015, preferReps:true},
-  "EZ Bar Curl":             {type:"isolation", pct:0.015, preferReps:true},
-  "Hammer Curl":             {type:"isolation", pct:0.015, preferReps:true},
-  "Incline Dumbbell Curl":   {type:"isolation", pct:0.015, preferReps:true},
-  "Cable Curl":              {type:"isolation", pct:0.015, preferReps:true},
-  "Preacher Curl":           {type:"isolation", pct:0.015, preferReps:true},
-  // Quads
-  "Back Squat":              {type:"compound",  pct:0.030, preferReps:false},
-  "Front Squat":             {type:"compound",  pct:0.025, preferReps:false},
-  "Bulgarian Split Squat":   {type:"compound",  pct:0.025, preferReps:false},
-  "Hack Squat":              {type:"compound",  pct:0.030, preferReps:false},
-  "Goblet Squat":            {type:"compound",  pct:0.025, preferReps:false},
-  "Walking Lunge":           {type:"compound",  pct:0.020, preferReps:true},
-  "Leg Press":               {type:"compound",  pct:0.030, preferReps:false},
-  // Hamstrings
-  "Romanian Deadlift":       {type:"compound",  pct:0.025, preferReps:false},
-  "Stiff Leg Deadlift":      {type:"compound",  pct:0.025, preferReps:false},
-  "Good Morning":            {type:"compound",  pct:0.020, preferReps:false},
-  "Nordic Curl":             {type:"isolation", pct:0.000, preferReps:true},
-  "Leg Curl":                {type:"isolation", pct:0.020, preferReps:true},
-  // Glutes
-  "Hip Thrust":              {type:"compound",  pct:0.025, preferReps:false},
-  "Sumo Deadlift":           {type:"compound",  pct:0.030, preferReps:false},
-  "Glute Bridge":            {type:"compound",  pct:0.025, preferReps:false},
-  "Cable Kickback":          {type:"isolation", pct:0.015, preferReps:true},
-  // Calves
-  "Calf Raise":              {type:"isolation", pct:0.015, preferReps:true},
-  "Seated Calf Raise":       {type:"isolation", pct:0.015, preferReps:true},
+  // Chest — barbell compounds 5-10, dumbbell/machine 8-15, isolation 10-20
+  "Machine Press":           {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
+  "Incline Dumbbell Press":  {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Flat Barbell Bench":      {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
+  "Dumbbell Bench Press":    {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Close Grip Bench Press":  {type:"compound",  pct:0.025, preferReps:false, minReps:5,  maxReps:10},
+  "Incline Barbell Press":   {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
+  "Decline Dumbbell Press":  {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Landmine Press":          {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
+  "Machine Fly":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Cable Fly":               {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Dumbbell Fly":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Pec Deck":                {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Push-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:30},
+  // Shoulders — pressing 8-15, lateral/rear delt isolation 15-30
+  "Lateral Overheads":       {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
+  "Lateral Machine":         {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
+  "Dumbbell Lateral Raise":  {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
+  "Cable Lateral Raise":     {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
+  "Standing Barbell Press":  {type:"compound",  pct:0.020, preferReps:false, minReps:5,  maxReps:10},
+  "Dumbbell Shoulder Press": {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
+  "Arnold Press":            {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
+  "Upright Row":             {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
+  "Reverse Pec Deck":        {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
+  "Face Pull":               {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:25},
+  "Rear Delt Fly":           {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:30},
+  // Triceps — compounds 5-10, isolation 10-20
+  "Tri Machine":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Tricep Pushdown":         {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Skull Crusher":           {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
+  "Overhead Tricep Extension":{type:"isolation",pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Cable Overhead Extension": {type:"isolation",pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "JM Press":                {type:"compound",  pct:0.025, preferReps:false, minReps:5,  maxReps:10},
+  "Tate Press":              {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Dip":                     {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:20},
+  // Back — barbell compounds 5-10, machine/cable 8-15, isolation 10-20
+  "Barbell Row":             {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
+  "Dumbbell Row":            {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "T-Bar Row":               {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
+  "Chest Supported Row":     {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Single Arm Cable Row":    {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Meadows Row":             {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Rack Pull":               {type:"compound",  pct:0.035, preferReps:false, minReps:3,  maxReps:8},
+  "Lat Pulldown":            {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Seated Cable Row":        {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Straight Arm Pulldown":   {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Cable Pullover":          {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Pull-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:3,  maxReps:20},
+  "Chin-Up":                 {type:"compound",  pct:0.000, preferReps:true,  minReps:3,  maxReps:20},
+  // Biceps — all isolation 10-20, higher end for cable
+  "Barbell Curl":            {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
+  "EZ Bar Curl":             {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
+  "Hammer Curl":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Incline Dumbbell Curl":   {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Cable Curl":              {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Preacher Curl":           {type:"isolation", pct:0.015, preferReps:true,  minReps:8,  maxReps:15},
+  "Spider Curl":             {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Concentration Curl":      {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Reverse Curl":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Machine Curl":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  // Quads — barbell 5-10, machine/dumbbell 8-15, isolation 10-20
+  "Back Squat":              {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
+  "Front Squat":             {type:"compound",  pct:0.025, preferReps:false, minReps:5,  maxReps:10},
+  "Bulgarian Split Squat":   {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Hack Squat":              {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
+  "Goblet Squat":            {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Walking Lunge":           {type:"compound",  pct:0.020, preferReps:true,  minReps:10, maxReps:20},
+  "Leg Press":               {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
+  "Leg Extension":           {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
+  "Step Up":                 {type:"compound",  pct:0.020, preferReps:true,  minReps:10, maxReps:20},
+  "Sissy Squat":             {type:"isolation", pct:0.000, preferReps:true,  minReps:8,  maxReps:20},
+  // Hamstrings — RDL/SLDL 6-12, leg curl 10-20
+  "Romanian Deadlift":       {type:"compound",  pct:0.025, preferReps:false, minReps:6,  maxReps:12},
+  "Stiff Leg Deadlift":      {type:"compound",  pct:0.025, preferReps:false, minReps:6,  maxReps:12},
+  "Good Morning":            {type:"compound",  pct:0.020, preferReps:false, minReps:8,  maxReps:15},
+  "Nordic Curl":             {type:"isolation", pct:0.000, preferReps:true,  minReps:3,  maxReps:12},
+  "Leg Curl":                {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
+  "Lying Leg Curl":          {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
+  "Seated Leg Curl":         {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
+  "Single Leg Romanian Deadlift":{type:"compound",pct:0.020,preferReps:false,minReps:8, maxReps:15},
+  // Glutes — hip thrust/bridge 8-15, isolation 15-25
+  "Hip Thrust":              {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Barbell Hip Thrust":      {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
+  "Sumo Deadlift":           {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
+  "Glute Bridge":            {type:"compound",  pct:0.025, preferReps:false, minReps:10, maxReps:20},
+  "Single Leg Hip Thrust":   {type:"compound",  pct:0.020, preferReps:false, minReps:10, maxReps:20},
+  "Cable Pull Through":      {type:"compound",  pct:0.020, preferReps:true,  minReps:12, maxReps:20},
+  "Abductor Machine":        {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:25},
+  "Reverse Hyper":           {type:"compound",  pct:0.015, preferReps:true,  minReps:12, maxReps:20},
+  "Cable Kickback":          {type:"isolation", pct:0.015, preferReps:true,  minReps:12, maxReps:20},
+  // Calves — higher rep ranges per RP (10-20 standing, 15-30 seated)
+  "Calf Raise":              {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:20},
+  "Seated Calf Raise":       {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:30},
+  "Leg Press Calf Raise":    {type:"isolation", pct:0.015, preferReps:true,  minReps:15, maxReps:25},
+  "Single Leg Calf Raise":   {type:"isolation", pct:0.000, preferReps:true,  minReps:10, maxReps:25},
+  "Tibialis Raise":          {type:"isolation", pct:0.000, preferReps:true,  minReps:15, maxReps:30},
+  // Core — higher rep ranges
+  "Cable Crunch":            {type:"isolation", pct:0.015, preferReps:true,  minReps:10, maxReps:25},
+  "Ab Wheel Rollout":        {type:"isolation", pct:0.000, preferReps:true,  minReps:5,  maxReps:20},
+  "Hanging Leg Raise":       {type:"isolation", pct:0.000, preferReps:true,  minReps:8,  maxReps:20},
+  "Pallof Press":            {type:"isolation", pct:0.010, preferReps:true,  minReps:10, maxReps:20},
+  "Plank":                   {type:"isolation", pct:0.000, preferReps:true,  minReps:3,  maxReps:10},
+  "Decline Sit-Up":          {type:"isolation", pct:0.000, preferReps:true,  minReps:10, maxReps:25},
+  "Dragon Flag":             {type:"isolation", pct:0.000, preferReps:true,  minReps:3,  maxReps:10},
+  "Landmine Rotation":       {type:"isolation", pct:0.010, preferReps:true,  minReps:8,  maxReps:15},
+  "Dead Bug":                {type:"isolation", pct:0.000, preferReps:true,  minReps:8,  maxReps:20},
+  "Cable Woodchop":          {type:"isolation", pct:0.010, preferReps:true,  minReps:10, maxReps:20},
+  // Full Body — mostly rep-based or weight-based depending on exercise
+  "Farmers Carry":           {type:"compound",  pct:0.000, preferReps:false, minReps:1,  maxReps:5},
+  "Sled Push":               {type:"compound",  pct:0.000, preferReps:false, minReps:1,  maxReps:5},
+  "Battle Ropes":            {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:20},
+  "Turkish Get-Up":          {type:"compound",  pct:0.000, preferReps:true,  minReps:3,  maxReps:8},
+  "Kettlebell Swing":        {type:"compound",  pct:0.000, preferReps:true,  minReps:10, maxReps:25},
+  "Box Jump":                {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:10},
+  "Burpee":                  {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:20},
+  "Man Maker":               {type:"compound",  pct:0.000, preferReps:true,  minReps:5,  maxReps:15},
+  "Clean and Press":         {type:"compound",  pct:0.025, preferReps:false, minReps:3,  maxReps:8},
+  "Trap Bar Deadlift":       {type:"compound",  pct:0.035, preferReps:false, minReps:3,  maxReps:8},
 };
-const getProfile = n => EX_PROFILE[n] || {type:"compound", pct:0.025, preferReps:false};
+const getProfile = n => EX_PROFILE[n] || {type:"compound", pct:0.025, preferReps:false, minReps:5, maxReps:15};
 const snap = v => Math.max(Math.round(v/2.5)*2.5, 2.5);
-const defaultRIR = (w, total) => {
+// Compute ramped set count for the current week (MEV→MRV across working weeks)
+function rampedSets(mevSets, mrvSets, week, totalWeeks) {
+  const workingWeeks = totalWeeks - 1; // last week is deload
+  if (week >= totalWeeks) return Math.max(1, Math.ceil(mevSets / 2)); // deload: ~50% of MEV
+  if (workingWeeks <= 1) return mevSets;
+  const progress = (week - 1) / (workingWeeks - 1);
+  return Math.round(mevSets + progress * (mrvSets - mevSets));
+}
+
+// Epley e1RM — used for PR comparison so reps are factored in
+const e1rm = (weight, reps) => {
+  const w = parseFloat(weight) || 0;
+  const r = parseInt(reps) || 1;
+  return w * (1 + r / 30);
+};
+
+// Experience-scaled rollback between mesos (#13)
+const rollbackWeight = (w, experience, isIsolation) => {
+  if (isIsolation) return snap(parseFloat(w) * 0.94);
+  const pct = {new:0.85, returning:0.88, intermediate:0.92, advanced:0.95}[experience] || 0.92;
+  return snap(parseFloat(w) * pct);
+};
+
+// Experience-aware RIR sequence aligned with RP methodology
+// Intermediate + Advanced: 3→2→1→0 (same sequence, volume differs)
+// New/Returning: stay at 3-4 throughout — technique not calibrated enough for failure
+const defaultRIR = (w, total, experience="intermediate") => {
   const t = total || 5;
-  if (w >= t) return 4; // deload week
-  const seqs = {4:[3,2,1], 5:[3,2,1,0], 6:[3,2,1,1,0]};
-  const seq = seqs[t] || seqs[5];
-  return seq[Math.min(w-1, seq.length-1)];
+  if (w >= t) return 4; // deload week always RIR 4
+  const workingWeeks = t - 1;
+  const isNovice = experience==="new" || experience==="returning";
+  // Novices hold RIR 3 the entire meso — no ramp to failure
+  if(isNovice){
+    if(workingWeeks<=1) return 3;
+    // Gentle: start at 4, hold at 3 for most of meso, end at 2 max
+    const seqs={1:[3],2:[4,3],3:[4,3,3],4:[4,3,3,2],5:[4,3,3,2,2]};
+    const seq=seqs[workingWeeks]||seqs[4];
+    return seq[Math.min(w-1,seq.length-1)];
+  }
+  // Intermediate + Advanced: classic RP 3→2→1→0 ramp
+  const seqs={1:[3],2:[3,1],3:[3,2,0],4:[3,2,1,0],5:[3,2,2,1,0]};
+  const seq=seqs[workingWeeks]||seqs[4];
+  return seq[Math.min(w-1,seq.length-1)];
 };
 const fmt = s => String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
 const getTodayName = () => new Date().toLocaleDateString("en-US",{weekday:"long"});
 const getGreeting = () => { const h=new Date().getHours(); if(h<12) return "Good morning,"; if(h<17) return "Good afternoon,"; return "Good evening,"; };
 
-function rpProg(name, lw, lrir, lreps, trir, isDrop, theme=DARK) {
+function rpProg(name, lw, lrir, lreps, trir, isDrop, theme=DARK, experience="intermediate") {
   if (isDrop) return {action:"add_reps",ws:lw,note:"Chase reps",reason:"Drop sets: hold weight, add reps",color:theme.blue};
-  const p=getProfile(name), w=parseFloat(lw)||0;
-  if (!w) return null;
-  const inc=snap(w*p.pct);
-  if (lrir===null||lrir===undefined) return {action:"baseline",ws:w,note:null,reason:"No prior session. Hold this weight and log RIR to enable progression.",color:theme.muted2};
+  const p=getProfile(name);
+  const w=parseFloat(lw)||0;
+  const expScale={new:1.5, returning:1.25, intermediate:1.0, advanced:0.6}[experience]||1.0;
+  const inc=snap(w*p.pct*expScale);
+  const lrepsN=parseInt(lreps)||0;
+
+  // Bodyweight / zero-load exercises — rep guidance without needing a weight
+  if(!w && p.preferReps){
+    if(lrir===null||lrir===undefined) return {action:"baseline",ws:0,note:null,reason:"Log your reps and RIR to enable progression.",color:theme.muted2};
+    const diff=lrir-trir;
+    if(diff>=2&&lrepsN){
+      if(lrepsN>=p.maxReps) return {action:"add_load",ws:0,note:"Add external load (vest/belt)",reason:"You've hit "+p.maxReps+" reps — time to add resistance.",color:theme.green};
+      return {action:"add_reps",ws:0,note:"Aim for "+(lrepsN+1)+"-"+(lrepsN+2)+" reps",reason:"Too easy — add a rep.",color:theme.green};
+    }
+    if(diff>=0&&lrepsN) return {action:"add_reps",ws:0,note:"Aim for +1 rep",reason:"On target — chase one more rep.",color:theme.accent};
+    if(diff===-1) return {action:"hold",ws:0,note:"Match last reps",reason:"Slightly too hard — hold reps.",color:theme.orange};
+    return {action:"reduce",ws:0,note:"Drop 1-2 reps",reason:"Too hard — reduce reps slightly.",color:theme.red};
+  }
+
+  if(!w) return null;
+  if(lrir===null||lrir===undefined) return {action:"baseline",ws:w,note:null,reason:"No prior session. Hold this weight and log RIR to enable progression.",color:theme.muted2};
   const diff=lrir-trir;
   const ctx="Last: RIR "+lrir+"  /  Target: RIR "+trir;
-  if (diff>=2) {
-    if (p.preferReps&&lreps) return {action:"add_reps",ws:w,note:"Aim for "+(+lreps+1)+"-"+(+lreps+2)+" reps",reason:ctx+". Too easy - add a rep first.",color:theme.green};
-    return {action:"add_weight",ws:w+inc,note:null,reason:ctx+". Too easy - adding "+inc+" lbs.",color:theme.green};
+
+  if(diff>=2){
+    if(p.preferReps && lrepsN){
+      if(lrepsN>=p.maxReps) return {action:"add_weight",ws:w+inc,note:"Drop to "+p.minReps+"-"+(p.minReps+2)+" reps",reason:ctx+". Hit rep ceiling ("+p.maxReps+") — add "+inc+" lbs, drop back to "+p.minReps+" reps.",color:theme.green};
+      return {action:"add_reps",ws:w,note:"Aim for "+(lrepsN+1)+"-"+(lrepsN+2)+" reps",reason:ctx+". Too easy — add a rep first.",color:theme.green};
+    }
+    return {action:"add_weight",ws:w+inc,note:null,reason:ctx+". Too easy — adding "+inc+" lbs.",color:theme.green};
   }
-  if (diff>=0) {
-    if (p.preferReps&&lreps) return {action:"add_reps",ws:w,note:"Aim for +1 rep",reason:ctx+". Calibrated - add a rep before adding weight.",color:theme.accent};
-    return {action:"add_weight",ws:w+snap(w*p.pct*0.6),note:null,reason:ctx+". Calibrated - small bump.",color:theme.accent};
+  if(diff>=0){
+    if(p.preferReps && lrepsN){
+      if(lrepsN>=p.maxReps) return {action:"add_weight",ws:w+snap(w*p.pct*expScale*0.6),note:"Drop to "+p.minReps+"-"+(p.minReps+2)+" reps",reason:ctx+". Hit rep ceiling — bump weight, reset reps.",color:theme.accent};
+      return {action:"add_reps",ws:w,note:"Aim for +1 rep",reason:ctx+". On target — add a rep before adding weight.",color:theme.accent};
+    }
+    return {action:"add_weight",ws:w+snap(w*p.pct*expScale*0.6),note:null,reason:ctx+". On target — small weight bump.",color:theme.accent};
   }
-  if (diff===-1) return {action:"hold",ws:w,note:"Match last reps",reason:ctx+". Slightly too hard - hold weight.",color:theme.orange};
-  return {action:"reduce",ws:Math.max(w-inc,2.5),note:null,reason:ctx+". Too heavy - reducing "+inc+" lbs.",color:theme.red};
+  if(diff===-1) return {action:"hold",ws:w,note:"Match last reps",reason:ctx+". Slightly too hard — hold weight.",color:theme.orange};
+  return {action:"reduce",ws:Math.max(w-inc,2.5),note:null,reason:ctx+". Too heavy — reducing "+inc+" lbs.",color:theme.red};
 }
 
 function buildScheme(sets) {
@@ -192,7 +307,6 @@ function extractLiftEntries(exs, mesoNum, mesoLabel, week, isDeload) {
   return entries;
 }
 
-const rollbackWeight=w=>snap(parseFloat(w)*0.92);
 function findPeakWeight(liftHistory,exerciseName,mesoNum){
   const entries=liftHistory.filter(e=>e.exercise===exerciseName&&e.mesoNum===mesoNum&&!e.isDeload);
   if (!entries.length) return null;
@@ -217,11 +331,15 @@ const INIT_LIBRARY=[
   // Chest
   {name:"Machine Press",muscle:"Chest",type:"compound",fav:true},
   {name:"Flat Barbell Bench",muscle:"Chest",type:"compound",fav:false},
+  {name:"Incline Barbell Press",muscle:"Chest",type:"compound",fav:false},
   {name:"Incline Dumbbell Press",muscle:"Chest",type:"compound",fav:false},
+  {name:"Decline Dumbbell Press",muscle:"Chest",type:"compound",fav:false},
   {name:"Dumbbell Bench Press",muscle:"Chest",type:"compound",fav:false},
   {name:"Close Grip Bench Press",muscle:"Chest",type:"compound",fav:false},
+  {name:"Landmine Press",muscle:"Chest",type:"compound",fav:false},
   {name:"Push-Up",muscle:"Chest",type:"compound",fav:false},
   {name:"Machine Fly",muscle:"Chest",type:"isolation",fav:false},
+  {name:"Pec Deck",muscle:"Chest",type:"isolation",fav:false},
   {name:"Cable Fly",muscle:"Chest",type:"isolation",fav:false},
   {name:"Dumbbell Fly",muscle:"Chest",type:"isolation",fav:false},
   // Back
@@ -229,26 +347,35 @@ const INIT_LIBRARY=[
   {name:"Dumbbell Row",muscle:"Back",type:"compound",fav:false},
   {name:"T-Bar Row",muscle:"Back",type:"compound",fav:false},
   {name:"Chest Supported Row",muscle:"Back",type:"compound",fav:false},
+  {name:"Single Arm Cable Row",muscle:"Back",type:"compound",fav:false},
+  {name:"Meadows Row",muscle:"Back",type:"compound",fav:false},
+  {name:"Rack Pull",muscle:"Back",type:"compound",fav:false},
   {name:"Lat Pulldown",muscle:"Back",type:"compound",fav:true},
   {name:"Pull-Up",muscle:"Back",type:"compound",fav:false},
   {name:"Chin-Up",muscle:"Back",type:"compound",fav:false},
   {name:"Seated Cable Row",muscle:"Back",type:"compound",fav:false},
+  {name:"Straight Arm Pulldown",muscle:"Back",type:"isolation",fav:false},
+  {name:"Cable Pullover",muscle:"Back",type:"isolation",fav:false},
   // Shoulders
   {name:"Standing Barbell Press",muscle:"Shoulders",type:"compound",fav:true},
   {name:"Dumbbell Shoulder Press",muscle:"Shoulders",type:"compound",fav:false},
   {name:"Arnold Press",muscle:"Shoulders",type:"compound",fav:false},
+  {name:"Upright Row",muscle:"Shoulders",type:"compound",fav:false},
   {name:"Lateral Overheads",muscle:"Shoulders",type:"isolation",fav:false},
   {name:"Lateral Machine",muscle:"Shoulders",type:"isolation",fav:false},
   {name:"Dumbbell Lateral Raise",muscle:"Shoulders",type:"isolation",fav:false},
   {name:"Cable Lateral Raise",muscle:"Shoulders",type:"isolation",fav:false},
   {name:"Face Pull",muscle:"Shoulders",type:"isolation",fav:false},
   {name:"Rear Delt Fly",muscle:"Shoulders",type:"isolation",fav:false},
+  {name:"Reverse Pec Deck",muscle:"Shoulders",type:"isolation",fav:false},
   // Triceps
   {name:"Tri Machine",muscle:"Triceps",type:"isolation",fav:false},
   {name:"Tricep Pushdown",muscle:"Triceps",type:"isolation",fav:true},
   {name:"Skull Crusher",muscle:"Triceps",type:"isolation",fav:false},
   {name:"Overhead Tricep Extension",muscle:"Triceps",type:"isolation",fav:false},
   {name:"Cable Overhead Extension",muscle:"Triceps",type:"isolation",fav:false},
+  {name:"JM Press",muscle:"Triceps",type:"compound",fav:false},
+  {name:"Tate Press",muscle:"Triceps",type:"isolation",fav:false},
   {name:"Dip",muscle:"Triceps",type:"compound",fav:false},
   // Biceps
   {name:"Barbell Curl",muscle:"Biceps",type:"isolation",fav:true},
@@ -257,6 +384,10 @@ const INIT_LIBRARY=[
   {name:"Incline Dumbbell Curl",muscle:"Biceps",type:"isolation",fav:false},
   {name:"Cable Curl",muscle:"Biceps",type:"isolation",fav:false},
   {name:"Preacher Curl",muscle:"Biceps",type:"isolation",fav:false},
+  {name:"Spider Curl",muscle:"Biceps",type:"isolation",fav:false},
+  {name:"Concentration Curl",muscle:"Biceps",type:"isolation",fav:false},
+  {name:"Reverse Curl",muscle:"Biceps",type:"isolation",fav:false},
+  {name:"Machine Curl",muscle:"Biceps",type:"isolation",fav:false},
   // Quads
   {name:"Back Squat",muscle:"Quads",type:"compound",fav:true},
   {name:"Front Squat",muscle:"Quads",type:"compound",fav:false},
@@ -265,20 +396,56 @@ const INIT_LIBRARY=[
   {name:"Goblet Squat",muscle:"Quads",type:"compound",fav:false},
   {name:"Walking Lunge",muscle:"Quads",type:"compound",fav:false},
   {name:"Leg Press",muscle:"Quads",type:"compound",fav:false},
+  {name:"Leg Extension",muscle:"Quads",type:"isolation",fav:false},
+  {name:"Step Up",muscle:"Quads",type:"compound",fav:false},
+  {name:"Sissy Squat",muscle:"Quads",type:"isolation",fav:false},
   // Hamstrings
   {name:"Romanian Deadlift",muscle:"Hamstrings",type:"compound",fav:true},
   {name:"Stiff Leg Deadlift",muscle:"Hamstrings",type:"compound",fav:false},
   {name:"Good Morning",muscle:"Hamstrings",type:"compound",fav:false},
+  {name:"Single Leg Romanian Deadlift",muscle:"Hamstrings",type:"compound",fav:false},
   {name:"Nordic Curl",muscle:"Hamstrings",type:"isolation",fav:false},
   {name:"Leg Curl",muscle:"Hamstrings",type:"isolation",fav:false},
+  {name:"Lying Leg Curl",muscle:"Hamstrings",type:"isolation",fav:false},
+  {name:"Seated Leg Curl",muscle:"Hamstrings",type:"isolation",fav:false},
   // Glutes
   {name:"Hip Thrust",muscle:"Glutes",type:"compound",fav:true},
+  {name:"Barbell Hip Thrust",muscle:"Glutes",type:"compound",fav:false},
+  {name:"Single Leg Hip Thrust",muscle:"Glutes",type:"compound",fav:false},
   {name:"Sumo Deadlift",muscle:"Glutes",type:"compound",fav:false},
   {name:"Glute Bridge",muscle:"Glutes",type:"compound",fav:false},
+  {name:"Cable Pull Through",muscle:"Glutes",type:"compound",fav:false},
+  {name:"Abductor Machine",muscle:"Glutes",type:"isolation",fav:false},
+  {name:"Reverse Hyper",muscle:"Glutes",type:"compound",fav:false},
   {name:"Cable Kickback",muscle:"Glutes",type:"isolation",fav:false},
   // Calves
   {name:"Calf Raise",muscle:"Calves",type:"isolation",fav:true},
   {name:"Seated Calf Raise",muscle:"Calves",type:"isolation",fav:false},
+  {name:"Leg Press Calf Raise",muscle:"Calves",type:"isolation",fav:false},
+  {name:"Single Leg Calf Raise",muscle:"Calves",type:"isolation",fav:false},
+  {name:"Tibialis Raise",muscle:"Calves",type:"isolation",fav:false},
+  // Core
+  {name:"Cable Crunch",muscle:"Core",type:"isolation",fav:false},
+  {name:"Ab Wheel Rollout",muscle:"Core",type:"isolation",fav:false},
+  {name:"Hanging Leg Raise",muscle:"Core",type:"isolation",fav:false},
+  {name:"Pallof Press",muscle:"Core",type:"isolation",fav:false},
+  {name:"Plank",muscle:"Core",type:"isolation",fav:false},
+  {name:"Decline Sit-Up",muscle:"Core",type:"isolation",fav:false},
+  {name:"Dragon Flag",muscle:"Core",type:"isolation",fav:false},
+  {name:"Landmine Rotation",muscle:"Core",type:"isolation",fav:false},
+  {name:"Dead Bug",muscle:"Core",type:"isolation",fav:false},
+  {name:"Cable Woodchop",muscle:"Core",type:"isolation",fav:false},
+  // Full Body
+  {name:"Farmers Carry",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Sled Push",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Battle Ropes",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Turkish Get-Up",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Kettlebell Swing",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Box Jump",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Burpee",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Man Maker",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Clean and Press",muscle:"Full Body",type:"compound",fav:false},
+  {name:"Trap Bar Deadlift",muscle:"Full Body",type:"compound",fav:false},
 ];
 const GLOSSARY=[
   {term:"RIR",full:"Reps in Reserve",def:"How many more reps you could do before failure. Ramps down each week as the meso gets harder."},
@@ -292,33 +459,113 @@ const GLOSSARY=[
 const WEEK_DAYS=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const AUTO_SPLITS={
   "Push/Pull/Legs":[
-    {name:"Push",exs:["Machine Press","Incline Dumbbell Press","Lateral Machine","Tri Machine"]},
-    {name:"Pull",exs:["Barbell Row","Lat Pulldown","Barbell Curl","Hammer Curl"]},
-    {name:"Legs",exs:["Back Squat","Romanian Deadlift","Leg Press","Leg Curl","Calf Raise"]},
+    {name:"Push",exs:[
+      "Machine Press","Incline Dumbbell Press",
+      "Dumbbell Shoulder Press","Cable Lateral Raise",
+      "Tricep Pushdown","Overhead Tricep Extension",
+    ]},
+    {name:"Pull",exs:[
+      "Barbell Row","Lat Pulldown","Seated Cable Row",
+      "Face Pull",
+      "Barbell Curl","Hammer Curl",
+    ]},
+    {name:"Legs",exs:[
+      "Back Squat","Leg Press","Leg Extension",
+      "Romanian Deadlift","Leg Curl",
+      "Hip Thrust","Calf Raise",
+    ]},
   ],
   "Upper/Lower":[
-    {name:"Upper A",exs:["Machine Press","Barbell Row","Standing Barbell Press","Lat Pulldown"]},
-    {name:"Lower A",exs:["Back Squat","Romanian Deadlift","Leg Press","Calf Raise"]},
-    {name:"Upper B",exs:["Incline Dumbbell Press","Lat Pulldown","Barbell Curl","Tri Machine"]},
-    {name:"Lower B",exs:["Leg Press","Leg Curl","Romanian Deadlift","Hip Thrust"]},
+    {name:"Upper A",exs:[
+      "Flat Barbell Bench","Barbell Row",
+      "Dumbbell Shoulder Press","Lat Pulldown",
+      "Tricep Pushdown","Barbell Curl",
+    ]},
+    {name:"Lower A",exs:[
+      "Back Squat","Leg Press","Leg Extension",
+      "Romanian Deadlift","Leg Curl",
+      "Calf Raise",
+    ]},
+    {name:"Upper B",exs:[
+      "Incline Dumbbell Press","Chest Supported Row",
+      "Cable Lateral Raise","Seated Cable Row",
+      "Skull Crusher","Hammer Curl",
+    ]},
+    {name:"Lower B",exs:[
+      "Bulgarian Split Squat","Hack Squat",
+      "Seated Leg Curl","Hip Thrust",
+      "Glute Bridge","Seated Calf Raise",
+    ]},
   ],
   "Full Body":[
-    {name:"Full Body A",exs:["Machine Press","Barbell Row","Back Squat"]},
-    {name:"Full Body B",exs:["Standing Barbell Press","Lat Pulldown","Romanian Deadlift"]},
-    {name:"Full Body C",exs:["Incline Dumbbell Press","Barbell Curl","Leg Press"]},
+    {name:"Full Body A",exs:[
+      "Flat Barbell Bench","Barbell Row",
+      "Back Squat","Romanian Deadlift",
+      "Tricep Pushdown","Barbell Curl",
+    ]},
+    {name:"Full Body B",exs:[
+      "Incline Dumbbell Press","Lat Pulldown",
+      "Leg Press","Hip Thrust",
+      "Overhead Tricep Extension","Hammer Curl",
+      "Calf Raise",
+    ]},
+    {name:"Full Body C",exs:[
+      "Machine Press","Seated Cable Row",
+      "Bulgarian Split Squat","Leg Curl",
+      "Dumbbell Shoulder Press","Cable Curl",
+      "Seated Calf Raise",
+    ]},
   ],
   "Hybrid Split":[
-    {name:"Push + Legs",exs:["Machine Press","Incline Dumbbell Press","Lateral Machine","Back Squat","Leg Press","Calf Raise"]},
-    {name:"Pull + Legs",exs:["Barbell Row","Lat Pulldown","Barbell Curl","Romanian Deadlift","Leg Curl","Hip Thrust"]},
-    {name:"Upper",exs:["Machine Press","Barbell Row","Standing Barbell Press","Lat Pulldown","Hammer Curl","Tri Machine"]},
-    {name:"Legs",exs:["Back Squat","Romanian Deadlift","Leg Press","Leg Curl","Hip Thrust","Calf Raise"]},
+    {name:"Push + Legs",exs:[
+      "Machine Press","Incline Dumbbell Press",
+      "Cable Lateral Raise","Tricep Pushdown",
+      "Back Squat","Leg Press","Calf Raise",
+    ]},
+    {name:"Pull + Legs",exs:[
+      "Barbell Row","Lat Pulldown",
+      "Face Pull","Barbell Curl",
+      "Romanian Deadlift","Leg Curl","Hip Thrust",
+    ]},
+    {name:"Upper",exs:[
+      "Flat Barbell Bench","Barbell Row",
+      "Dumbbell Shoulder Press","Seated Cable Row",
+      "Skull Crusher","Hammer Curl",
+    ]},
+    {name:"Legs",exs:[
+      "Back Squat","Leg Press","Leg Extension",
+      "Romanian Deadlift","Leg Curl",
+      "Hip Thrust","Calf Raise",
+    ]},
   ],
   "Bro Split":[
-    {name:"Chest",exs:["Machine Press","Incline Dumbbell Press","Machine Fly","Tri Machine"]},
-    {name:"Back",exs:["Barbell Row","Lat Pulldown","Barbell Curl","Hammer Curl"]},
-    {name:"Shoulders",exs:["Standing Barbell Press","Lateral Machine","Lateral Overheads"]},
-    {name:"Arms",exs:["Barbell Curl","Hammer Curl","Tri Machine","Tricep Pushdown"]},
-    {name:"Legs",exs:["Back Squat","Romanian Deadlift","Leg Press","Leg Curl","Calf Raise"]},
+    {name:"Chest",exs:[
+      "Flat Barbell Bench","Incline Dumbbell Press",
+      "Machine Press","Pec Deck","Cable Fly",
+    ]},
+    {name:"Back",exs:[
+      "Barbell Row","Lat Pulldown",
+      "Seated Cable Row","Chest Supported Row",
+      "Straight Arm Pulldown",
+    ]},
+    {name:"Shoulders",exs:[
+      "Dumbbell Shoulder Press","Lateral Machine",
+      "Cable Lateral Raise","Face Pull","Rear Delt Fly",
+    ]},
+    {name:"Arms",exs:[
+      "Barbell Curl","Incline Dumbbell Curl","Cable Curl",
+      "Tricep Pushdown","Skull Crusher","Overhead Tricep Extension",
+    ]},
+    {name:"Legs",exs:[
+      "Back Squat","Leg Press","Leg Extension",
+      "Romanian Deadlift","Seated Leg Curl",
+      "Hip Thrust","Calf Raise",
+    ]},
+    {name:"Specialization",exs:[
+      "Incline Barbell Press","Cable Fly",
+      "T-Bar Row","Cable Pullover",
+      "Hammer Curl","Tricep Pushdown",
+    ]},
   ],
 };
 const SPLIT_DAYS={
@@ -326,7 +573,7 @@ const SPLIT_DAYS={
     "3":["Tuesday","Thursday","Saturday"],
     "4":["Monday","Tuesday","Thursday","Saturday"],
     "5":["Monday","Tuesday","Wednesday","Friday","Saturday"],
-    "6":["Monday","Tuesday","Wednesday","Friday","Saturday","Sunday"],
+    "6":["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
   },
   "Upper/Lower":{
     "2":["Monday","Thursday"],
@@ -346,6 +593,7 @@ const SPLIT_DAYS={
     "2":["Monday","Thursday"],
     "3":["Monday","Wednesday","Friday"],
     "4":["Monday","Tuesday","Thursday","Saturday"],
+    "5":["Monday","Tuesday","Wednesday","Friday","Saturday"],
   },
   "Bro Split":{
     "3":["Monday","Wednesday","Friday"],
@@ -377,35 +625,70 @@ function getPplSequence(n,priority){
   if (n===6) return [0,1,2,0,1,2];
   return Array(n).fill(null).map((_,i)=>i%3);
 }
-function autoGen(split,n,lib,priority){
+function autoGen(split,n,lib,priority,muscles){
   const tmpl=AUTO_SPLITS[split];
   if (!tmpl) return [];
   const tc=tmpl.length;
   let seq;
-  if (split==="Push/Pull/Legs"){seq=getPplSequence(n,priority);}
-  else if (split==="Hybrid Split"){
+  if (split==="Push/Pull/Legs"){
+    seq=getPplSequence(n,priority);
+  } else if (split==="Hybrid Split"){
     if(n===2) seq=[0,1];
     else if(n===3) seq=[0,1,2];
-    else seq=[0,1,2,3]; // 4-day: Push+Legs, Pull+Legs, Upper, Legs
+    else if(n===4) seq=[0,1,2,3];
+    else seq=[0,1,2,3,0];
+  } else if (split==="Bro Split"){
+    if(n===3) seq=[0,1,4];
+    else if(n===4) seq=[0,1,3,4];
+    else if(n===5) seq=[0,1,2,3,4];
+    else seq=[0,1,2,3,4,5];
+  } else {
+    seq=Array(n).fill(null).map((_,i)=>i%tc);
   }
-  else{seq=Array(n).fill(null).map((_,i)=>i%tc);}
   const days=(SPLIT_DAYS[split]&&SPLIT_DAYS[split][String(n)])||WEEK_DAYS.slice(0,n);
+
+  // Count how many sessions per week each muscle group appears across all days
+  const muscleFreq={};
+  seq.forEach(ti=>{
+    const t=tmpl[ti];
+    const dayMuscles=new Set(t.exs.map(nm=>{const f=lib.find(e=>e.name===nm);return f?f.muscle:null;}).filter(Boolean));
+    dayMuscles.forEach(m=>{muscleFreq[m]=(muscleFreq[m]||0)+1;});
+  });
+
   const tmplCount={};
   const tmplSeen={};
   seq.forEach(ti=>{tmplCount[ti]=(tmplCount[ti]||0)+1;});
+
   return seq.map((ti,i)=>{
     const t=tmpl[ti];
     tmplSeen[ti]=(tmplSeen[ti]||0)+1;
-    // Only add A/B suffix if the template name doesn't already end in a letter
-    // (Upper A, Lower B, Full Body A already self-distinguish)
     const alreadyLabeled=/ [A-C]$/.test(t.name);
     const needsSuffix=tmplCount[ti]>1&&!alreadyLabeled;
     const suffix=needsSuffix?(tmplSeen[ti]===1?" A":" B"):"";
+
     const exercises=t.exs.map(nm=>{
       const found=lib.find(e=>e.name===nm);
       if (!found) return null;
-      return {...found,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
+      // Calculate MEV-based set count for this exercise's muscle group
+      // Distribute weekly MEV sets across training days that hit this muscle
+      const m=found.muscle;
+      const lm=muscles&&muscles[m];
+      let setCount=3; // fallback default
+      if(lm){
+        const freq=muscleFreq[m]||1;
+        // Exercises per day hitting this muscle on this template
+        const exsForMuscle=t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===m;}).length||1;
+        // Weekly MEV sets for this muscle divided by frequency and exercises per session
+        const setsPerSession=Math.max(2,Math.round(lm.mev/freq/exsForMuscle));
+        setCount=Math.min(setsPerSession,5); // cap at 5 sets per exercise
+      }
+      const mevSets=setCount;
+      // MRV sets per session: slightly more than MEV to drive progression
+      const mrvSets=lm?Math.min(Math.max(mevSets+2,Math.round(lm.mav/Math.max(muscleFreq[found.muscle]||1,1)/(t.exs.filter(nm2=>{const f=lib.find(e=>e.name===nm2);return f&&f.muscle===found.muscle;}).length||1))),mevSets+3):mevSets+2;
+      const sets=Array(mevSets).fill(null).map(()=>newSet("","normal"));
+      return {...found,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,sets};
     }).filter(Boolean);
+
     return {id:uid("d"),day:days[i]||"Monday",name:t.name+suffix,exercises};
   });
 }
@@ -464,6 +747,8 @@ function GlossaryModal({onClose}){
 
 function ProgBanner({ex,wk,totalWeeks,isDeload}){
   const C=useContext(ThemeCtx);
+  const P=useContext(ProfileCtx);
+  const exp=P.experience||"intermediate";
   if(isDeload){
     return(
       <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
@@ -473,7 +758,7 @@ function ProgBanner({ex,wk,totalWeeks,isDeload}){
     );
   }
   if (!ex.lastWeight) return null;
-  const p=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks),false,C);
+  const p=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks,exp),false,C,exp);
   if (!p) return null;
   const lbls={
     add_weight:"Suggested: "+p.ws+" lbs",
@@ -481,6 +766,7 @@ function ProgBanner({ex,wk,totalWeeks,isDeload}){
     hold:"Hold "+p.ws+" lbs - "+(p.note||""),
     reduce:"Suggested: "+p.ws+" lbs (reduce)",
     baseline:"Week 1 baseline — log your RIR to enable progression",
+    add_load:p.note||"Add external load to continue progressing",
   };
   return(
     <div style={{display:"flex",alignItems:"flex-start",gap:8,background:p.color+"12",border:"1px solid "+p.color+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
@@ -606,12 +892,15 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
 
 function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId,setExpId,elapsed,don,tot,pct,liftHistory}){
   const C=useContext(ThemeCtx);
-  // Build all-time best weight per exercise from history (for PR detection)
+  const P=useContext(ProfileCtx);
+  const exp=P.experience||"intermediate";
+  // Build all-time best e1RM per exercise from history (Epley formula — accounts for reps)
   const allTimeBest=useMemo(()=>{
     const best={};
     (liftHistory||[]).forEach(e=>{
-      if(!e.isDeload&&(!best[e.exercise]||e.topSetWeight>best[e.exercise])){
-        best[e.exercise]=e.topSetWeight;
+      if(!e.isDeload){
+        const est=e1rm(e.topSetWeight,e.topSetReps||1);
+        if(!best[e.exercise]||est>best[e.exercise]) best[e.exercise]=est;
       }
     });
     return best;
@@ -681,7 +970,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const addSet=eid=>setExs(p=>p.map(e=>{
     if(e.id!==eid) return e;
     const last=e.sets[e.sets.length-1];
-    const ns={id:uid("ns"),weight:last?last.weight:"",reps:"",rir:last?last.rir:String(defaultRIR(wk,totalWeeks)),type:last&&last.type==="drop"?"drop":"normal",done:false};
+    const ns={id:uid("ns"),weight:last?last.weight:"",reps:"",rir:last?last.rir:String(defaultRIR(wk,totalWeeks,exp)),type:last&&last.type==="drop"?"drop":"normal",done:false};
     return {...e,sets:[...e.sets,ns]};
   }));
   const delSet=(eid,sid)=>{
@@ -791,7 +1080,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
           </button>
           <div style={{flex:1}}>
             <div style={{fontSize:13,fontWeight:700}}><span style={{color:C.muted,fontWeight:500}}>{workout.day} - </span>{workout.name}</div>
-            <div style={{fontSize:10,color:C.muted}}>Week {wk} - RIR target {defaultRIR(wk,totalWeeks)}</div>
+            <div style={{fontSize:10,color:C.muted}}>Week {wk} - RIR target {defaultRIR(wk,totalWeeks,exp)}</div>
           </div>
           <div style={{fontSize:13,fontWeight:600,color:elapsed>3600?C.red:C.muted2}}>{fmt(elapsed)}</div>
         </div>
@@ -836,7 +1125,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                       ):(
                         <div style={{marginTop:3}}>
                           {(()=>{
-                            const pr=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks),false,C);
+                            const pr=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks,exp),false,C,exp);
                             const sw=pr?pr.ws:(ex.lastWeight||"?");
                             const sc=ex.sets.filter(s=>s.type!=="drop").length;
                             const dc2=ex.sets.filter(s=>s.type==="drop").length;
@@ -845,7 +1134,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                 <span style={{fontSize:12,fontWeight:700,color:C.accent}}>{sw} lbs</span>
                                 <span style={{fontSize:11,color:C.muted2}}> x {sc} sets</span>
                                 {dc2>0?<span style={{fontSize:11,color:C.orange}}>  +{dc2} drop</span>:null}
-                                <span style={{fontSize:10,color:C.muted,marginLeft:6}}>RIR {defaultRIR(wk,totalWeeks)} target</span>
+                                <span style={{fontSize:10,color:C.muted,marginLeft:6}}>RIR {defaultRIR(wk,totalWeeks,exp)} target</span>
                               </div>
                             );
                           })()}
@@ -883,8 +1172,11 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                         const canSw=!set.done&&ex.sets.filter(s=>!s.done).length>1;
                         const isRev=swiped.has(set.id);
                         const repsN=parseInt(set.reps);
-                        const maxR=getProfile(ex.name).type==="compound"?20:30;
-                        const repFlag=!set.done&&set.reps&&!isNaN(repsN)&&(repsN<3||repsN>maxR);
+                        const prof=getProfile(ex.name);
+                        // Per-exercise rep ranges: compounds 5-20, isolation 8-30, calves/core higher
+                        const minR=prof.type==="compound"?5:8;
+                        const maxR=prof.preferReps?(ex.muscle==="Calves"||ex.muscle==="Core"?40:30):20;
+                        const repFlag=!set.done&&set.reps&&!isNaN(repsN)&&(repsN<minR||repsN>maxR);
                         return(
                           <div key={set.id}>
                             <div onTouchStart={canSw?e=>onTS(set.id,e):undefined} onTouchEnd={canSw?e=>onTE(set.id,e):undefined} style={{position:"relative",overflow:"hidden",borderRadius:7,marginBottom:repFlag?2:5,transition:"opacity .2s",opacity:set.done?0.36:1}}>
@@ -904,8 +1196,10 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                   {(()=>{
                                     if(!set.done) return null;
                                     const w=parseFloat(set.weight)||0;
+                                    const r=parseInt(set.reps)||1;
+                                    const est=e1rm(w,r);
                                     const best=allTimeBest[ex.name]||0;
-                                    if(w>0&&w>=best&&best>0) return(
+                                    if(est>0&&est>=best&&best>0) return(
                                       <span style={{position:"absolute",top:-6,right:-4,fontSize:8,fontWeight:800,color:C.accent,letterSpacing:0.5,background:C.accent+"22",borderRadius:3,padding:"1px 4px",lineHeight:1.4}}>PR</span>
                                     );
                                     return null;
@@ -964,19 +1258,37 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
 
 function Logger({workout,wk,totalWeeks,isDeload,onComplete,onMinimize,visible,liftHistory,savedExs,onExsChange}){
   const C=useContext(ThemeCtx);
+  const P=useContext(ProfileCtx);
+  const exp=P.experience||"intermediate";
   const [exs,setExsRaw]=useState(()=>{
     // Restore in-progress sets if they were persisted (survives reload/backgrounding)
     if(savedExs&&savedExs.length>0) return savedExs;
     return workout.exercises.map(ex=>({
       ...ex,
       sets:(()=>{
-        const base=ex.sets.map(s=>s.done?s:{...s,rir:String(isDeload?4:defaultRIR(wk,totalWeeks))});
         if(isDeload){
+          // Deload: 50% of MEV sets (or stored set count), min 1
+          const base=ex.sets.map(s=>({...s,rir:"4"}));
           const working=base.filter(s=>s.type!=="drop");
-          const halved=working.slice(0,Math.max(1,Math.ceil(working.length/2)));
-          return halved;
+          const deloadCount=Math.max(1,Math.ceil((ex.mevSets||working.length)/2));
+          return working.slice(0,deloadCount);
         }
-        return base;
+        // Ramp sets from MEV to MRV across working weeks
+        const mev=ex.mevSets||ex.sets.filter(s=>s.type!=="drop").length||3;
+        const mrv=ex.mrvSets||mev+2;
+        const targetCount=rampedSets(mev,mrv,wk,totalWeeks);
+        const currentCount=ex.sets.filter(s=>s.type!=="drop").length;
+        const dropSets=ex.sets.filter(s=>s.type==="drop");
+        let workingSets;
+        if(targetCount>currentCount){
+          // Add sets — copy last set as template
+          const last=ex.sets.filter(s=>s.type!=="drop").slice(-1)[0];
+          const extras=Array(targetCount-currentCount).fill(null).map(()=>newSet(last?last.weight:"","normal"));
+          workingSets=[...ex.sets.filter(s=>s.type!=="drop"),...extras];
+        } else {
+          workingSets=ex.sets.filter(s=>s.type!=="drop").slice(0,targetCount);
+        }
+        return [...workingSets.map(s=>({...s,rir:String(defaultRIR(wk,totalWeeks,exp))})),...dropSets];
       })()
     }));
   });
@@ -1070,7 +1382,7 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview}){
   const mesoEntries=liftHistory.filter(e=>e.mesoNum===mesoNum&&!e.isDeload);
   const uniqueExs=[...new Set(mesoEntries.map(e=>e.exercise))];
   const prs=uniqueExs.map(name=>{
-    const ents=mesoEntries.filter(e=>e.exercise===name).sort((a,b)=>a.week-b.week);
+    const ents=mesoEntries.filter(e=>e.exercise===name&&!e.isDeload).sort((a,b)=>a.week-b.week);
     if(ents.length<2) return null;
     const first=ents[0].topSetWeight;
     const peak=ents[ents.length-1].topSetWeight;
@@ -1139,6 +1451,8 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview}){
 
 function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit,onExtendMeso}){
   const C=useContext(ThemeCtx);
+  const P=useContext(ProfileCtx);
+  const exp=P.experience||"intermediate";
   const [confirmAbandon,setConfirmAbandon]=useState(false);
   const TODAY=getTodayName();
   const todayWorkout=program.find(d=>d.day===TODAY)||null;
@@ -1235,7 +1549,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
             })}
           </div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,paddingTop:8,borderTop:"1px solid "+C.border}}>
-            <span>RIR target: <strong style={{color:C.text}}>{defaultRIR(meso.week,meso.totalWeeks)}</strong></span>
+            <span>RIR target: <strong style={{color:C.text}}>{defaultRIR(meso.week,meso.totalWeeks,exp)}</strong></span>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <span style={{color:meso.totalWeeks-meso.week===0?C.accent:C.muted}}>{meso.totalWeeks-meso.week===0?"Deload Week":meso.totalWeeks-meso.week+" weeks remaining"}</span>
               {meso.totalWeeks-meso.week===1?(
@@ -1252,7 +1566,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
               <div style={{display:"flex",gap:20,paddingTop:12,borderTop:"1px solid "+C.border,marginBottom:14}}>
                 <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>{totalSets}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>SETS</span></div>
                 <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>{todayWorkout.exercises.length}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>EXERCISES</span></div>
-                <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>RIR {defaultRIR(meso.week,meso.totalWeeks)}</span></div>
+                <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>RIR {defaultRIR(meso.week,meso.totalWeeks,exp)}</span></div>
               </div>
               <button onClick={()=>activeLog&&activeLog.name===todayWorkout.name?onResume():onStart(null)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:9,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>{activeLog&&activeLog.name===todayWorkout.name?"RESUME WORKOUT":"START WORKOUT"}</button>
             </div>
@@ -1300,6 +1614,8 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
 
 function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
   const C=useContext(ThemeCtx);
+  const P=useContext(ProfileCtx);
+  const exp=P.experience||"intermediate";
   const thisWeekSessions=history.filter(s=>s.week===meso.week&&(s.mesoNum==null||s.mesoNum===mesoCount));
   const completedDayNames=new Set(thisWeekSessions.map(s=>s.day));
   const sessions=program.map(d=>({
@@ -1310,7 +1626,12 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
   }));
   const completed=sessions.filter(s=>s.done).length;
   const weeklyVol={};
-  program.forEach(d=>{d.exercises.forEach(ex=>{if(!weeklyVol[ex.muscle]) weeklyVol[ex.muscle]=0;weeklyVol[ex.muscle]+=ex.sets.filter(s=>s.type!=="drop").length;});});
+  program.forEach(d=>{d.exercises.forEach(ex=>{
+    if(!weeklyVol[ex.muscle]) weeklyVol[ex.muscle]=0;
+    const mev=ex.mevSets||ex.sets.filter(s=>s.type!=="drop").length||3;
+    const mrv=ex.mrvSets||mev+2;
+    weeklyVol[ex.muscle]+=rampedSets(mev,mrv,meso.week,meso.totalWeeks);
+  });});
   const programMuscles=Object.keys(weeklyVol).filter(m=>muscles[m]);
   return(
     <div>
@@ -1332,7 +1653,7 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
         </div>
         <div style={{display:"flex",gap:16,paddingTop:10,borderTop:"1px solid "+C.border}}>
           <div><span style={{fontSize:18,fontWeight:800}}>{completed}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>SESSIONS</span></div>
-          <div><span style={{fontSize:18,fontWeight:800}}>{defaultRIR(meso.week,meso.totalWeeks)}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>TARGET RIR</span></div>
+          <div><span style={{fontSize:18,fontWeight:800}}>{defaultRIR(meso.week,meso.totalWeeks,exp)}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>TARGET RIR</span></div>
           <div><span style={{fontSize:18,fontWeight:800,color:meso.totalWeeks-meso.week<=1?C.accent:C.text}}>{meso.totalWeeks-meso.week}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>WKS LEFT</span></div>
         </div>
       </Card>
@@ -1374,12 +1695,15 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
           const sl=sv<lm.mev?"BELOW MEV":sv<=lm.mav?"IN RANGE":sv<lm.mrv?"HIGH VOL":"AT MRV";
           const fc=sv>=lm.mrv?C.red:sv>lm.mav?C.accent:sv>=lm.mev?C.green:C.muted+"66";
           const sc=fc===C.muted+"66"?C.muted:fc;
+          // Count training days per week for this muscle (#9)
+          const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===m)?1:0),0);
           return(
             <div key={m} style={{marginBottom:14}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                 <div style={{display:"flex",alignItems:"center",gap:7}}>
                   <div style={{width:7,height:7,borderRadius:"50%",background:mc}}/>
                   <span style={{fontSize:12,fontWeight:600}}>{m}</span>
+                  <span style={{fontSize:9,color:C.muted,background:C.card2,borderRadius:3,padding:"1px 5px"}}>{freq}×/wk</span>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:12,fontWeight:700}}>{sv}<span style={{fontSize:10,color:C.muted,fontWeight:400}}>/{lm.mrv}</span></span>
@@ -1394,6 +1718,11 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
               <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:C.muted}}>
                 <span>0</span><span>MEV {lm.mev}</span><span>MAV {lm.mav}</span><span>MRV {lm.mrv}</span>
               </div>
+              {freq===1&&sv>=lm.mev?(
+                <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
+                  <IcoWarn sz={9} col={C.muted2}/> Training 2×/week improves SRA for this muscle
+                </div>
+              ):null}
             </div>
           );
         })}
@@ -1725,6 +2054,8 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
 
 function PlanBuilder({meso,library,onLaunch,onCancel}){
   const C=useContext(ThemeCtx);
+  const P=useContext(ProfileCtx);
+  const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
   const [step,setStep]=useState(0);
   const [mode,setMode]=useState(null);
   const [bName,setBName]=useState("");
@@ -1842,7 +2173,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                     ].map(s=>(
                       <button key={s.id} onClick={()=>{
                         setQSplit(s.id);setQPriority(null);
-                        const defaults={"Push/Pull/Legs":3,"Upper/Lower":4,"Full Body":3,"Bro Split":5,"Hybrid Split":3};
+                        const defaults={"Push/Pull/Legs":3,"Upper/Lower":4,"Full Body":3,"Bro Split":5,"Hybrid Split":4};
                         setQDays(defaults[s.id]||3);
                       }} style={{width:"100%",padding:"11px 14px",marginBottom:6,borderRadius:9,border:"1px solid "+(qSplit===s.id?C.accent:C.border),background:qSplit===s.id?C.accent+"12":C.card,cursor:"pointer",textAlign:"left",transition:"all .15s",display:"block"}}>
                         <div style={{fontSize:13,fontWeight:qSplit===s.id?700:400,color:qSplit===s.id?C.accent:C.text,marginBottom:2}}>{s.id}</div>
@@ -1853,7 +2184,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   <div style={{marginBottom:needsPriority?12:24}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Days per week</div>
                     <div style={{display:"flex",gap:6}}>
-                      {(qSplit==="Push/Pull/Legs"?[3,4,5,6]:qSplit==="Bro Split"?[3,4,5,6]:qSplit==="Hybrid Split"?[2,3,4]:[2,3,4,5,6]).map(d=>(
+                      {(qSplit==="Push/Pull/Legs"?[3,4,5,6]:qSplit==="Bro Split"?[3,4,5,6]:qSplit==="Hybrid Split"?[2,3,4,5]:[2,3,4,5,6]).map(d=>(
                         <button key={d} onClick={()=>{setQDays(d);setQPriority(null);}} style={{flex:1,padding:"11px 0",borderRadius:9,border:"1px solid "+(qDays===d?C.accent:C.border),background:qDays===d?C.accent+"15":C.card,color:qDays===d?C.accent:C.muted2,fontWeight:qDays===d?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>{d}</button>
                       ))}
                     </div>
@@ -1874,7 +2205,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                       </div>:null}
                     </div>
                   ):null}
-                  <button onClick={()=>{setBDays(autoGen(qSplit,qDays,library,qPriority));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority))?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority))?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority))?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
+                  <button onClick={()=>{setBDays(autoGen(qSplit,qDays,library,qPriority,muscles));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority))?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority))?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority))?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
@@ -2309,12 +2640,59 @@ export default function App(){
 
   const muscles=profile?getMuscles(profile.experience,profile.sex):getMuscles("intermediate","male");
 
+  // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
+  const IDB_NAME="hyper_db", IDB_STORE="state", IDB_KEY="hyper_state";
+  const openDB=()=>new Promise((res,rej)=>{
+    const req=indexedDB.open(IDB_NAME,1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore(IDB_STORE);
+    req.onsuccess=e=>res(e.target.result);
+    req.onerror=e=>rej(e.target.error);
+  });
+  const idbGet=async()=>{
+    try{
+      const db=await openDB();
+      return new Promise((res,rej)=>{
+        const tx=db.transaction(IDB_STORE,"readonly");
+        const req=tx.objectStore(IDB_STORE).get(IDB_KEY);
+        req.onsuccess=e=>res(e.target.result);
+        req.onerror=e=>rej(e.target.error);
+      });
+    }catch(e){
+      // Fallback to localStorage if IndexedDB unavailable
+      try{const r=localStorage.getItem(IDB_KEY);return r?JSON.parse(r):null;}catch(_){return null;}
+    }
+  };
+  const idbSet=async(val)=>{
+    try{
+      const db=await openDB();
+      return new Promise((res,rej)=>{
+        const tx=db.transaction(IDB_STORE,"readwrite");
+        tx.objectStore(IDB_STORE).put(val,IDB_KEY);
+        tx.oncomplete=()=>res();
+        tx.onerror=e=>rej(e.target.error);
+      });
+    }catch(e){
+      // Fallback to localStorage
+      try{localStorage.setItem(IDB_KEY,JSON.stringify(val));}catch(_){}
+    }
+  };
+  const idbDel=async()=>{
+    try{
+      const db=await openDB();
+      return new Promise((res,rej)=>{
+        const tx=db.transaction(IDB_STORE,"readwrite");
+        tx.objectStore(IDB_STORE).delete(IDB_KEY);
+        tx.oncomplete=()=>res();
+        tx.onerror=e=>rej(e.target.error);
+      });
+    }catch(e){
+      try{localStorage.removeItem(IDB_KEY);}catch(_){}
+    }
+  };
+
   useEffect(()=>{
-    try {
-      const raw=localStorage.getItem("hyper_state");
-      const saved=raw?{value:raw}:null;
-      if(saved&&saved.value){
-        const s=JSON.parse(saved.value);
+    idbGet().then(s=>{
+      if(s){
         if(s.profile) setProfile(s.profile);
         if(s.meso) setMeso(s.meso);
         if(s.program&&s.program.length>0) setProgram(s.program);
@@ -2326,16 +2704,14 @@ export default function App(){
         if(s.activeLog) setActiveLog(s.activeLog);
         if(s.activeLogExs) setActiveLogExs(s.activeLogExs);
       }
-    } catch(e){}
-    setLoaded(true);
+      setLoaded(true);
+    }).catch(()=>setLoaded(true));
   },[]);
 
   useEffect(()=>{
     if(!loaded) return;
     const t=setTimeout(()=>{
-      try {
-        localStorage.setItem("hyper_state",JSON.stringify({profile,meso,program,history,liftHistory,mesoCount,library,isDark,activeLog,activeLogExs}));
-      } catch(e){}
+      idbSet({profile,meso,program,history,liftHistory,mesoCount,library,isDark,activeLog,activeLogExs});
     },600);
     return ()=>clearTimeout(t);
   },[profile,meso,program,history,liftHistory,mesoCount,library,isDark,activeLog,activeLogExs,loaded]);
@@ -2394,17 +2770,22 @@ export default function App(){
 
   const handleStartNextMeso=(goToPlanner)=>{
     const nextNum=mesoCount+1;
+    const exp=profile?.experience||"intermediate";
     const newProgram=program.map(day=>({
       ...day,
       exercises:day.exercises.map(ex=>{
         const peak=findPeakWeight(liftHistory,ex.name,mesoCount);
-        const w1=peak?rollbackWeight(peak):(ex.lastWeight||"");
-        const fresh=ex.sets.filter(s=>s.type!=="drop").map(()=>newSet(String(w1),"normal"));
+        const isIso=getProfile(ex.name).type==="isolation";
+        const w1=peak?rollbackWeight(peak,exp,isIso):(ex.lastWeight||"");
+        // Restore MEV set count for Week 1 of next meso
+        const mev=ex.mevSets||Math.max(2,ex.sets.filter(s=>s.type!=="drop").length);
+        const fresh=Array(mev).fill(null).map(()=>newSet(String(w1),"normal"));
         const drops=ex.sets.filter(s=>s.type==="drop").map(()=>newSet(String(snap(parseFloat(w1)*0.6)),"drop"));
         return {...ex,lastScheme:"",lastWeight:String(w1),lastRIR:null,lastReps:"",sets:[...fresh,...drops]};
       }),
     }));
-    setMeso(m=>({...m,label:"Meso "+nextNum,week:1,totalWeeks:5}));
+    // Inherit previous meso totalWeeks — don't arbitrarily reset to 5 (#5)
+    setMeso(m=>({...m,label:"Meso "+nextNum,week:1,totalWeeks:m.totalWeeks}));
     setProgram(newProgram);
     setMesoCount(nextNum);
     setMesoComplete(null);
@@ -2529,7 +2910,8 @@ export default function App(){
   };
 
   const handleReset=async()=>{
-    try { localStorage.removeItem("hyper_state"); } catch(e){}
+    await idbDel();
+    try{localStorage.removeItem(IDB_KEY);}catch(e){}
     setProfile(null);
     setMeso(null);
     setProgram([]);
@@ -2567,6 +2949,7 @@ export default function App(){
 
   return(
     <ThemeCtx.Provider value={C}>
+    <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
     <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s"}}>
       <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
@@ -2616,15 +2999,19 @@ export default function App(){
                 <button key={opt.id} onClick={()=>setProfile(p=>({...p,experience:opt.id}))} style={{width:"100%",padding:"10px 12px",marginBottom:6,borderRadius:8,border:"1px solid "+(profile.experience===opt.id?C.accent:C.border),background:profile.experience===opt.id?C.accent+"15":C.card,color:profile.experience===opt.id?C.accent:C.muted2,fontSize:13,fontWeight:profile.experience===opt.id?700:400,cursor:"pointer",textAlign:"left",display:"block"}}>{opt.l}</button>
               ))}
             </div>
-            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border,display:"flex",flexDirection:"column",gap:8}}>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:4}}>Data</div>
-              <button onClick={handleExport} style={{width:"100%",padding:"10px 14px",background:C.card,border:"1px solid "+C.border2,borderRadius:9,color:C.text,fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
-                Export backup (JSON)
-              </button>
-              <label style={{width:"100%",padding:"10px 14px",background:C.card,border:"1px solid "+C.border2,borderRadius:9,color:C.text,fontSize:13,fontWeight:600,cursor:"pointer",display:"block",boxSizing:"border-box"}}>
-                Import backup
-                <input type="file" accept=".json" style={{display:"none"}} onChange={e=>handleImport(e.target.files[0])}/>
-              </label>
+            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
+              <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Data</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={handleExport} style={{flex:1,padding:"8px 10px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export
+                </button>
+                <label style={{flex:1,padding:"8px 10px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxSizing:"border-box"}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10" transform="rotate(180 12 12)"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Import
+                  <input type="file" accept=".json" style={{display:"none"}} onChange={e=>handleImport(e.target.files[0])}/>
+                </label>
+              </div>
             </div>
             <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
               {showResetConfirm?(
@@ -2700,6 +3087,7 @@ export default function App(){
         })}
       </div>
     </div>
+    </ProfileCtx.Provider>
     </ThemeCtx.Provider>
   );
 }
