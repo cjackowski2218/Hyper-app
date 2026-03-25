@@ -2568,7 +2568,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s"}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden;position:fixed;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;position:fixed;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
