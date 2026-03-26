@@ -22,17 +22,27 @@ const MC = {
   Biceps:"#fb923c", Quads:"#38bdf8", Hamstrings:"#f472b6", Glutes:"#4ade80",
   Calves:"#fbbf24", Core:"#e879f9", "Full Body":"#94a3b8",
 };
+// Volume landmarks sourced from RP Hypertrophy Guides (rpstrength.com) for intermediate lifters
+// RP note: Glutes MEV/MV = 0 because squats, RDLs & lunges provide sufficient indirect stimulus
+// RP note: Triceps numbers already account for heavy indirect volume from all pressing movements
+// RP note: Calves recover rapidly and tolerate/need higher frequency and volume
 const BASE_MUSCLES = {
-  Chest:     {mv:4,  mev:8,  mav:16, mrv:20},
-  Back:      {mv:6,  mev:10, mav:20, mrv:25},
-  Shoulders: {mv:4,  mev:8,  mav:16, mrv:20},
-  Biceps:    {mv:3,  mev:6,  mav:14, mrv:20},
-  Triceps:   {mv:3,  mev:6,  mav:14, mrv:20},
-  Quads:     {mv:4,  mev:8,  mav:16, mrv:20},
-  Hamstrings:{mv:3,  mev:6,  mav:12, mrv:18},
-  Glutes:    {mv:3,  mev:6,  mav:12, mrv:16},
-  Calves:    {mv:3,  mev:6,  mav:12, mrv:16},
+  Chest:     {mv:8,  mev:10, mav:16, mrv:20},
+  Back:      {mv:8,  mev:10, mav:18, mrv:22},
+  Shoulders: {mv:6,  mev:8,  mav:16, mrv:22},
+  Biceps:    {mv:4,  mev:8,  mav:16, mrv:22},
+  Triceps:   {mv:2,  mev:4,  mav:12, mrv:16},
+  Quads:     {mv:6,  mev:8,  mav:16, mrv:20},
+  Hamstrings:{mv:4,  mev:6,  mav:12, mrv:18},
+  Glutes:    {mv:0,  mev:0,  mav:8,  mrv:16},
+  Calves:    {mv:6,  mev:8,  mav:14, mrv:20},
 };
+// Muscles where indirect volume from compounds is significant (per RP)
+// These have MV/MEV of 0 — direct work is a bonus, not a requirement
+const INDIRECT_VOLUME_MUSCLES=new Set(["Glutes"]);
+// Per RP: "exceeding the 8-12 set per muscle per session maximum makes training very inefficient"
+const MAX_SETS_PER_MUSCLE_PER_SESSION = 8;
+
 function getMuscles(experience, sex) {
   const scales = {new:0.70, returning:0.75, intermediate:1.00, advanced:1.25};
   const s = scales[experience] || 1.00;
@@ -760,15 +770,22 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
     const expCap={new:3,returning:3,intermediate:4,advanced:5}[experience]||4;
 
     // Group exercises by muscle to apply tapered set distribution
-    // Role order: compound first = most sets, isolation last = fewest
-    // This mirrors how RP templates are actually written
-    const muscleExOrder={};
+    // IMPORTANT: build after novice filter so taper weights reflect actual exercises kept
+    const muscleExOrderRaw={};
     t.exs.forEach(nm=>{
       const f=lib.find(e=>e.name===nm);
       if(!f) return;
-      if(!muscleExOrder[f.muscle]) muscleExOrder[f.muscle]=[];
-      muscleExOrder[f.muscle].push(nm);
+      if(isNovice && f.type==="isolation") return; // exclude filtered exercises
+      if(!muscleExOrderRaw[f.muscle]) muscleExOrderRaw[f.muscle]=[];
+      muscleExOrderRaw[f.muscle].push(nm);
     });
+
+    const getTaperWeights=(totalExs)=>{
+      if(totalExs===1) return [1.0];
+      if(totalExs===2) return [0.55,0.45];
+      if(totalExs===3) return [0.50,0.32,0.18];
+      return Array(totalExs).fill(null).map((_,i)=>Math.pow(0.6,i)).map((w,_,arr)=>w/arr.reduce((a,b)=>a+b,0));
+    };
 
     const exercises=t.exs.map(nm=>{
       const found=lib.find(e=>e.name===nm);
@@ -780,54 +797,45 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
 
       if(lm){
         const freq=muscleFreq[m]||1;
-        const exsForMuscle=muscleExOrder[m]||[nm];
-        const posInMuscle=exsForMuscle.indexOf(nm); // 0=first/main, 1=secondary, 2+=accessory
+        const exsForMuscle=muscleExOrderRaw[m]||[nm];
+        const posInMuscle=exsForMuscle.indexOf(nm);
         const totalExs=exsForMuscle.length;
-
-        // Sets per session = weekly MEV / frequency
-        const mevPerSession=lm.mev/freq;
-
-        // Taper weights: distribute sets toward main compound, less to accessory
-        // Weights sum to 1.0: [0.50, 0.32, 0.18] for 3 exercises
-        //                     [0.55, 0.45] for 2 exercises
-        //                     [1.0] for 1 exercise
-        const taperWeights=(()=>{
-          if(totalExs===1) return [1.0];
-          if(totalExs===2) return [0.55,0.45];
-          if(totalExs===3) return [0.50,0.32,0.18];
-          // 4+ exercises: diminishing returns
-          return Array(totalExs).fill(null).map((_,i)=>{
-            const w=Math.pow(0.6,i);
-            return w;
-          }).map((w,_,arr)=>w/arr.reduce((a,b)=>a+b,0));
-        })();
-
+        const taperWeights=getTaperWeights(totalExs);
         const weight=taperWeights[Math.min(posInMuscle,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
-        const rawSets=mevPerSession*weight;
 
-        // Minimum: compounds=3, isolations=2
+        // Sets per session = weekly MEV / frequency, distributed by taper weight
+        const mevPerSession=lm.mev/freq;
+        const rawSets=mevPerSession*weight;
         const minSets=found.type==="compound"?3:2;
-        mevSets=Math.min(expCap,Math.max(minSets,Math.round(rawSets)));
+
+        // Only apply expCap when multiple exercises share the muscle —
+        // if there's only one exercise it must carry all the MEV sets for that session
+        // Hard cap at MAX_SETS_PER_MUSCLE_PER_SESSION per RP guidance
+        const uncapped=Math.max(minSets,Math.round(rawSets));
+        const capped=totalExs===1?uncapped:Math.min(expCap,uncapped);
+        mevSets=Math.min(MAX_SETS_PER_MUSCLE_PER_SESSION,capped);
       }
 
       const mrvSets=lm?(()=>{
         const freq=muscleFreq[m]||1;
-        const exsForMuscle=muscleExOrder[m]||[nm];
+        const exsForMuscle=muscleExOrderRaw[m]||[nm];
         const pos=exsForMuscle.indexOf(nm);
         const totalExs=exsForMuscle.length;
-        const taperWeights=totalExs===1?[1.0]:totalExs===2?[0.55,0.45]:[0.50,0.32,0.18];
+        const taperWeights=getTaperWeights(totalExs);
         const weight=taperWeights[Math.min(pos,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
         const mavPerSession=lm.mav/freq;
         const minSets=found.type==="compound"?3:2;
-        return Math.min(expCap+2,Math.max(mevSets+1,Math.round(mavPerSession*weight)));
+        const uncapped=Math.max(mevSets+1,Math.round(mavPerSession*weight));
+        const capped=totalExs===1?uncapped:Math.min(expCap+2,uncapped);
+        return Math.min(MAX_SETS_PER_MUSCLE_PER_SESSION+2,capped);
       })():mevSets+2;
 
       const mvSets=lm?(()=>{
         const freq=muscleFreq[m]||1;
-        const exsForMuscle=muscleExOrder[m]||[nm];
+        const exsForMuscle=muscleExOrderRaw[m]||[nm];
         const pos=exsForMuscle.indexOf(nm);
         const totalExs=exsForMuscle.length;
-        const taperWeights=totalExs===1?[1.0]:totalExs===2?[0.55,0.45]:[0.50,0.32,0.18];
+        const taperWeights=getTaperWeights(totalExs);
         const weight=taperWeights[Math.min(pos,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
         return Math.max(1,Math.round((lm.mv/freq)*weight));
       })():Math.max(1,Math.ceil(mevSets/2));
@@ -859,6 +867,236 @@ const nextRepRange=current=>{
   const idx=REP_RANGE_CYCLE.indexOf(current||"hypertrophy");
   return REP_RANGE_CYCLE[(idx+1)%REP_RANGE_CYCLE.length];
 };
+// ─────────────────────────────────────────────────────────────────────────────
+// SPECIALIZATION PHASE ENGINE
+// Based on RP Hypertrophy methodology: target muscle → MRV volume, all other
+// muscles hard-capped at MV to free systemic recovery capacity.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Exercises for each muscle × rep focus
+// Heavy = barbell compounds (4-8 reps) — neurological stimulus, strength foundation
+// Moderate = DB/machine compounds (8-15 reps) — primary hypertrophy driver
+// Pump = isolation movements (15-30 reps) — occlusion, stretch-mediated growth
+const SPEC_EX_MAP = {
+  Chest:{
+    heavy:    ["Flat Barbell Bench","Incline Barbell Press","Close Grip Bench Press"],
+    moderate: ["Incline Dumbbell Press","Machine Press","Dumbbell Bench Press","Decline Dumbbell Press"],
+    pump:     ["Cable Fly","Pec Deck","Machine Fly","Dumbbell Fly"],
+  },
+  Back:{
+    heavy:    ["Barbell Row","T-Bar Row","Rack Pull"],
+    moderate: ["Lat Pulldown","Chest Supported Row","Dumbbell Row","Seated Cable Row"],
+    pump:     ["Straight Arm Pulldown","Cable Pullover"],
+  },
+  Shoulders:{
+    heavy:    ["Standing Barbell Press","Upright Row"],
+    moderate: ["Dumbbell Shoulder Press","Arnold Press"],
+    pump:     ["Cable Lateral Raise","Dumbbell Lateral Raise","Face Pull","Rear Delt Fly","Reverse Pec Deck"],
+  },
+  Biceps:{
+    heavy:    ["Barbell Curl","EZ Bar Curl","Preacher Curl"],
+    moderate: ["Cable Curl","Machine Curl","Hammer Curl"],
+    pump:     ["Incline Dumbbell Curl","Spider Curl","Concentration Curl"],
+  },
+  Triceps:{
+    heavy:    ["Skull Crusher","JM Press","Close Grip Bench Press"],
+    moderate: ["Tricep Pushdown","Tri Machine","Tate Press"],
+    pump:     ["Overhead Tricep Extension","Cable Overhead Extension"],
+  },
+  Quads:{
+    heavy:    ["Back Squat","Hack Squat","Front Squat"],
+    moderate: ["Leg Press","Bulgarian Split Squat","Goblet Squat"],
+    pump:     ["Leg Extension","Walking Lunge","Sissy Squat"],
+  },
+  Hamstrings:{
+    heavy:    ["Romanian Deadlift","Stiff Leg Deadlift"],
+    moderate: ["Lying Leg Curl","Seated Leg Curl","Leg Curl"],
+    pump:     ["Nordic Curl","Single Leg Romanian Deadlift"],
+  },
+  Glutes:{
+    heavy:    ["Barbell Hip Thrust","Sumo Deadlift"],
+    moderate: ["Hip Thrust","Glute Bridge","Single Leg Hip Thrust"],
+    pump:     ["Cable Kickback","Abductor Machine","Cable Pull Through"],
+  },
+  Calves:{
+    heavy:    ["Calf Raise"],
+    moderate: ["Leg Press Calf Raise","Seated Calf Raise"],
+    pump:     ["Single Leg Calf Raise","Tibialis Raise"],
+  },
+};
+
+// Rep range per focus (min/max reps)
+const SPEC_REP_RANGES = {
+  heavy:    {minReps:4, maxReps:8},
+  moderate: {minReps:8, maxReps:15},
+  pump:     {minReps:15,maxReps:30},
+};
+
+// Target muscle → training group (determines day structure)
+const SPEC_TARGET_GROUP = {
+  Chest:"push", Shoulders:"push", Triceps:"push",
+  Back:"pull",  Biceps:"pull",
+  Quads:"legs", Hamstrings:"legs", Glutes:"legs", Calves:"legs",
+};
+
+// Which non-target muscles appear alongside target exercises on each focus day
+// These receive 1-2 MV maintenance sets per session
+const SPEC_COMPANIONS = {
+  push:{
+    heavy:    ["Back","Biceps"],
+    moderate: ["Back","Biceps"],
+    pump:     ["Triceps","Shoulders"],
+  },
+  pull:{
+    heavy:    ["Chest","Triceps"],
+    moderate: ["Chest","Triceps"],
+    pump:     ["Biceps","Shoulders"],
+  },
+  legs:{
+    heavy:    ["Core"],
+    moderate: ["Core"],
+    pump:     ["Calves","Core"],
+  },
+};
+
+// How remaining non-target muscles are split across the two maintenance days
+const SPEC_MAINT_SPLIT = {
+  push:[
+    ["Quads","Hamstrings","Glutes","Calves"],      // Maint A: full legs
+    ["Back","Biceps","Triceps","Shoulders"],        // Maint B: remaining upper
+  ],
+  pull:[
+    ["Quads","Hamstrings","Glutes","Calves"],      // Maint A: full legs
+    ["Chest","Triceps","Shoulders","Biceps"],       // Maint B: remaining upper
+  ],
+  legs:[
+    ["Chest","Back","Shoulders","Triceps","Biceps"],// Maint A: full upper
+    ["Calves"],                                     // Maint B: remaining legs
+  ],
+};
+
+// Core algorithm: generate a 5-day specialization program
+// Target muscle gets 3 sessions/week (heavy/moderate/pump) ramping MEV→MRV
+// All other muscles are hard-capped at MV (maintenance) per RP specialization rules
+function genSpecializationProgram(targetMuscle, lib, muscles, experience, availDays) {
+  const lm = muscles[targetMuscle];
+  if (!lm) return null;
+
+  const group = SPEC_TARGET_GROUP[targetMuscle] || "push";
+  const specExs = SPEC_EX_MAP[targetMuscle] || {heavy:[],moderate:[],pump:[]};
+
+  // Per-session MEV/MRV for target muscle across 3 sessions per week
+  // Heavy day: 40% of weekly volume (barbell compounds are most effective per set)
+  // Moderate day: 35%
+  // Pump day: 25%
+  const sessionWeights = {heavy:0.40, moderate:0.35, pump:0.25};
+  const perSessTarget = focus => ({
+    mev: Math.max(2, Math.round(lm.mev * sessionWeights[focus])),
+    mrv: Math.max(3, Math.round(lm.mrv * sessionWeights[focus])),
+    mv:  Math.max(1, Math.round((lm.mv||2) * sessionWeights[focus])),
+  });
+
+  // Build exercises for a target focus day
+  const buildTargetExs = focus => {
+    const names = (specExs[focus]||[]).filter(n => lib.find(e=>e.name===n));
+    const n = Math.min(names.length, focus==="pump"?3:2);
+    const chosen = names.slice(0,n);
+    const tw = n===1?[1.0]:n===2?[0.55,0.45]:[0.50,0.32,0.18];
+    const {mev, mrv, mv} = perSessTarget(focus);
+    const rr = SPEC_REP_RANGES[focus];
+    return chosen.map((name,i)=>{
+      const found = lib.find(e=>e.name===name);
+      if(!found) return null;
+      const w = tw[i];
+      const exMev = Math.max(2, Math.round(mev*w));
+      const exMrv = Math.max(exMev+1, Math.round(mrv*w));
+      const exMv  = Math.max(1, Math.round(mv*w));
+      return {
+        ...found, ...rr,
+        id:uid("ex"), lastScheme:"", lastWeight:"", lastRIR:null, lastReps:"", note:"",
+        mevSets:exMev, mrvSets:exMrv, mvSets:exMv,
+        sets:Array(exMev).fill(null).map(()=>newSet("","normal")),
+        specRole:`target_${focus}`,
+      };
+    }).filter(Boolean);
+  };
+
+  // How many days each non-target muscle appears across all 5 days
+  const companions = SPEC_COMPANIONS[group]||{heavy:[],moderate:[],pump:[]};
+  const maintSplit = SPEC_MAINT_SPLIT[group]||[[],[]];
+  const allNonTarget = Object.keys(muscles).filter(m=>m!==targetMuscle);
+  const muscleFreq = {};
+  allNonTarget.forEach(m=>{
+    const inComp = ["heavy","moderate","pump"].filter(f=>(companions[f]||[]).includes(m)).length;
+    const inMaint = maintSplit.filter(day=>day.includes(m)).length;
+    muscleFreq[m] = Math.max(1, inComp + inMaint);
+  });
+
+  // Build maintenance exercises for a non-target muscle
+  const buildMaintEx = (muscle, freq) => {
+    const lmM = muscles[muscle];
+    if(!lmM||lmM.mv===0) return []; // MV=0 muscles (Glutes) need no direct work
+    const setsPerSess = Math.max(2, Math.min(3, Math.round(lmM.mv/freq)));
+    // Prefer a compound; pick first available from lib
+    const found = lib.find(e=>e.muscle===muscle&&e.type==="compound") || lib.find(e=>e.muscle===muscle);
+    if(!found) return [];
+    return [{
+      ...found,
+      minReps:8, maxReps:15,
+      id:uid("ex"), lastScheme:"", lastWeight:"", lastRIR:null, lastReps:"", note:"",
+      // Fixed sets throughout — no ramping for maintenance muscles
+      mevSets:setsPerSess, mrvSets:setsPerSess, mvSets:setsPerSess,
+      sets:Array(setsPerSess).fill(null).map(()=>newSet("","normal")),
+      specRole:"maintenance",
+    }];
+  };
+
+  // Assemble 5-day structure
+  const days5 = [...availDays.slice(0,5)];
+  while(days5.length<5) days5.push(WEEK_DAYS[days5.length%7]);
+
+  const dayConfigs = [
+    {
+      name:`${targetMuscle} — Heavy`,
+      exs:[
+        ...buildTargetExs("heavy"),
+        ...(companions.heavy||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
+      ],
+    },
+    {
+      name:`${targetMuscle} — Moderate`,
+      exs:[
+        ...buildTargetExs("moderate"),
+        ...(companions.moderate||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
+      ],
+    },
+    {
+      name:"Maintenance A",
+      exs:maintSplit[0].flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
+    },
+    {
+      name:`${targetMuscle} — Pump`,
+      exs:[
+        ...buildTargetExs("pump"),
+        ...(companions.pump||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
+      ],
+    },
+    {
+      name:"Maintenance B",
+      exs:(maintSplit[1]||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
+    },
+  ];
+
+  return dayConfigs.map((dc,i)=>({
+    id:uid("d"),
+    day:days5[i]||WEEK_DAYS[i],
+    name:dc.name,
+    exercises:dc.exs.filter(e=>e&&e.sets&&e.sets.length>0),
+  }));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Tag=({label,color})=>{const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:4,padding:"2px 7px",letterSpacing:1,fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
 const SLbl=({children})=>{const C=useContext(ThemeCtx);return(<div style={{fontSize:10,color:C.muted,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>{children}</div>);};
 const Card=({children,style,hi})=>{const C=useContext(ThemeCtx);return(<div style={{background:C.card,border:"1px solid "+(hi||C.border),borderRadius:12,padding:"14px 15px",marginBottom:10,...(style||{})}}>{children}</div>);};
@@ -881,6 +1119,178 @@ function IcoInfo(){return(<svg width={12} height={12} viewBox="0 0 24 24" fill="
 function IcoSun({sz,col}){return(<svg width={sz||16} height={sz||16} viewBox="0 0 24 24" fill="none" stroke={col||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>);}
 function IcoDown({sz,col}){return(<svg width={sz||14} height={sz||14} viewBox="0 0 24 24" fill="none" stroke={col||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>);}
 function IcoMoon({sz,col}){return(<svg width={sz||16} height={sz||16} viewBox="0 0 24 24" fill="none" stroke={col||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>);}
+
+// ── Specialization Phase Builder ─────────────────────────────────────────────
+function SpecBuilder({library,muscles,experience,onLaunch,onCancel,existingMeso}){
+  const C=useContext(ThemeCtx);
+  const [target,setTarget]=useState(null);
+  const [days,setDays]=useState([]);
+  const [step,setStep]=useState(0);  // 0=pick muscle, 1=pick days, 2=preview
+
+  const availMuscles=Object.keys(SPEC_EX_MAP).filter(m=>muscles[m]);
+  const toggleDay=d=>setDays(p=>p.includes(d)?p.filter(x=>x!==d):[...p,d]);
+
+  const preview=target&&days.length>=5
+    ?genSpecializationProgram(target,library,muscles,experience,days)
+    :null;
+
+  const doLaunch=()=>{
+    if(!preview) return;
+    onLaunch(
+      {
+        label:`${target} Specialization`,
+        week:1, totalWeeks:5, repRange:"hypertrophy",
+        deloadStyle:null,
+        mode:"specialization",
+        spec:{targetMuscle:target, heavyDay:`${target} — Heavy`, moderateDay:`${target} — Moderate`, pumpDay:`${target} — Pump`},
+      },
+      preview
+    );
+  };
+
+  return(
+    <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      {/* Header */}
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 16px",flexShrink:0}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:700}}>Specialization Phase</div>
+          {existingMeso?<button onClick={onCancel} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted,fontSize:11,cursor:"pointer"}}>Cancel</button>:null}
+        </div>
+        <div style={{display:"flex",gap:5}}>
+          {["Target Muscle","Training Days","Preview"].map((s,i)=>(
+            <div key={s} style={{flex:1,height:3,borderRadius:2,background:i<=step?C.blue:C.border2}}/>
+          ))}
+        </div>
+        <div style={{fontSize:10,color:C.blue,marginTop:6,letterSpacing:1.5,textTransform:"uppercase"}}>{["Target Muscle","Training Days","Preview"][step]}</div>
+      </div>
+
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+        <div style={{padding:"16px 14px 24px"}}>
+
+          {/* Step 0: pick target muscle */}
+          {step===0&&(
+            <div>
+              <div style={{background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:10,padding:"12px 14px",marginBottom:20}}>
+                <div style={{fontSize:12,fontWeight:700,color:C.blue,marginBottom:4}}>How specialization works</div>
+                <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>
+                  Your target muscle trains 3× per week — Heavy (4-8 reps), Moderate (8-15 reps), and Pump (15-30 reps) — ramping from MEV to MRV over 5 weeks.
+                </div>
+                <div style={{fontSize:11,color:C.muted2,lineHeight:1.6,marginTop:6}}>
+                  All other muscles are capped at maintenance volume to free up systemic recovery. This is temporary and intentional — the trade-off is what drives specialization results.
+                </div>
+              </div>
+              <SLbl>Choose your target muscle</SLbl>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {availMuscles.map(m=>{
+                  const mc=MC[m]||"#888";
+                  const sel=target===m;
+                  const lm=muscles[m];
+                  return(
+                    <button key={m} onClick={()=>setTarget(m)} style={{background:sel?mc+"18":C.card,border:"1px solid "+(sel?mc:C.border),borderRadius:10,padding:"12px",textAlign:"left",cursor:"pointer",transition:"all .15s"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
+                        <div style={{width:8,height:8,borderRadius:"50%",background:mc}}/>
+                        <span style={{fontSize:13,fontWeight:700,color:sel?mc:C.text}}>{m}</span>
+                      </div>
+                      <div style={{fontSize:10,color:C.muted}}>MEV {lm.mev} → MRV {lm.mrv} sets/wk</div>
+                    </button>
+                  );
+                })}
+              </div>
+              <button onClick={()=>setStep(1)} disabled={!target} style={{width:"100%",marginTop:20,padding:"14px",background:target?C.blue:C.border,color:target?"#fff":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:target?"pointer":"default",transition:"all .2s"}}>NEXT</button>
+            </div>
+          )}
+
+          {/* Step 1: pick training days */}
+          {step===1&&(
+            <div>
+              <button onClick={()=>setStep(0)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
+              <div style={{marginBottom:6,fontSize:13,fontWeight:700}}>{target} Specialization</div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:20,lineHeight:1.6}}>Pick exactly 5 training days. The app will assign Heavy, Moderate, and Pump sessions to days 1, 2, and 4.</div>
+              <SLbl>Available days</SLbl>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:20}}>
+                {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((short,i)=>{
+                  const full=WEEK_DAYS[i];
+                  const sel=days.includes(full);
+                  return(
+                    <button key={full} onClick={()=>toggleDay(full)} style={{flex:"0 0 calc(14.28% - 4px)",padding:"10px 4px",borderRadius:8,border:"1px solid "+(sel?C.blue:C.border),background:sel?C.blue+"20":"none",color:sel?C.blue:C.muted,fontSize:11,fontWeight:sel?700:400,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>{short}</button>
+                  );
+                })}
+              </div>
+              {days.length>0&&days.length!==5&&<div style={{fontSize:11,color:C.accent,marginBottom:12}}>Select exactly 5 days (currently {days.length})</div>}
+              <button onClick={()=>setStep(2)} disabled={days.length!==5} style={{width:"100%",padding:"14px",background:days.length===5?C.blue:C.border,color:days.length===5?"#fff":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:days.length===5?"pointer":"default",transition:"all .2s"}}>PREVIEW PROGRAM</button>
+            </div>
+          )}
+
+          {/* Step 2: preview */}
+          {step===2&&preview&&(
+            <div>
+              <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{target.toUpperCase()} SPECIALIZATION</div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:16,lineHeight:1.6}}>5 weeks · 3 target sessions/week · all other muscles at maintenance volume</div>
+
+              {/* Volume ramp preview */}
+              <Card hi={C.blue+"33"}>
+                <SLbl>Weekly {target} volume (sets)</SLbl>
+                <div style={{display:"flex",gap:6,alignItems:"flex-end",height:48,marginBottom:8}}>
+                  {[1,2,3,4,5].map(w=>{
+                    const lm=muscles[target];
+                    const isDeload=w===5;
+                    const total=isDeload?Math.max(1,lm.mv||2):Math.round(lm.mev+(w-1)/3*(lm.mrv-lm.mev));
+                    const pct=total/lm.mrv;
+                    return(
+                      <div key={w} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                        <div style={{fontSize:9,color:isDeload?C.muted:C.text,fontWeight:700}}>{total}</div>
+                        <div style={{width:"100%",height:Math.round(pct*36),background:isDeload?C.muted:C.blue,borderRadius:"3px 3px 0 0",transition:"height .3s"}}/>
+                        <div style={{fontSize:9,color:C.muted}}>{isDeload?"DL":"W"+w}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:10,color:C.muted2,lineHeight:1.5}}>RIR 3 → 2 → 1 → 0 → deload. Volume ramps aggressively toward MRV in Week 4.</div>
+              </Card>
+
+              {/* Day-by-day preview */}
+              <SLbl>5-Day Program</SLbl>
+              {preview.map((day,i)=>{
+                const isTarget=day.name.includes("—");
+                const focus=day.name.includes("Heavy")?"heavy":day.name.includes("Moderate")?"moderate":day.name.includes("Pump")?"pump":null;
+                const focusColor=focus==="heavy"?C.red:focus==="moderate"?C.accent:focus==="pump"?C.blue:C.muted;
+                return(
+                  <div key={day.id} style={{background:C.card,border:"1px solid "+(isTarget?focusColor+"44":C.border),borderRadius:10,padding:"12px 13px",marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>{day.day}</div>
+                        <div style={{fontSize:13,fontWeight:700,color:isTarget?focusColor:C.text}}>{day.name}</div>
+                      </div>
+                      {focus&&<Tag label={focus==="heavy"?"4-8 reps":focus==="moderate"?"8-15 reps":"15-30 reps"} color={focusColor}/>}
+                      {!focus&&<Tag label="Maintenance" color={C.muted}/>}
+                    </div>
+                    {day.exercises.map(ex=>(
+                      <div key={ex.id} style={{display:"flex",alignItems:"center",gap:7,marginBottom:4,paddingLeft:4}}>
+                        <div style={{width:5,height:5,borderRadius:"50%",background:ex.specRole==="maintenance"?C.muted:focusColor||C.accent,flexShrink:0}}/>
+                        <span style={{fontSize:11,color:ex.specRole==="maintenance"?C.muted:C.text}}>{ex.name}</span>
+                        <span style={{fontSize:10,color:C.muted,marginLeft:"auto"}}>{ex.mevSets} sets</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+
+              <div style={{background:C.card2,borderRadius:10,padding:"12px 14px",marginBottom:16,marginTop:4}}>
+                <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>
+                  <strong style={{color:C.text}}>Why is maintenance volume so low?</strong> Systemic recovery is a finite resource. By capping non-target muscles at their minimum, your body can pour all of its recovery capacity into growing {target}. This is exactly how RP specialization programs work — the trade-off is intentional and temporary.
+                </div>
+              </div>
+
+              <button onClick={doLaunch} style={{width:"100%",padding:"15px",background:C.blue,color:"#fff",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>LAUNCH SPECIALIZATION</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function GlossaryModal({onClose}){
   const C=useContext(ThemeCtx);
@@ -923,6 +1333,15 @@ function ProgBanner({ex,wk,totalWeeks,isDeload,deloadStyle}){
       <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
         <IcoInfo/>
         <div style={{fontSize:12,color:C.muted2,lineHeight:1.45}}>{msg}</div>
+      </div>
+    );
+  }
+  // Maintenance exercise in a specialization phase — don't encourage progression
+  if(ex.specRole==="maintenance"){
+    return(
+      <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.border2+"88",border:"1px solid "+C.border2,borderRadius:8,padding:"8px 11px",marginBottom:11}}>
+        <IcoInfo/>
+        <div style={{fontSize:12,color:C.muted2,lineHeight:1.45}}>Maintenance set — hold last weight. Recovery is being prioritised for your target muscle.</div>
       </div>
     );
   }
@@ -1274,7 +1693,14 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,color:C.muted}}>·</span>
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,letterSpacing:0.5,color:C.text}}>{workout.name.toUpperCase()}</span>
           </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:3}}>Week {wk} &nbsp;·&nbsp; RIR {defaultRIR(wk,totalWeeks,exp)} target</div>
+          <div style={{fontSize:11,color:C.muted,marginTop:3}}>
+            Week {wk} &nbsp;·&nbsp; RIR {defaultRIR(wk,totalWeeks,exp)} target
+            {workout.name&&workout.name.includes("—")?(
+              <span style={{marginLeft:6,color:C.blue,fontWeight:600}}>
+                {workout.name.includes("Heavy")?"· Strength focus":workout.name.includes("Moderate")?"· Hypertrophy focus":"· Pump focus"}
+              </span>
+            ):null}
+          </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
@@ -1748,6 +2174,12 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,progr
           </div>
           <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>RP recommends rotating rep ranges across mesos to prevent accommodation and protect joints.</div>
         </Card>
+        {meso.mode==="specialization"?(
+          <div style={{background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:10,padding:"12px 14px",marginBottom:16}}>
+            <div style={{fontSize:12,fontWeight:700,color:C.blue,marginBottom:4}}>Specialization complete</div>
+            <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>Your {meso.spec?.targetMuscle} has been pushed to MRV. Return to a standard balanced meso to let all muscles catch up and lock in your gains.</div>
+          </div>
+        ):null}
         <button onClick={()=>onStartNext(suggested)} style={{width:"100%",padding:"15px",background:C.accent,color:"#000",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer",marginBottom:10}}>START NEXT MESO</button>
         <button onClick={()=>onReview(suggested)} style={{width:"100%",padding:"13px",background:"none",color:C.muted2,border:"1px solid "+C.border2,borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,cursor:"pointer"}}>REVIEW &amp; EDIT PROGRAM FIRST</button>
       </div>
@@ -1805,7 +2237,10 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
               <SLbl>Active Mesocycle</SLbl>
-              <div style={{fontSize:16,fontWeight:700}}>{meso.label}</div>
+              <div style={{display:"flex",alignItems:"center",gap:7}}>
+                <div style={{fontSize:16,fontWeight:700}}>{meso.label}</div>
+                {meso.mode==="specialization"?<Tag label="Spec" color={C.blue}/>:null}
+              </div>
               {meso.startDate?<div style={{fontSize:10,color:C.muted,marginTop:1}}>Started {meso.startDate}</div>:null}
             </div>
             <div style={{textAlign:"right"}}>
@@ -1986,7 +2421,10 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
           <div>
             <SLbl>Current Meso</SLbl>
-            <div style={{fontSize:15,fontWeight:700}}>{meso.label}</div>
+            <div style={{display:"flex",alignItems:"center",gap:7}}>
+              <div style={{fontSize:15,fontWeight:700}}>{meso.label}</div>
+              {meso.mode==="specialization"?<Tag label="Spec" color={C.blue}/>:null}
+            </div>
             {meso.startDate?<div style={{fontSize:11,color:C.muted,marginTop:1}}>Started {meso.startDate}</div>:null}
           </div>
           <div style={{textAlign:"right"}}>
@@ -2031,10 +2469,9 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
           </button>
         </div>
         <div style={{display:"flex",gap:12,marginBottom:14,fontSize:10,color:C.muted,flexWrap:"wrap"}}>
-          {[{l:"Below MEV",c:C.muted+"66"},{l:"In range",c:C.green},{l:"High",c:C.accent},{l:"At MRV",c:C.red}].map(x=>(
+          {[{l:"Below MEV",c:"#f59e0b44"},{l:"In range",c:C.green},{l:"Above MAV",c:C.red},{l:"Planned",c:C.border2}].map(x=>(
             <div key={x.l} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:x.c}}/>{x.l}</div>
           ))}
-          <div style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:C.muted+"44",border:"1px solid "+C.border2}}/><span>Planned</span></div>
         </div>
         {programMuscles.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>Build your program to see volume tracking</div>:programMuscles.map(m=>{
           const lm=muscles[m];
@@ -2047,7 +2484,7 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
           const plannedPv=Math.min(planned/lm.mrv,1);
           const mc=MC[m]||"#888";
           const sl=sv<lm.mev?"BELOW MEV":sv<=lm.mav?"IN RANGE":sv<lm.mrv?"HIGH VOL":"AT MRV";
-          const fc=sv>=lm.mrv?C.red:sv>lm.mav?C.accent:sv>=lm.mev?C.green:C.muted+"66";
+          const fc=sv>=lm.mrv?C.red:sv>lm.mav?C.red:sv>=lm.mev?C.green:"#f59e0b44";
           const sc=fc===C.muted+"66"?C.muted:fc;
           const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===m)?1:0),0);
           // Have all planned sessions for this muscle been done this week?
@@ -2063,28 +2500,30 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   <span style={{fontSize:12,fontWeight:700,color:hasActual?C.text:C.muted}}>
                     {hasActual?(
-                      <>{actual}<span style={{fontSize:10,fontWeight:400,color:C.muted}}>/{planned} planned</span></>
-                    ):(
-                      <>{planned}<span style={{fontSize:10,fontWeight:400,color:C.muted}}>/{lm.mrv} mrv</span></>
-                    )}
+                      <>{actual}<span style={{fontSize:10,fontWeight:400,color:C.muted}}> sets logged</span></>
+                    ):null}
                   </span>
-                  <Tag label={hasActual?sl:(muscleSessionsDone?"DONE":"PLANNED")} color={hasActual?sc:C.muted}/>
+                  {hasActual?<Tag label={sl} color={sc}/>:null}
                 </div>
               </div>
-              <div style={{position:"relative",height:8,background:C.border2,borderRadius:4}}>
-                {/* Landmark tick marks */}
-                <div style={{position:"absolute",left:(lm.mv/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff22",borderRadius:1,zIndex:3}}/>
-                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff33",borderRadius:1,zIndex:3}}/>
-                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:-3,bottom:-3,width:2,background:"#ffffff33",borderRadius:1,zIndex:3}}/>
-                {/* Planned bar — ghost/muted, shown behind actual */}
+              <div style={{position:"relative",height:8,background:"#1f2937",borderRadius:4,marginBottom:16}}>
+                {/* Zone backgrounds */}
+                <div style={{position:"absolute",left:0,top:0,bottom:0,width:(lm.mev/lm.mrv*100)+"%",background:"#ffffff08",borderRadius:"4px 0 0 4px"}}/>
+                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:0,bottom:0,width:((lm.mrv-lm.mev)/lm.mrv*100)+"%",background:"#ffffff05"}}/>
+                {/* MEV, MAV, MRV tick marks */}
+                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:-4,bottom:-4,width:1.5,background:"#ffffff88",borderRadius:1,zIndex:3}}/>
+                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:-4,bottom:-4,width:1.5,background:"#ffffff88",borderRadius:1,zIndex:3}}/>
+                <div style={{position:"absolute",left:"100%",top:-4,bottom:-4,width:1.5,background:"#ffffff55",borderRadius:1,zIndex:3}}/>
+                {/* Planned bar */}
                 {hasActual?(
-                  <div style={{position:"absolute",top:0,left:0,height:"100%",width:(plannedPv*100)+"%",background:C.border2,borderRadius:4,zIndex:1,border:"1px solid "+C.border2,boxSizing:"border-box"}}/>
+                  <div style={{position:"absolute",top:0,left:0,height:"100%",width:(plannedPv*100)+"%",background:"#4B5563",borderRadius:4,zIndex:1}}/>
                 ):null}
-                {/* Actual bar — solid, on top */}
-                <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:hasActual?fc:C.muted+"44",borderRadius:4,zIndex:2,transition:"width .4s"}}/>
-              </div>
-              <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:C.muted}}>
-                <span>MV {lm.mv}</span><span>MEV {lm.mev}</span><span>MAV {lm.mav}</span><span>MRV {lm.mrv}</span>
+                {/* Actual bar */}
+                <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:hasActual?fc:"#4B5563",borderRadius:4,zIndex:2,transition:"width .4s"}}/>
+                {/* Labels aligned to ticks */}
+                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:12,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MEV {lm.mev}</div>
+                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:12,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MAV {lm.mav}</div>
+                <div style={{position:"absolute",right:0,top:12,fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MRV {lm.mrv}</div>
               </div>
               {hasActual&&actual<planned&&!muscleSessionsDone?(
                 <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
@@ -2094,6 +2533,11 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
               {freq===1&&sv>=lm.mev?(
                 <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
                   <IcoWarn sz={9} col={C.muted2}/> Training 2×/week improves SRA for this muscle
+                </div>
+              ):null}
+              {INDIRECT_VOLUME_MUSCLES.has(m)?(
+                <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
+                  <IcoInfo/> <span>Squats, RDLs &amp; lunges provide significant indirect stimulus — direct sets are a bonus</span>
                 </div>
               ):null}
             </div>
@@ -2354,7 +2798,15 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
           <div>
             <SLbl>Active Mesocycle</SLbl>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{meso.label}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{meso.label}</div>
+              {meso.mode==="specialization"?<Tag label="Specialization" color={C.blue}/>:null}
+            </div>
+            {meso.mode==="specialization"&&meso.spec?(
+              <div style={{fontSize:11,color:C.blue,marginTop:4,lineHeight:1.5}}>
+                Target: <strong>{meso.spec.targetMuscle}</strong> · 3×/wk at MEV→MRV · all other muscles at maintenance
+              </div>
+            ):null}
             {meso.startDate?<div style={{fontSize:11,color:C.muted,marginTop:2}}>Started {meso.startDate}</div>:null}
           </div>
           <button onClick={()=>setConfirmNew(true)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"7px 12px",color:C.muted2,fontSize:11,cursor:"pointer",flexShrink:0}}>New Meso</button>
@@ -2789,9 +3241,41 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
 
 function PlannerScreen({meso,program,library,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary}){
   const C=useContext(ThemeCtx);
+  const P=useContext(ProfileCtx);
+  const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
   const [showBuilder,setShowBuilder]=useState(!meso);
+  const [builderMode,setBuilderMode]=useState(null); // null=choose, "standard", "spec"
+
+  const doClose=()=>{setShowBuilder(false);setBuilderMode(null);};
+  const doLaunch=(m,p)=>{onLaunch(m,p);doClose();};
+
   if(showBuilder){
-    return(<PlanBuilder meso={meso} library={library} onLaunch={(m,p)=>{onLaunch(m,p);setShowBuilder(false);}} onCancel={()=>setShowBuilder(false)}/>);
+    if(builderMode==="spec"){
+      return(<SpecBuilder library={library} muscles={muscles} experience={P.experience||"intermediate"} existingMeso={meso} onLaunch={doLaunch} onCancel={doClose}/>);
+    }
+    if(builderMode==="standard"){
+      return(<PlanBuilder meso={meso} library={library} onLaunch={doLaunch} onCancel={doClose}/>);
+    }
+    // Mode chooser
+    return(
+      <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 16px",flexShrink:0,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:13,fontWeight:700}}>New Mesocycle</div>
+          {meso?<button onClick={doClose} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted,fontSize:11,cursor:"pointer"}}>Cancel</button>:null}
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"16px 14px"}}>
+          <div style={{fontSize:11,color:C.muted2,marginBottom:20,lineHeight:1.6}}>How do you want to build your mesocycle?</div>
+          <button onClick={()=>setBuilderMode("standard")} style={{width:"100%",background:C.card2,border:"1px solid "+C.accent+"44",borderRadius:12,padding:"18px 16px",marginBottom:10,textAlign:"left",cursor:"pointer",display:"block"}}>
+            <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Standard Hypertrophy</div>
+            <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Full-body balanced program. All muscles trained with progressive volume from MEV toward MRV.</div>
+          </button>
+          <button onClick={()=>setBuilderMode("spec")} style={{width:"100%",background:C.card,border:"1px solid "+C.blue+"44",borderRadius:12,padding:"18px 16px",textAlign:"left",cursor:"pointer",display:"block"}}>
+            <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Specialization Phase</div>
+            <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Target one muscle with aggressive volume (MEV→MRV). All other muscles held at maintenance to maximize recovery.</div>
+          </button>
+        </div>
+      </div>
+    );
   }
   return(<PlanCurrent meso={meso} program={program} library={library} onNewMeso={()=>setShowBuilder(true)} onUpdateDay={onUpdateDay} onSwapExercise={onSwapExercise} onRemoveExercise={onRemoveExercise} onAddExercise={onAddExercise} onGlossary={onGlossary}/>);
 }
@@ -3279,14 +3763,36 @@ export default function App(){
   const handleUpdateDay=(dayId,newDay)=>{
     setProgram(p=>p.map(d=>d.id!==dayId?d:{...d,day:newDay}));
   };
+  // Compute tapered set counts for a swapped/added exercise in context of its day
+  const calcExSets=(dayId,exName,exType,exMuscle,isSwap=false,oldName=null)=>{
+    const exp=profile?.experience||"intermediate";
+    const lm=muscles[exMuscle];
+    const expCap={new:3,returning:3,intermediate:4,advanced:5}[exp]||4;
+    if(!lm) return {mevS:3,mrvS:5,mvS:2};
+    const day=program.find(d=>d.id===dayId);
+    if(!day) return {mevS:3,mrvS:5,mvS:2};
+    // Build sibling list — exercises for same muscle on this day (after swap if applicable)
+    const siblings=day.exercises.filter(e=>e.muscle===exMuscle&&(isSwap?e.name!==oldName:true)).map(e=>e.name);
+    if(!siblings.includes(exName)) siblings.push(exName);
+    const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===exMuscle)||(d.id===dayId&&exMuscle===exMuscle)?1:0),0)||1;
+    const muscleFreqActual=program.filter(d=>d.exercises.some(e=>e.muscle===exMuscle)).length||1;
+    const totalExs=siblings.length;
+    const pos=siblings.indexOf(exName);
+    const getTW=(n)=>{if(n===1)return[1.0];if(n===2)return[0.55,0.45];if(n===3)return[0.50,0.32,0.18];return Array(n).fill(null).map((_,i)=>Math.pow(0.6,i)).map((w,_,arr)=>w/arr.reduce((a,b)=>a+b,0));};
+    const tw=getTW(totalExs);
+    const weight=tw[Math.min(pos,tw.length-1)]||tw[tw.length-1];
+    const minSets=exType==="compound"?3:2;
+    const mevRaw=Math.max(minSets,Math.round((lm.mev/muscleFreqActual)*weight));
+    const mevS=totalExs===1?mevRaw:Math.min(expCap,mevRaw);
+    const mrvRaw=Math.max(mevS+1,Math.round((lm.mav/muscleFreqActual)*weight));
+    const mrvS=totalExs===1?mrvRaw:Math.min(expCap+2,mrvRaw);
+    const mvS=Math.max(1,Math.round((lm.mv/muscleFreqActual)*weight));
+    return {mevS,mrvS,mvS};
+  };
   const handleSwapExercise=(dayId,oldName,newEx)=>{
-    // Calculate proper landmarks and rep range for new exercise
     const exp=profile?.experience||"intermediate";
     const lm=muscles[newEx.muscle];
-    const expCap={new:3,returning:3,intermediate:4,advanced:5}[exp]||4;
-    const mevS=lm?Math.min(expCap,Math.max(2,Math.round(lm.mev/2))):3;
-    const mrvS=lm?Math.min(expCap+2,Math.max(mevS+1,Math.round(lm.mav/2))):mevS+2;
-    const mvS=lm?Math.max(1,Math.round(lm.mv/2)):Math.ceil(mevS/2);
+    const {mevS,mrvS,mvS}=calcExSets(dayId,newEx.name,getProfile(newEx.name).type,newEx.muscle,true,oldName);
     const rrScale=getRRScale(meso?.repRange);
     const isCompound=getProfile(newEx.name).type==="compound";
     const repOverride=isCompound
@@ -3319,10 +3825,7 @@ export default function App(){
   const handleAddExercise=(dayId,newEx)=>{
     const exp=profile?.experience||"intermediate";
     const lm=muscles[newEx.muscle];
-    const expCap={new:3,returning:3,intermediate:4,advanced:5}[exp]||4;
-    const mevS=lm?Math.min(expCap,Math.max(2,Math.round(lm.mev/2))):3;
-    const mrvS=lm?Math.min(expCap+2,Math.max(mevS+1,Math.round(lm.mav/2))):mevS+2;
-    const mvS=lm?Math.max(1,Math.round(lm.mv/2)):Math.ceil(mevS/2);
+    const {mevS,mrvS,mvS}=calcExSets(dayId,newEx.name,getProfile(newEx.name).type,newEx.muscle,false);
     const rrScale=getRRScale(meso?.repRange);
     const isCompound=getProfile(newEx.name).type==="compound";
     const repOverride=isCompound
