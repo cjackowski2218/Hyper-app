@@ -1276,6 +1276,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
             </div>
           ):null}
           {exs.map((ex,idx)=>{
+            if(!ex||!ex.sets||!ex.id) return null;
             const isO=expId===ex.id;
             const isDone=ex.sets.every(s=>s.done);
             const mc=MC[ex.muscle]||"#888";
