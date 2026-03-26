@@ -3409,7 +3409,7 @@ export default function App(){
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
     <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,position:"fixed",inset:0,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",transition:"background .25s,color .25s",overflow:"hidden"}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${C.bg};width:100%;height:100%;overflow:hidden;overscroll-behavior:none}#root{width:100%;height:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:34px;padding-bottom:constant(safe-area-inset-bottom);padding-bottom:env(safe-area-inset-bottom)}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{background:${C.surf};width:100%;height:100%;overflow:hidden;overscroll-behavior:none}#root{width:100%;height:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:${isDark?"#2a3549":"#b0a898"}}textarea::placeholder{color:${isDark?"#2a3549":"#b0a898"};font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}.hyper-nav{padding-bottom:constant(safe-area-inset-bottom);padding-bottom:env(safe-area-inset-bottom)}.hyper-nav::after{content:'';display:block;position:fixed;bottom:0;left:0;right:0;height:100px;background:${C.surf};z-index:-1}`}</style>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -3562,7 +3562,7 @@ export default function App(){
         <PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)}/>
       </div>
       {tab==="library"?<LibraryScreen library={library} setLibrary={setLibrary}/>:null}
-      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border,display:"flex",flexShrink:0}}>
+      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>{
           const Icon=TICONS[t.id];
           const active=tab===t.id;
