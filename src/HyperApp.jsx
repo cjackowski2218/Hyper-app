@@ -1243,8 +1243,8 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const rrFg=rn=>{if(isNaN(rn))return C.muted;if(rn===0)return C.red;if(rn===1)return C.accent;if(rn===2)return C.green;return C.muted;};
 
   return(
-    <div style={{position:"fixed",inset:0,zIndex:300,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 14px 10px",flexShrink:0}}>
+    <div style={{position:"fixed",inset:0,zIndex:300,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 14px 10px",paddingTop:"calc(12px + env(safe-area-inset-top))",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
           <button onClick={onMinimize} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted2,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="19 12 5 12"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -1754,9 +1754,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
                   <button onClick={()=>{setConfirmAbandon(false);onAbandon();}} style={{flex:1,padding:"9px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:8,color:C.red,cursor:"pointer",fontSize:12,fontWeight:700}}>Yes, Abandon</button>
                 </div>
               </div>
-            ):(
-              <button onClick={()=>{setConfirmAbandon(false);onResume();}} style={{width:"100%",padding:"12px",background:C.green,color:"#000",border:"none",borderRadius:8,fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:900,letterSpacing:2,cursor:"pointer"}}>RESUME WORKOUT</button>
-            )}
+            ):null}
           </div>
         ):null}
         <Card hi={C.accent+"33"}>
