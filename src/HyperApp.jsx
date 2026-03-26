@@ -1060,7 +1060,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
   );
 }
 
-function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId,setExpId,elapsed,don,tot,pct,liftHistory}){
+function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId,setExpId,elapsed,don,tot,pct,liftHistory,deloadStyle}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
@@ -1514,7 +1514,7 @@ function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimiz
       {phase==="summary"?(
         <SessionSummary workout={workout} exs={exs} ratings={ratings} setRatings={setRatings} don={don} totalVol={totalVol} elapsed={elapsed} sessionNote={sessionNote} setSessionNote={setSessionNote} onComplete={onComplete}/>
       ):(
-        <LoggerInner workout={workout} wk={wk} totalWeeks={totalWeeks} onMinimize={onMinimize} setPhase={setPhase} exs={exs} setExs={setExsFn} expId={expId} setExpId={setExpId} elapsed={elapsed} don={don} tot={tot} pct={pct} liftHistory={liftHistory}/>
+        <LoggerInner workout={workout} wk={wk} totalWeeks={totalWeeks} onMinimize={onMinimize} setPhase={setPhase} exs={exs} setExs={setExsFn} expId={expId} setExpId={setExpId} elapsed={elapsed} don={don} tot={tot} pct={pct} liftHistory={liftHistory} deloadStyle={deloadStyle}/>
       )}
     </div>
   );
