@@ -3537,8 +3537,8 @@ export default function App(){
       {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)}/>:null}
       {activeLog?<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs}/>:null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
-      {tab==="home"?(
-        (meso&&program&&program.length>0)?(
+      <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+        {(meso&&program&&program.length>0)?(
           <HomeScreen meso={meso} mesoCount={mesoCount} program={program} history={history} onStart={d=>{
             if(activeLog&&loggerOpen===false){
               setConfirmStart(d||todayWorkout);
@@ -3555,13 +3555,17 @@ export default function App(){
             <div style={{fontSize:13,color:C.muted2,lineHeight:1.7,marginBottom:28,maxWidth:280}}>Go to the Plan tab and use Quick Build — pick your split, available days, and the app fills in the rest.</div>
             <button onClick={()=>setTab("plan")} style={{padding:"14px 32px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>BUILD PROGRAM</button>
           </div>
-        )
-      ):null}
-      {tab==="progress"?<ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>:null}
+        )}
+      </div>
+      <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>
+      </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)}/>
       </div>
-      {tab==="library"?<LibraryScreen library={library} setLibrary={setLibrary}/>:null}
+      <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+        <LibraryScreen library={library} setLibrary={setLibrary}/>
+      </div>
       <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>{
           const Icon=TICONS[t.id];
