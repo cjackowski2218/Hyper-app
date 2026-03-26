@@ -15,7 +15,7 @@ const LIGHT={
 };
 const ThemeCtx=createContext(DARK);
 const ProfileCtx=createContext({experience:"intermediate",sex:"male",bodyweight:185});
-let _uid=0;
+let _uid=Date.now();
 const uid=pfx=>`${pfx||"id"}${++_uid}_${Math.random().toString(36).slice(2,7)}`;
 const MC = {
   Chest:"#f97316", Shoulders:"#a78bfa", Triceps:"#34d399", Back:"#60a5fa",
@@ -219,7 +219,6 @@ const defaultRIR = (w, total, experience="intermediate") => {
 };
 const fmt = s => String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
 const getTodayName = () => new Date().toLocaleDateString("en-US",{weekday:"long"});
-const getGreeting = () => { const h=new Date().getHours(); if(h<12) return "Good morning,"; if(h<17) return "Good afternoon,"; return "Good evening,"; };
 
 function rpProg(name, lw, lrir, lreps, trir, isDrop, theme=DARK, experience="intermediate") {
   if (isDrop) return {action:"add_reps",ws:lw,note:"Chase reps",reason:"Drop sets: hold weight, add reps",color:theme.blue};
@@ -326,7 +325,7 @@ function buildChartData(liftHistory,exerciseName){
   entries.forEach(e=>{seen[e.label]=e;});
   const deduped=[];
   entries.forEach(e=>{if(seen[e.label]===e) deduped.push(e);});
-  return deduped.map(e=>({label:e.label,v:e.topSetWeight,meso:e.mesoNum,deload:e.isDeload}));
+  return deduped.map(e=>({label:e.label,v:e.topSetWeight,meso:e.mesoNum,deload:e.isDeload,date:e.date}));
 }
 
 const INIT_LIBRARY=[
@@ -758,7 +757,7 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
 
     const isNovice=experience==="new"||experience==="returning";
     // Cap per exercise per session — scales with experience
-    const expCap={new:4,returning:4,intermediate:5,advanced:7}[experience]||5;
+    const expCap={new:3,returning:3,intermediate:4,advanced:5}[experience]||4;
 
     // Group exercises by muscle to apply tapered set distribution
     // Role order: compound first = most sets, isolation last = fewest
@@ -833,11 +832,7 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
         return Math.max(1,Math.round((lm.mv/freq)*weight));
       })():Math.max(1,Math.ceil(mevSets/2));
 
-      const rrScale = {
-        "hypertrophy":    {compoundMin:6,  compoundMax:15, isoMin:10, isoMax:20},
-        "strength-hyp":   {compoundMin:4,  compoundMax:10, isoMin:8,  isoMax:15},
-        "power-hyp":      {compoundMin:3,  compoundMax:6,  isoMin:6,  isoMax:10},
-      }[repRange||"hypertrophy"]||{compoundMin:6,compoundMax:15,isoMin:10,isoMax:20};
+      const rrScale=getRRScale(repRange);
       const isCompound=found.type==="compound";
       const repOverride=isCompound
         ?{minReps:rrScale.compoundMin, maxReps:rrScale.compoundMax}
@@ -854,6 +849,12 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
 const REP_RANGE_CYCLE=["hypertrophy","strength-hyp","power-hyp"];
 const REP_RANGE_LABELS={"hypertrophy":"Hypertrophy","strength-hyp":"Strength-Hyp","power-hyp":"Power-Hyp"};
 const REP_RANGE_SUBS={"hypertrophy":"8–20 reps","strength-hyp":"4–12 reps","power-hyp":"3–8 reps"};
+const RR_SCALE={
+  "hypertrophy":   {compoundMin:6, compoundMax:15,isoMin:10,isoMax:20},
+  "strength-hyp":  {compoundMin:4, compoundMax:10,isoMin:8, isoMax:15},
+  "power-hyp":     {compoundMin:3, compoundMax:6, isoMin:6, isoMax:10},
+};
+const getRRScale=repRange=>RR_SCALE[repRange||"hypertrophy"]||RR_SCALE["hypertrophy"];
 const nextRepRange=current=>{
   const idx=REP_RANGE_CYCLE.indexOf(current||"hypertrophy");
   return REP_RANGE_CYCLE[(idx+1)%REP_RANGE_CYCLE.length];
@@ -947,12 +948,12 @@ function ProgBanner({ex,wk,totalWeeks,isDeload,deloadStyle}){
   );
 }
 
-function ExPicker({library,onAdd,onClose,title}){
+function ExPicker({library,onAdd,onClose,title,excludeNames}){
   const C=useContext(ThemeCtx);
   const [q,setQ]=useState("");
   const [filt,setFilt]=useState("All");
   const muscles=["All",...Object.keys(MC)];
-  const list=library.filter(e=>e.name.toLowerCase().includes(q.toLowerCase())&&(filt==="All"||e.muscle===filt));
+  const list=library.filter(e=>e.name.toLowerCase().includes(q.toLowerCase())&&(filt==="All"||e.muscle===filt)&&!(excludeNames&&excludeNames.includes(e.name)));
   return(
     <div style={{position:"fixed",inset:0,zIndex:400,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
       <div style={{position:"absolute",inset:0,background:"#000b"}} onClick={onClose}/>
@@ -997,7 +998,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
   const lifts=exs.filter(e=>e.muscle!=="Cardio");
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:19,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{flex:1}}>
           <div style={{fontSize:13,fontWeight:700}}>Session Summary</div>
@@ -1006,30 +1007,44 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 14px 24px"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:32,fontWeight:900,marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
-          {(()=>{const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);return don===0?"SESSION LOGGED":don<tot?"SESSION DONE":"GREAT WORK";})()}{don>0?<IcoFlame sz={28} col={C.accent}/>:null}
+          {(()=>{const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);return don===0?"SESSION LOGGED":don<tot?"SESSION DONE":"GREAT WORK";})()}{don===exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0)&&don>0?<IcoFlame sz={28} col={C.accent}/>:null}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
-          {[{l:"SETS",v:don},{l:"VOLUME",v:totalVol>=1000?(totalVol/1000).toFixed(1)+"k":totalVol},{l:"TIME",v:fmt(elapsed)}].map(s=>(
-            <div key={s.l} style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"13px 8px",textAlign:"center"}}>
-              <div style={{fontSize:19,fontWeight:800}}>{s.v}</div>
-              <div style={{fontSize:9,color:C.muted,letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>{s.l}</div>
-            </div>
-          ))}
+          {(()=>{
+            const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);
+            const allDone=don===tot&&don>0;
+            const exsDone=exs.filter(e=>e.sets.some(s=>s.done&&!s.incomplete)).length;
+            return[
+              <div key="ex" style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"13px 8px",textAlign:"center"}}>
+                <div style={{fontSize:19,fontWeight:800,color:exsDone===exs.length?C.green:C.text}}>{exsDone}/{exs.length}</div>
+                <div style={{fontSize:9,color:exsDone===exs.length?C.green:C.muted,letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>EXERCISES</div>
+              </div>,
+              <div key="sets" style={{background:C.card,border:"1px solid "+(allDone?C.green+"44":C.border),borderRadius:10,padding:"13px 8px",textAlign:"center"}}>
+                <div style={{fontSize:19,fontWeight:800,color:allDone?C.green:C.text}}>{don}/{tot}</div>
+                <div style={{fontSize:9,color:allDone?C.green:C.muted,letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>SETS</div>
+              </div>,
+              <div key="time" style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"13px 8px",textAlign:"center"}}>
+                <div style={{fontSize:19,fontWeight:800}}>{fmt(elapsed)}</div>
+                <div style={{fontSize:9,color:C.muted,letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>TIME</div>
+              </div>
+            ];
+          })()}
         </div>
         <div style={{marginBottom:16}}>
           <SLbl>Session Note</SLbl>
           <textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} placeholder="Performance vs last week? Soreness going in? Any muscles that didn't fire? PRs, injuries, notes for next session..." rows={4} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
         </div>
         <SLbl>Rate Each Exercise (SFR)</SLbl>
-        <div style={{fontSize:11,color:C.muted,marginBottom:12,lineHeight:1.6}}>
-          How well did this exercise work? <strong style={{color:C.muted2}}>5</strong> = great pump, felt in muscle, no joint pain. <strong style={{color:C.muted2}}>1</strong> = joint pain, couldn't feel target muscle. Low ratings flag for rotation next meso.
-        </div>
         {lifts.map(ex=>{
           const mc=MC[ex.muscle]||"#888";
-          const r=ratings[ex.id]||0;
+          const r=ratings[ex.id]||null;
           const scheme=buildScheme(ex.sets);
+          const opts=[
+            {id:"good",label:"Good stimulus",color:C.green,flag:false},
+            {id:"flagged",label:"Joint pain or poor stimulus",color:C.red,flag:true},
+          ];
           return(
-            <div key={ex.id} style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"12px 13px",marginBottom:8}}>
+            <div key={ex.id} style={{background:C.card,border:"1px solid "+(r==="flagged"?C.red+"44":C.border),borderRadius:10,padding:"12px 13px",marginBottom:8}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div>
                   <div style={{fontSize:14,fontWeight:700}}>{ex.name}</div>
@@ -1037,16 +1052,16 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
                 </div>
                 <Tag label={ex.muscle} color={mc}/>
               </div>
-              <div style={{display:"flex",gap:5}}>
-                {[1,2,3,4,5].map(s=>(
-                  <button key={s} onClick={()=>setRatings(prev=>({...prev,[ex.id]:s}))} style={{flex:1,padding:"9px 0",background:r>=s?C.accent+"20":C.surf,border:"1px solid "+(r>=s?C.accent+"55":C.border),borderRadius:7,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",transition:"all .12s"}}>
-                    <IcoStar sz={15} col={r>=s?C.accent:C.border2} filled={r>=s}/>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {opts.map(opt=>(
+                  <button key={opt.id} onClick={()=>setRatings(prev=>({...prev,[ex.id]:opt.id}))} style={{width:"100%",padding:"9px 12px",background:r===opt.id?opt.color+"18":C.surf,border:"1px solid "+(r===opt.id?opt.color+"66":C.border),borderRadius:7,cursor:"pointer",textAlign:"left",fontSize:12,fontWeight:r===opt.id?700:400,color:r===opt.id?opt.color:C.muted2,transition:"all .12s"}}>
+                    {opt.label}
                   </button>
                 ))}
               </div>
-              {r>0&&r<=2?(
-                <div style={{fontSize:11,color:C.accent,marginTop:7,display:"flex",alignItems:"center",gap:5}}>
-                  <IcoWarn sz={12} col={C.accent}/> Flagged for rotation next meso
+              {r&&opts.find(o=>o.id===r)?.flag?(
+                <div style={{fontSize:11,color:C.muted2,marginTop:7,display:"flex",alignItems:"center",gap:5}}>
+                  <IcoWarn sz={12} col={C.muted2}/> Flagged for review next meso
                 </div>
               ):null}
             </div>
@@ -1060,7 +1075,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
   );
 }
 
-function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId,setExpId,elapsed,don,tot,pct,liftHistory,deloadStyle}){
+function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId,setExpId,elapsed,don,tot,pct,liftHistory,deloadStyle,lastSessionNote}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
@@ -1076,6 +1091,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
     return best;
   },[liftHistory]);
   const [swiped,setSwiped]=useState(new Set());
+  const [noteDismissed,setNoteDismissed]=useState(false);
   const [dragFrom,setDragFrom]=useState(null);
   const [insertAt,setInsertAt]=useState(null);
   const [ghostPos,setGhostPos]=useState({x:0,y:0});
@@ -1245,19 +1261,22 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"}}>
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 14px 10px",paddingTop:"calc(12px + env(safe-area-inset-top))",flexShrink:0}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
           <button onClick={onMinimize} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted2,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="19 12 5 12"/><polyline points="12 19 5 12 12 5"/></svg>
             Minimize
           </button>
-          <div style={{flex:1}}>
-            <div style={{fontSize:13,fontWeight:700}}><span style={{color:C.muted,fontWeight:500}}>{workout.day} - </span>{workout.name}</div>
-            <div style={{fontSize:10,color:C.muted}}>Week {wk} - RIR target {defaultRIR(wk,totalWeeks,exp)}</div>
-            <div style={{fontSize:10,color:C.muted2,marginTop:2}}>Do compounds first — heavier loads, more rest.</div>
-          </div>
-          <div style={{fontSize:13,fontWeight:600,color:elapsed>3600?C.red:C.muted2}}>{fmt(elapsed)}</div>
+          <div style={{fontSize:13,fontWeight:600,color:elapsed>3600?C.red:C.muted2,fontVariantNumeric:"tabular-nums"}}>{fmt(elapsed)}</div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{marginBottom:8}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:6}}>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,letterSpacing:0.5,color:C.muted}}>{workout.day.toUpperCase()}</span>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,color:C.muted}}>·</span>
+            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,letterSpacing:0.5,color:C.text}}>{workout.name.toUpperCase()}</span>
+          </div>
+          <div style={{fontSize:11,color:C.muted,marginTop:3}}>Week {wk} &nbsp;·&nbsp; RIR {defaultRIR(wk,totalWeeks,exp)} target</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
             <div style={{height:"100%",width:pct+"%",background:pct===100?C.green:C.accent,borderRadius:2,transition:"width .4s"}}/>
           </div>
@@ -1266,6 +1285,17 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}} onTouchStart={e=>{if(e.target.tagName!=="INPUT"&&e.target.tagName!=="TEXTAREA"&&document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA")){document.activeElement.blur();}}}>
         <div ref={listRef} style={{padding:"8px 12px 120px",position:"relative"}}>
+          {lastSessionNote&&!noteDismissed?(
+            <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.surf,border:"1px solid "+C.border2,borderRadius:9,padding:"10px 12px",marginBottom:10}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Last session note</div>
+                <div style={{fontSize:12,color:C.muted2,lineHeight:1.5,fontStyle:"italic"}}>"{lastSessionNote}"</div>
+              </div>
+              <button onClick={()=>setNoteDismissed(true)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",padding:"2px",flexShrink:0,display:"flex",alignItems:"center"}}>
+                <IcoX sz={12} col={C.muted}/>
+              </button>
+            </div>
+          ):null}
           {dragFrom!==null?(
             <div style={{position:"fixed",left:0,right:0,top:ghostPos.y-24,zIndex:999,maxWidth:480,margin:"0 auto",padding:"0 12px",pointerEvents:"none"}}>
               <div style={{background:C.card2,border:"1px solid "+C.accent,borderRadius:10,padding:"12px 14px",boxShadow:"0 4px 24px #000000aa",display:"flex",alignItems:"center",gap:10}}>
@@ -1293,14 +1323,14 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                     </span>
                     <div style={{width:7,height:7,borderRadius:"50%",background:isDone?C.green:mc,flexShrink:0}}/>
                     <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontSize:14,fontWeight:700}}>{ex.name}</div>
+                      <div style={{fontSize:16,fontWeight:700}}>{ex.name}</div>
                       {isDone?(
                         <div style={{fontSize:11,color:C.muted,marginTop:2}}>{buildScheme(ex.sets)}</div>
                       ):(
                         <div style={{marginTop:3}}>
                           {(()=>{
                             const pr=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks,exp),false,C,exp);
-                            const sw=pr?pr.ws:(ex.lastWeight||"?");
+                            const sw=pr?pr.ws:(ex.lastWeight||"—");
                             const sc=ex.sets.filter(s=>s.type!=="drop").length;
                             const dc2=ex.sets.filter(s=>s.type==="drop").length;
                             return(
@@ -1308,7 +1338,6 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                 <span style={{fontSize:12,fontWeight:700,color:C.accent}}>{sw} lbs</span>
                                 <span style={{fontSize:11,color:C.muted2}}> x {sc} sets</span>
                                 {dc2>0?<span style={{fontSize:11,color:C.orange}}>  +{dc2} drop</span>:null}
-                                <span style={{fontSize:10,color:C.muted,marginLeft:6}}>RIR {defaultRIR(wk,totalWeeks,exp)} target</span>
                               </div>
                             );
                           })()}
@@ -1333,13 +1362,8 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                         </div>
                       ):null}
                       <ProgBanner ex={ex} wk={wk} totalWeeks={totalWeeks} isDeload={wk===totalWeeks} deloadStyle={deloadStyle}/>
-                      {getProfile(ex.name).type==="compound"&&!ex.lastWeight&&wk===1?(
-                        <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:8,padding:"8px 11px",marginBottom:11}}>
-                          <IcoInfo/>
-                          <div style={{fontSize:12,color:C.muted2,lineHeight:1.5}}>Warm up first — do 2–3 sets ramping from ~50% to ~80% of your working weight before logging sets here.</div>
-                        </div>
-                      ):null}
-                      <div style={{display:"grid",gridTemplateColumns:"18px 1fr 1fr 36px 58px 24px",gap:5,marginBottom:7,paddingBottom:6,borderBottom:"1px solid "+C.border}}>
+
+                      <div style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr 44px 56px 28px",gap:6,marginBottom:7,paddingBottom:6,borderBottom:"1px solid "+C.border}}>
                         {["#","Weight","Reps","RIR","",""].map((h,i)=>(
                           <span key={i} style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:1.5}}>{h}</span>
                         ))}
@@ -1353,7 +1377,6 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                         const isRev=swiped.has(set.id);
                         const repsN=parseInt(set.reps);
                         const prof=getProfile(ex.name);
-                        // Per-exercise rep ranges: compounds 5-20, isolation 8-30, calves/core higher
                         const minR=prof.type==="compound"?5:8;
                         const maxR=prof.preferReps?(ex.muscle==="Calves"||ex.muscle==="Core"?40:30):20;
                         const repFlag=!set.done&&set.reps&&!isNaN(repsN)&&(repsN<minR||repsN>maxR);
@@ -1367,12 +1390,12 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                   </button>
                                 </div>
                               ):null}
-                              <div style={{display:"grid",gridTemplateColumns:"18px 1fr 1fr 36px 58px 24px",gap:5,alignItems:"center",transform:isRev?"translateX(-48px)":"translateX(0)",transition:"transform .2s"}}>
+                              <div style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr 44px 56px 28px",gap:6,alignItems:"center",transform:isRev?"translateX(-48px)":"translateX(0)",transition:"transform .2s"}}>
                                 <div style={{textAlign:"center"}}>
-                                  {iDr?<span style={{fontSize:9,color:C.orange}}>Drop</span>:<span style={{fontSize:10,color:C.muted}}>{si+1}</span>}
+                                  {iDr?<span style={{fontSize:9,color:C.orange}}>D</span>:<span style={{fontSize:10,color:C.muted}}>{si+1}</span>}
                                 </div>
                                 <div style={{position:"relative"}}>
-                                  <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder="lbs" style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 6px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%"}}/>
+                                  <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder="lbs" style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 4px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                   {(()=>{
                                     if(!set.done) return null;
                                     const w=parseFloat(set.weight)||0;
@@ -1385,14 +1408,13 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                     return null;
                                   })()}
                                 </div>
-                                <input type="number" inputMode="numeric" pattern="[0-9]*" enterKeyHint="done" disabled={set.done} value={set.reps} onChange={e=>updS(ex.id,set.id,"reps",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!set.done) logSet(ex.id,set.id);}} placeholder="reps" style={{background:C.surf,border:"1px solid "+C.border,borderRadius:6,padding:"8px 6px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%"}}/>
+                                <input type="number" inputMode="numeric" pattern="[0-9]*" enterKeyHint="done" disabled={set.done} value={set.reps} onChange={e=>updS(ex.id,set.id,"reps",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!set.done) logSet(ex.id,set.id);}} placeholder="reps" style={{background:C.surf,border:"1px solid "+C.border,borderRadius:6,padding:"8px 4px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                 <button disabled={set.done} onClick={()=>cycleRIR(ex.id,set.id,set.rir)} style={{background:rbg,border:"1px solid "+rfg+"55",borderRadius:6,padding:"8px 0",cursor:set.done?"default":"pointer",color:rfg,fontSize:13,fontWeight:800,textAlign:"center",transition:"all .1s",width:"100%"}}>{set.rir}</button>
                                 {set.done&&restTimers[set.id]>0?(
-                                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",background:C.border2,border:"1px solid "+C.border2,borderRadius:6,padding:"8px 0",fontSize:12,fontWeight:700,color:C.muted2}}>{fmt(restTimers[set.id])}</div>
+                                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",background:C.border2,border:"1px solid "+C.border2,borderRadius:6,padding:"8px 0",fontSize:11,fontWeight:700,color:C.muted2}}>{fmt(restTimers[set.id])}</div>
                                 ):(()=>{
-                                  const isEmpty=!set.weight||!set.reps;
                                   return(
-                                    <button onClick={()=>{if(set.done)return;logSet(ex.id,set.id);}} style={{padding:"8px 0",borderRadius:6,fontWeight:800,fontSize:11,letterSpacing:1.5,cursor:set.done?"default":"pointer",transition:"all .15s",background:set.done?C.green+"22":isEmpty?C.border:C.accent,border:"1px solid "+(set.done?C.green+"44":isEmpty?C.border2:C.accent),color:set.done?C.green:isEmpty?C.muted:"#000",display:"flex",alignItems:"center",justifyContent:"center",WebkitTapHighlightColor:"transparent",activeStyle:{transform:"scale(0.95)"}}}>
+                                    <button onClick={()=>{if(set.done)return;logSet(ex.id,set.id);}} style={{padding:"8px 0",borderRadius:6,fontWeight:800,fontSize:11,letterSpacing:1,cursor:set.done?"default":"pointer",transition:"all .15s",background:set.done?C.green+"22":(!set.weight||!set.reps)?C.card:C.accent,border:"1px solid "+(set.done?C.green+"44":(!set.weight||!set.reps)?C.border2:C.accent),color:set.done?C.green:(!set.weight||!set.reps)?C.muted:"#000",display:"flex",alignItems:"center",justifyContent:"center",WebkitTapHighlightColor:"transparent"}}>
                                       {set.done?<IcoCheck sz={13} col={C.green}/>:"LOG"}
                                     </button>
                                   );
@@ -1428,7 +1450,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
         <button onClick={()=>{
           setExs(p=>p.map(e=>({...e,sets:e.sets.map(s=>s.done?s:{...s,done:true,weight:s.weight||"0",reps:"0",incomplete:true})})));
           setPhase("summary");
-        }} disabled={pct<100&&don===0} style={{width:"100%",padding:"14px",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:pct<100&&don===0?"default":"pointer",transition:"all .2s",background:pct===100?C.accent:don===0?C.border:C.card2,border:"1px solid "+(pct===100?C.accent:don===0?C.border:C.border2),color:pct===100?"#000":don===0?C.muted+"66":C.muted}}>
+        }} disabled={don===0} style={{width:"100%",padding:"14px",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:don===0?"default":"pointer",transition:"all .2s",background:pct===100?C.accent:don===0?C.border:C.card2,border:"1px solid "+(pct===100?C.accent:don===0?C.border:C.border2),color:pct===100?"#000":don===0?C.muted+"66":C.muted}}>
           {pct===100?"FINISH WORKOUT":"FINISH EARLY — "+don+" of "+tot+" sets done"}
         </button>
       </div>
@@ -1436,7 +1458,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   );
 }
 
-function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimize,visible,liftHistory,savedExs,onExsChange}){
+function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimize,visible,liftHistory,savedExs,onExsChange,exUpdateKey,lastSessionNote}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
@@ -1495,6 +1517,25 @@ function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimiz
     });
   };
   const setExsFn=(...args)=>setExs.current(...args);
+
+  // Re-sync exs when App externally updates exercises (swap/add/remove from Plan tab)
+  // Merges incoming changes while preserving already-logged set data
+  const prevUpdateKey=useRef(exUpdateKey);
+  useEffect(()=>{
+    if(exUpdateKey===prevUpdateKey.current) return;
+    prevUpdateKey.current=exUpdateKey;
+    if(!savedExs||savedExs.length===0) return;
+    setExsRaw(prev=>{
+      // For each incoming exercise: if it exists in prev (same name), keep its logged sets
+      // If it's new (swap/add), use the incoming exercise fresh
+      const merged=savedExs.map(incoming=>{
+        const existing=prev.find(e=>e.name===incoming.name);
+        return existing||incoming;
+      });
+      return merged;
+    });
+    onExsChange&&onExsChange(savedExs);
+  },[exUpdateKey,savedExs]);
   const [expId,setExpId]=useState(null);
   const [phase,setPhase]=useState("log");
   const [elapsed,setElapsed]=useState(0);
@@ -1506,7 +1547,7 @@ function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimiz
     return ()=>clearInterval(t);
   },[]);
   const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);
-  const don=exs.reduce((a,e)=>a+e.sets.filter(s=>s.done&&s.type!=="drop").length,0);
+  const don=exs.reduce((a,e)=>a+e.sets.filter(s=>s.done&&!s.incomplete&&s.type!=="drop").length,0);
   const pct=tot>0?(don/tot)*100:0;
   const totalVol=exs.reduce((a,e)=>a+e.sets.filter(s=>s.done&&s.type!=="drop"&&s.weight&&s.reps).reduce((b,s)=>b+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0),0),0);
   return(
@@ -1514,7 +1555,7 @@ function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimiz
       {phase==="summary"?(
         <SessionSummary workout={workout} exs={exs} ratings={ratings} setRatings={setRatings} don={don} totalVol={totalVol} elapsed={elapsed} sessionNote={sessionNote} setSessionNote={setSessionNote} onComplete={onComplete}/>
       ):(
-        <LoggerInner workout={workout} wk={wk} totalWeeks={totalWeeks} onMinimize={onMinimize} setPhase={setPhase} exs={exs} setExs={setExsFn} expId={expId} setExpId={setExpId} elapsed={elapsed} don={don} tot={tot} pct={pct} liftHistory={liftHistory} deloadStyle={deloadStyle}/>
+        <LoggerInner workout={workout} wk={wk} totalWeeks={totalWeeks} onMinimize={onMinimize} setPhase={setPhase} exs={exs} setExs={setExsFn} expId={expId} setExpId={setExpId} elapsed={elapsed} don={don} tot={tot} pct={pct} liftHistory={liftHistory} deloadStyle={deloadStyle} lastSessionNote={lastSessionNote}/>
       )}
     </div>
   );
@@ -1525,10 +1566,16 @@ function SessionEditModal({session,onSave,onClose}){
   const [note,setNote]=useState(session.note||"");
   const [exs,setExs]=useState(session.exercises?session.exercises.map(ex=>({
     ...ex,
-    sets:ex.sets.map(s=>({...s}))
+    sets:ex.sets.map(s=>s.incomplete||(!s.done)?{...s,weight:"0",reps:"0"}:s)
   })):null);
+  const [expandedId,setExpandedId]=useState(null);
   const updW=(eid,sid,v)=>setExs(p=>p.map(e=>e.id!==eid?e:{...e,sets:e.sets.map(s=>s.id!==sid?s:{...s,weight:v})}));
   const updR=(eid,sid,v)=>setExs(p=>p.map(e=>e.id!==eid?e:{...e,sets:e.sets.map(s=>s.id!==sid?s:{...s,reps:v})}));
+  const addSet=eid=>setExs(p=>p.map(e=>{
+    if(e.id!==eid) return e;
+    const newS={id:uid("es"),weight:"",reps:"",rir:"",type:"normal",done:true,incomplete:false};
+    return {...e,sets:[...e.sets,newS]};
+  }));
   return(
     <div style={{position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
       <div style={{position:"absolute",inset:0,background:"#000a"}}/>
@@ -1545,22 +1592,43 @@ function SessionEditModal({session,onSave,onClose}){
             <SLbl>Session Note</SLbl>
             <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Session notes..." style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
           </div>
-          {exs?exs.map(ex=>(
-            <div key={ex.id} style={{marginBottom:16}}>
-              <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:8}}>
-                <div style={{width:7,height:7,borderRadius:"50%",background:MC[ex.muscle]||"#888"}}/>
-                <span style={{fontSize:13,fontWeight:700}}>{ex.name}</span>
-                <Tag label={ex.muscle} color={MC[ex.muscle]||"#888"}/>
-              </div>
-              {ex.sets.filter(s=>s.done&&!s.incomplete).map((set,si)=>(
-                <div key={set.id} style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr",gap:8,alignItems:"center",marginBottom:6}}>
-                  <span style={{fontSize:10,color:C.muted,textAlign:"center"}}>{set.type==="drop"?"D":si+1}</span>
-                  <input type="number" inputMode="decimal" value={set.weight} onChange={e=>updW(ex.id,set.id,e.target.value)} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:7,padding:"8px 10px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%"}}/>
-                  <input type="number" inputMode="numeric" value={set.reps} onChange={e=>updR(ex.id,set.id,e.target.value)} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:7,padding:"8px 10px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%"}}/>
+          {exs?exs.map(ex=>{
+            const isOpen=expandedId===ex.id;
+            const loggedCount=ex.sets.filter(s=>s.done&&!s.incomplete&&s.weight&&s.reps).length;
+            const totalCount=ex.sets.filter(s=>s.type!=="drop").length;
+            const mc=MC[ex.muscle]||"#888";
+            return(
+              <div key={ex.id} style={{marginBottom:6,background:C.card,border:"1px solid "+(isOpen?C.border2:C.border),borderRadius:10,overflow:"hidden"}}>
+                <div onClick={()=>setExpandedId(isOpen?null:ex.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 13px",cursor:"pointer"}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:mc,flexShrink:0}}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{ex.name}</div>
+                    <div style={{fontSize:11,color:C.muted,marginTop:1}}>{loggedCount}/{totalCount} sets logged</div>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{isOpen?<polyline points="18 15 12 9 6 15"/>:<polyline points="6 9 12 15 18 9"/>}</svg>
                 </div>
-              ))}
-            </div>
-          )):<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No detailed set data for this session</div>}
+                {isOpen?(
+                  <div style={{borderTop:"1px solid "+C.border,padding:"10px 13px 12px"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr",gap:8,marginBottom:6}}>
+                      <span style={{fontSize:9,color:C.muted,textAlign:"center"}}>#</span>
+                      <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:1,textTransform:"uppercase"}}>Weight</span>
+                      <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:1,textTransform:"uppercase"}}>Reps</span>
+                    </div>
+                    {ex.sets.filter(s=>s.type!=="drop"||s.done).map((set,si)=>(
+                      <div key={set.id} style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr",gap:8,alignItems:"center",marginBottom:6}}>
+                        <span style={{fontSize:10,color:C.muted,textAlign:"center"}}>{set.type==="drop"?"D":si+1}</span>
+                        <input type="number" inputMode="decimal" value={set.weight} onChange={e=>updW(ex.id,set.id,e.target.value)} placeholder="lbs" style={{background:C.surf,border:"1px solid "+C.border2,borderRadius:7,padding:"8px 10px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                        <input type="number" inputMode="numeric" value={set.reps} onChange={e=>updR(ex.id,set.id,e.target.value)} placeholder="reps" style={{background:C.surf,border:"1px solid "+C.border2,borderRadius:7,padding:"8px 10px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                      </div>
+                    ))}
+                    <button onClick={()=>addSet(ex.id)} style={{width:"100%",marginTop:4,padding:"7px 0",background:"none",border:"1px dashed "+C.border2,borderRadius:7,color:C.muted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+                      <IcoPlus sz={11} col={C.muted}/> Add Set
+                    </button>
+                  </div>
+                ):null}
+              </div>
+            );
+          }):<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No detailed set data for this session</div>}
         </div>
         <div style={{padding:"12px 16px",borderTop:"1px solid "+C.border,flexShrink:0}}>
           <button onClick={()=>onSave(note,exs)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>SAVE CHANGES</button>
@@ -1589,12 +1657,12 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,progr
   const flagged=[];
   (program||[]).forEach(day=>{
     day.exercises.forEach(ex=>{
-      if(ex.lastSFR&&ex.lastSFR<=2) flagged.push({name:ex.name,muscle:ex.muscle,sfr:ex.lastSFR});
+      if(ex.lastSFR&&ex.lastSFR==="flagged") flagged.push({name:ex.name,muscle:ex.muscle,sfr:ex.lastSFR});
     });
   });
   return(
     <div style={{position:"fixed",inset:0,zIndex:400,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:19,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{flex:1}}>
           <div style={{fontSize:13,fontWeight:700}}>Meso Complete</div>
@@ -1655,8 +1723,8 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,progr
                   <div style={{fontSize:13,fontWeight:600}}>{ex.name}</div>
                   <div style={{fontSize:11,color:C.muted}}>{ex.muscle}</div>
                 </div>
-                <div style={{display:"flex",gap:2}}>
-                  {[1,2,3,4,5].map(s=><div key={s} style={{width:8,height:8,borderRadius:"50%",background:ex.sfr>=s?C.accent:C.border2}}/>)}
+                <div style={{fontSize:10,color:C.red,fontWeight:600,background:C.red+"18",borderRadius:5,padding:"2px 8px"}}>
+                  Flagged
                 </div>
               </div>
             ))}
@@ -1694,6 +1762,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
   const isDeloadWeek=meso.week===meso.totalWeeks;
   const needsDeloadChoice=isDeloadWeek&&!meso.deloadStyle;
   const [confirmAbandon,setConfirmAbandon]=useState(false);
+  useEffect(()=>{if(!activeLog) setConfirmAbandon(false);},[activeLog]);
   const TODAY=getTodayName();
   const todayWorkout=program.find(d=>d.day===TODAY)||null;
   const totalSets=todayWorkout?todayWorkout.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0):0;
@@ -1732,40 +1801,15 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{padding:"16px 14px 100px"}}>
-        <div style={{marginBottom:18}}>
-          <div style={{fontSize:11,color:C.muted,letterSpacing:1.5,textTransform:"uppercase"}}>{getGreeting()}</div>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:32,fontWeight:900,letterSpacing:-0.5,lineHeight:1.1}}>{userName.toUpperCase()}</div>
-        </div>
-        {activeLog?(
-          <div style={{background:C.green+"15",border:"1px solid "+C.green+"44",borderRadius:12,padding:"14px 15px",marginBottom:10}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:confirmAbandon?10:10}}>
-              <div>
-                <div style={{fontSize:10,color:C.green,letterSpacing:2,textTransform:"uppercase",marginBottom:2}}>In Progress</div>
-                <div style={{fontSize:14,fontWeight:700}}>{activeLog.name}</div>
-              </div>
-              {!confirmAbandon?(
-                <button onClick={()=>setConfirmAbandon(true)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",padding:"4px"}}>Abandon</button>
-              ):null}
-            </div>
-            {confirmAbandon?(
-              <div style={{marginBottom:10}}>
-                <div style={{fontSize:12,color:C.muted2,marginBottom:8}}>Abandon this session? All progress will be lost.</div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setConfirmAbandon(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,cursor:"pointer",fontSize:12}}>Keep Going</button>
-                  <button onClick={()=>{setConfirmAbandon(false);onAbandon();}} style={{flex:1,padding:"9px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:8,color:C.red,cursor:"pointer",fontSize:12,fontWeight:700}}>Yes, Abandon</button>
-                </div>
-              </div>
-            ):null}
-          </div>
-        ):null}
         <Card hi={C.accent+"33"}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
               <SLbl>Active Mesocycle</SLbl>
               <div style={{fontSize:16,fontWeight:700}}>{meso.label}</div>
+              {meso.startDate?<div style={{fontSize:10,color:C.muted,marginTop:1}}>Started {meso.startDate}</div>:null}
             </div>
             <div style={{textAlign:"right"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:30,fontWeight:900,color:C.accent,lineHeight:1}}>WK {meso.week}</div>
+              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,color:C.accent,lineHeight:1}}>Week {meso.week}</div>
               <div style={{fontSize:10,color:C.muted}}>of {meso.totalWeeks}</div>
             </div>
           </div>
@@ -1817,7 +1861,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
             <span style={{fontSize:12,color:C.muted2}}><strong style={{color:C.text}}>{meso.deloadStyle==="intensity"?"Intensity":"Volume"} Deload</strong> — {meso.deloadStyle==="intensity"?"Same sets, ~50% weight.":"Same weight, sets halved."} RIR 4 throughout.</span>
           </div>
         ):null}
-        <Card hi={C.accent+"55"}>
+        <Card hi={activeLog&&todayWorkout&&activeLog.name===todayWorkout.name?C.green+"44":completedDayNames.has(todayWorkout?.name)?C.green+"33":C.accent+"55"}>
           <SLbl>Today - {TODAY}</SLbl>
           {todayWorkout?(
             <div>
@@ -1827,7 +1871,32 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
                 <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>{todayWorkout.exercises.length}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>EXERCISES</span></div>
                 <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>RIR {defaultRIR(meso.week,meso.totalWeeks,exp)}</span></div>
               </div>
-              <button onClick={()=>activeLog&&activeLog.name===todayWorkout.name?onResume():onStart(null)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:9,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>{activeLog&&activeLog.name===todayWorkout.name?"RESUME WORKOUT":"START WORKOUT"}</button>
+              {activeLog&&activeLog.name===todayWorkout.name?(
+                <div>
+                  <button onClick={onResume} style={{width:"100%",padding:"14px",background:C.green+"22",color:C.green,border:"1px solid "+C.green+"44",borderRadius:9,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer",marginBottom:8}}>RESUME WORKOUT</button>
+                  {confirmAbandon?(
+                    <div style={{background:C.card,borderRadius:9,padding:"12px 14px"}}>
+                      <div style={{fontSize:12,color:C.muted2,marginBottom:8}}>Abandon this session? All progress will be lost.</div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={()=>setConfirmAbandon(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,cursor:"pointer",fontSize:12}}>Keep Going</button>
+                        <button onClick={()=>{setConfirmAbandon(false);onAbandon();}} style={{flex:1,padding:"9px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:8,color:C.red,cursor:"pointer",fontSize:12,fontWeight:700}}>Yes, Abandon</button>
+                      </div>
+                    </div>
+                  ):(
+                    <button onClick={()=>setConfirmAbandon(true)} style={{width:"100%",padding:"8px",background:"none",border:"none",color:C.muted,fontSize:12,cursor:"pointer"}}>Abandon session</button>
+                  )}
+                </div>
+              ):completedDayNames.has(todayWorkout.name)?(
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                    <IcoCheck sz={16} col={C.green}/>
+                    <span style={{fontSize:14,fontWeight:700,color:C.green}}>Session complete</span>
+                  </div>
+                  <button onClick={()=>onStart(null)} style={{width:"100%",padding:"10px",background:"none",border:"1px solid "+C.border2,borderRadius:9,color:C.muted,fontSize:12,cursor:"pointer"}}>Train again</button>
+                </div>
+              ):(
+                <button onClick={()=>onStart(null)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:9,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>START WORKOUT</button>
+              )}
             </div>
           ):(
             <div>
@@ -1835,29 +1904,35 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
               <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:16}}>{nextTraining?"Next up: "+nextTraining.day+" — "+nextTraining.name:"Next session starts next week."}</div>
               <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Train anyway</div>
               <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {program.map(d=>(
-                  <button key={d.id} onClick={()=>onStart(d)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.card2,border:"1px solid "+C.border2,borderRadius:9,color:C.text,fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left"}}>
-                    <span>{d.name}</span>
-                    <span style={{fontSize:11,color:C.muted}}>{d.exercises.length} exercises</span>
-                  </button>
-                ))}
+                {program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day)).map(d=>{
+                  const done=completedDayNames.has(d.name);
+                  return(
+                    <button key={d.id} onClick={()=>onStart(d)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.card2,border:"1px solid "+(done?C.green+"44":C.border2),borderRadius:9,color:done?C.muted:C.text,fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left",opacity:done?0.6:1}}>
+                      <span>{d.name}{done?" ✓":""}</span>
+                      <span style={{fontSize:11,color:C.muted}}>{d.exercises.length} exercises</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
         </Card>
         <Card>
           <SLbl>Recent Sessions</SLbl>
-          {history.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No sessions logged yet</div>:history.slice(0,4).map((s,i)=>(
-            <div key={i} style={{paddingBottom:i<Math.min(history.length,4)-1?"12px":0,marginBottom:i<Math.min(history.length,4)-1?"12px":0,borderBottom:i<Math.min(history.length,4)-1?"1px solid "+C.border:"none"}}>
+          {history.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No sessions logged yet</div>:history.slice(0,6).map((s,i)=>(
+            <div key={i} style={{paddingBottom:i<Math.min(history.length,6)-1?"12px":0,marginBottom:i<Math.min(history.length,6)-1?"12px":0,borderBottom:i<Math.min(history.length,6)-1?"1px solid "+C.border:"none"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
-                  <div style={{fontSize:13,fontWeight:700}}>{s.day}</div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>{s.date} · Week {s.week}</div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:7}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{s.day}</div>
+                    <div style={{fontSize:11,color:C.muted}}>Week {s.week}</div>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted2,marginTop:1}}>{s.date}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:13,fontWeight:700,color:s.sets===s.planned?C.green:C.accent}}>{s.sets}/{s.planned}</div>
-                    <div style={{fontSize:9,color:C.muted}}>sets</div>
+                    <div style={{fontSize:12,fontWeight:600,color:s.sets===s.planned?C.green:C.accent+"99"}}>{s.sets}/{s.planned}</div>
+                    <div style={{fontSize:9,color:C.muted,marginTop:1}}>sets</div>
                   </div>
                   <button onClick={()=>onEdit(s,i)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"4px 9px",color:C.muted2,fontSize:11,cursor:"pointer"}}>Edit</button>
                 </div>
@@ -1912,9 +1987,10 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
           <div>
             <SLbl>Current Meso</SLbl>
             <div style={{fontSize:15,fontWeight:700}}>{meso.label}</div>
+            {meso.startDate?<div style={{fontSize:11,color:C.muted,marginTop:1}}>Started {meso.startDate}</div>:null}
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,color:C.accent,lineHeight:1}}>WK {meso.week}</div>
+            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,color:C.accent,lineHeight:1}}>Week {meso.week}</div>
             <div style={{fontSize:10,color:C.muted}}>of {meso.totalWeeks}</div>
           </div>
         </div>
@@ -2128,7 +2204,7 @@ function HistoryTab({onGlossary,liftHistory}){
                   <LineChart data={chartData} margin={{top:4,right:4,left:-20,bottom:0}}>
                     <XAxis dataKey="label" tick={{fontSize:9,fill:C.muted}} axisLine={false} tickLine={false} interval={zoom==="alltime"?2:0}/>
                     <YAxis tick={{fontSize:10,fill:C.muted}} axisLine={false} tickLine={false} domain={["auto","auto"]}/>
-                    <Tooltip contentStyle={{background:C.card2,border:"1px solid "+C.border2,borderRadius:8,fontSize:12}} itemStyle={{color:C.accent}} labelStyle={{color:C.muted2}} formatter={(v,_,entry)=>[v+" lbs"+(entry.payload&&entry.payload.deload?" (deload)":""),""]}/>
+                    <Tooltip contentStyle={{background:C.card2,border:"1px solid "+C.border2,borderRadius:8,fontSize:12}} itemStyle={{color:C.accent}} labelStyle={{color:C.muted2}} formatter={(v,_,entry)=>[v+" lbs"+(entry.payload&&entry.payload.deload?" (deload)":""),entry.payload?.date||""]} labelFormatter={l=>l}/>
                     {zoom==="alltime"?bounds.map(b=><ReferenceLine key={b} x={b} stroke={C.border2} strokeDasharray="3 3"/>):null}
                     <Line type="monotone" dataKey="v" stroke={C.accent} strokeWidth={2} dot={<ChartDot/>} activeDot={{r:6,fill:C.accent}} connectNulls/>
                   </LineChart>
@@ -2269,7 +2345,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
   const [picker,setPicker]=useState(null);
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-      {picker?<ExPicker library={library} title={picker.swapName?"Swap Exercise":"Add Exercise"} onAdd={ex=>{
+      {picker?<ExPicker library={library} title={picker.swapName?"Swap Exercise":"Add Exercise"} excludeNames={picker.swapName?[]:(program.find(d=>d.id===picker.dayId)||{exercises:[]}).exercises.map(e=>e.name)} onAdd={ex=>{
         if(picker.swapName) onSwapExercise(picker.dayId,picker.swapName,ex);
         else onAddExercise(picker.dayId,ex);
         setPicker(null);
@@ -2279,6 +2355,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
           <div>
             <SLbl>Active Mesocycle</SLbl>
             <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{meso.label}</div>
+            {meso.startDate?<div style={{fontSize:11,color:C.muted,marginTop:2}}>Started {meso.startDate}</div>:null}
           </div>
           <button onClick={()=>setConfirmNew(true)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"7px 12px",color:C.muted2,fontSize:11,cursor:"pointer",flexShrink:0}}>New Meso</button>
         </div>
@@ -2307,7 +2384,6 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
               </div>
             ))}
           </div>
-          <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Sets ramp from MEV toward MRV each week. Deload targets maintenance volume (MV), RIR 4.</div>
         </Card>
         <SLbl>Training Days</SLbl>
         {program.map((day,di)=>(
@@ -2324,12 +2400,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
             </div>
             {expDay===day.id?(
               <div style={{borderTop:"1px solid "+C.border,padding:"10px 14px 14px"}}>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontSize:10,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",marginBottom:6}}>Training Day</div>
-                  <select value={day.day} onChange={e=>onUpdateDay(day.id,e.target.value)} style={{width:"100%",background:C.surf,border:"1px solid "+C.border2,borderRadius:8,padding:"9px 12px",color:C.text,fontSize:13,fontWeight:600,outline:"none",cursor:"pointer"}}>
-                    {WEEK_DAYS.map(d=><option key={d}>{d}</option>)}
-                  </select>
-                </div>
+
                 <div style={{fontSize:10,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Exercises</div>
                 {day.exercises.map((ex,ei)=>(
                   <div key={ex.id} style={{display:"flex",alignItems:"center",gap:8,paddingBottom:ei<day.exercises.length-1?"10px":0,marginBottom:ei<day.exercises.length-1?"10px":0,borderBottom:ei<day.exercises.length-1?"1px solid "+C.border:"none"}}>
@@ -2877,7 +2948,7 @@ function OnboardingScreen({onComplete}){
   if(phase==="intro"){
     return(
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:"env(safe-area-inset-bottom)"}}>
-        <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:#3a4a60}textarea::placeholder{color:#3a4a60;font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
+        <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:#4d607a}textarea::placeholder{color:#4d607a;font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
         <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 28px",minHeight:"100%"}}>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:60,fontWeight:900,letterSpacing:4,color:C.accent,lineHeight:1,marginBottom:16}}>HYPER</div>
           <div style={{fontSize:14,color:C.muted2,lineHeight:1.8,marginBottom:48}}>A hypertrophy training log that tells you what to lift, guides your progression week to week, and tracks your gains across training blocks so you can see real progress over time.</div>
@@ -2900,7 +2971,7 @@ function OnboardingScreen({onComplete}){
   if(phase==="howItWorks"){
     return(
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
-        <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}button,input{font-family:'DM Sans',sans-serif}`}</style>
+        <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#4d607a}button,input{font-family:'DM Sans',sans-serif}`}</style>
         <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"14px 20px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <button onClick={()=>setPhase("intro")} style={{background:"none",border:"none",color:C.muted2,fontSize:13,cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:5}}>← Back</button>
           <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,letterSpacing:2,color:C.text}}>HOW IT WORKS</div>
@@ -3025,6 +3096,7 @@ export default function App(){
 
 
   const [loggerOpen,setLoggerOpen]=useState(false);
+  const [exUpdateKey,setExUpdateKey]=useState(0);
   const [showGlossary,setShowGlossary]=useState(false);
   const [mesoComplete,setMesoComplete]=useState(null);
   const [loaded,setLoaded]=useState(false);
@@ -3113,7 +3185,7 @@ export default function App(){
     const dayName=activeLog.name;
     const dateStr=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
     const isDeload=meso.week===meso.totalWeeks;
-    const newSession={day:dayName,date:dateStr,week:meso.week,mesoNum:mesoCount,sets,planned,note:sessionNote||"",exercises:exs};
+    const newSession={day:dayName,date:dateStr,week:meso.week,mesoNum:mesoCount,sets,planned,note:sessionNote||"",exercises:exs,isDeload};
     const updatedHistory=[newSession,...history];
     setHistory(updatedHistory);
     const newEntries=extractLiftEntries(exs,mesoCount,meso.label,meso.week,isDeload);
@@ -3157,17 +3229,18 @@ export default function App(){
       })};
     }));
 
-    setActiveLog(null);
-    setActiveLogExs(null);
-    setLoggerOpen(false);
+    // Compute allDone BEFORE any setProgram calls to avoid stale closure
     const thisWeekSessions=updatedHistory.filter(s=>s.week===meso.week&&s.mesoNum===mesoCount);
     const completedDays=new Set(thisWeekSessions.map(s=>s.day));
     const allDone=program.map(d=>d.name).every(n=>completedDays.has(n));
+    setActiveLog(null);
+    setActiveLogExs(null);
+    setLoggerOpen(false);
     if(isDeload){
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
       else setTab("home");
     } else {
-      if(allDone) setMeso(m=>m&&m.week===meso.week?{...m,week:Math.min(m.week+1,m.totalWeeks)}:m);
+      if(allDone) setMeso(m=>({...m,week:Math.min(m.week+1,m.totalWeeks)}));
       setTab("home");
     }
   };
@@ -3187,15 +3260,17 @@ export default function App(){
         return {...ex,lastScheme:"",lastWeight:String(w1),lastRIR:null,lastReps:"",sets:[...fresh,...drops]};
       }),
     }));
-    setMeso(m=>({...m,label:"Meso "+nextNum,week:1,totalWeeks:m.totalWeeks,repRange:suggestedRepRange||nextRepRange(m.repRange),deloadStyle:null}));
+    const _startDate=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+    setMeso(m=>({...m,label:"Meso "+(mesoCount+1),week:1,totalWeeks:m.totalWeeks,repRange:suggestedRepRange||nextRepRange(m.repRange),deloadStyle:null,startDate:_startDate}));
     setProgram(newProgram);
-    setMesoCount(nextNum);
+    setMesoCount(p=>p+1);
     setMesoComplete(null);
     setTab(goToPlanner?"plan":"home");
   };
 
   const handleLaunch=(newMeso,newProg)=>{
-    setMeso(newMeso);
+    const startDate=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+    setMeso({...newMeso,startDate});
     setProgram(newProg);
     setMesoCount(p=>p+1);
     setTab("home");
@@ -3205,25 +3280,76 @@ export default function App(){
     setProgram(p=>p.map(d=>d.id!==dayId?d:{...d,day:newDay}));
   };
   const handleSwapExercise=(dayId,oldName,newEx)=>{
+    // Calculate proper landmarks and rep range for new exercise
+    const exp=profile?.experience||"intermediate";
+    const lm=muscles[newEx.muscle];
+    const expCap={new:3,returning:3,intermediate:4,advanced:5}[exp]||4;
+    const mevS=lm?Math.min(expCap,Math.max(2,Math.round(lm.mev/2))):3;
+    const mrvS=lm?Math.min(expCap+2,Math.max(mevS+1,Math.round(lm.mav/2))):mevS+2;
+    const mvS=lm?Math.max(1,Math.round(lm.mv/2)):Math.ceil(mevS/2);
+    const rrScale=getRRScale(meso?.repRange);
+    const isCompound=getProfile(newEx.name).type==="compound";
+    const repOverride=isCompound
+      ?{minReps:rrScale.compoundMin,maxReps:rrScale.compoundMax}
+      :{minReps:rrScale.isoMin,maxReps:rrScale.isoMax};
+    const makeSwapped=(e)=>({
+      ...newEx,...repOverride,
+      id:e.id,lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",
+      mevSets:mevS,mrvSets:mrvS,mvSets:mvS,
+      sets:Array(e.sets.filter(s=>s.type!=="drop").length).fill(null).map(()=>newSet("","normal")),
+    });
     setProgram(p=>p.map(d=>{
       if(d.id!==dayId) return d;
-      return {...d,exercises:d.exercises.map(e=>{
-        if(e.name!==oldName) return e;
-        return {...newEx,id:e.id,lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:e.sets.map(s=>({...s,weight:"",reps:"",done:false}))};
-      })};
+      return {...d,exercises:d.exercises.map(e=>e.name!==oldName?e:makeSwapped(e))};
     }));
+    // Update activeLog and activeLogExs sequentially to avoid nested setState
+    setActiveLog(al=>{
+      if(!al||al.id!==dayId) return al;
+      return {...al,exercises:al.exercises.map(e=>e.name!==oldName?e:makeSwapped(e))};
+    });
+    setActiveLogExs(exs=>{
+      if(!exs) return exs;
+      const matchesDayId=activeLog&&activeLog.id===dayId;
+      if(!matchesDayId) return exs;
+      return exs.map(e=>e.name!==oldName?e:makeSwapped(e));
+    });
+    if(activeLog&&activeLog.id===dayId){showToast("Session updated");setExUpdateKey(k=>k+1);}
   };
+
   const handleAddExercise=(dayId,newEx)=>{
+    const exp=profile?.experience||"intermediate";
+    const lm=muscles[newEx.muscle];
+    const expCap={new:3,returning:3,intermediate:4,advanced:5}[exp]||4;
+    const mevS=lm?Math.min(expCap,Math.max(2,Math.round(lm.mev/2))):3;
+    const mrvS=lm?Math.min(expCap+2,Math.max(mevS+1,Math.round(lm.mav/2))):mevS+2;
+    const mvS=lm?Math.max(1,Math.round(lm.mv/2)):Math.ceil(mevS/2);
+    const rrScale=getRRScale(meso?.repRange);
+    const isCompound=getProfile(newEx.name).type==="compound";
+    const repOverride=isCompound
+      ?{minReps:rrScale.compoundMin,maxReps:rrScale.compoundMax}
+      :{minReps:rrScale.isoMin,maxReps:rrScale.isoMax};
+    const nx={...newEx,...repOverride,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets:mevS,mrvSets:mrvS,mvSets:mvS,sets:Array(mevS).fill(null).map(()=>newSet("","normal"))};
     setProgram(p=>p.map(d=>{
       if(d.id!==dayId) return d;
       if(d.exercises.find(e=>e.name===newEx.name)) return d;
-      const nx={...newEx,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",sets:[newSet(""),newSet(""),newSet("")]};
       return {...d,exercises:[...d.exercises,nx]};
     }));
+    if(activeLog&&activeLog.id===dayId&&!activeLog.exercises.find(e=>e.name===newEx.name)){
+      setActiveLog(al=>al&&al.id===dayId?{...al,exercises:[...al.exercises,nx]}:al);
+      setActiveLogExs(exs=>exs?[...exs,nx]:exs);
+      showToast("Exercise added to session");
+      setExUpdateKey(k=>k+1);
+    }
   };
 
   const handleRemoveExercise=(dayId,exName)=>{
     setProgram(p=>p.map(d=>d.id!==dayId?d:{...d,exercises:d.exercises.filter(e=>e.name!==exName)}));
+    if(activeLog&&activeLog.id===dayId){
+      setActiveLog(al=>al&&al.id===dayId?{...al,exercises:al.exercises.filter(e=>e.name!==exName)}:al);
+      setActiveLogExs(exs=>exs?exs.filter(e=>e.name!==exName):exs);
+      showToast("Exercise removed from session");
+      setExUpdateKey(k=>k+1);
+    }
   };
 
   const [confirmStart,setConfirmStart]=useState(null); // stores the workout to start after confirmation
@@ -3236,25 +3362,34 @@ export default function App(){
   const [editingSession,setEditingSession]=useState(null);
 
   const handleEditSession=(note,exs)=>{
+    // Mark any previously-incomplete sets that now have weight+reps as done
+    const cleanedExs=exs?exs.map(ex=>({
+      ...ex,
+      sets:ex.sets.map(s=>s.incomplete&&s.weight&&s.reps?{...s,done:true,incomplete:false}:s)
+    })):exs;
     setHistory(prev=>prev.map((s,i)=>{
       if(i!==editingSession.idx) return s;
-      return {...s,note,exercises:exs||s.exercises};
+      return {...s,note,exercises:cleanedExs||s.exercises};
     }));
-    if(exs&&editingSession){
+    if(cleanedExs&&editingSession){
       const s=editingSession.session;
       const sessionMesoNum=s.mesoNum||mesoCount;
-      const sessionLabel="M"+sessionMesoNum+"W"+s.week;
+      const sessionLabel="M"+sessionMesoNum+(s.isDeload?"DL":"W"+s.week);
       setLiftHistory(prev=>{
         const filtered=prev.filter(e=>!(e.mesoNum===sessionMesoNum&&e.week===s.week&&e.label===sessionLabel));
-        const newEntries=extractLiftEntries(exs,sessionMesoNum,s.mesoLabel||meso?.label||"",s.week,false);
+        const newEntries=extractLiftEntries(cleanedExs,sessionMesoNum,s.mesoLabel||meso?.label||"",s.week,false);
         return [...filtered,...newEntries];
       });
-      // Sync progression engine so next session banner reflects the edited weights
+      // Only sync progression engine if the edited session is the most recent for each exercise
+      const editedWeek=s.week;
       setProgram(p=>p.map(day=>{
         if(day.name!==s.day) return day;
         return {...day,exercises:day.exercises.map(pex=>{
-          const logged=exs.find(e=>e.name===pex.name);
+          const logged=cleanedExs.find(e=>e.name===pex.name);
           if(!logged) return pex;
+          // Check if a more recent session exists for this exercise
+          const laterSession=history.find((h,hi)=>hi<editingSession.idx&&h.day===s.day&&h.exercises&&h.exercises.some(e=>e.name===pex.name));
+          if(laterSession) return pex; // Don't overwrite newer data
           const doneSets=logged.sets.filter(s=>s.done&&!s.incomplete&&s.weight&&s.reps);
           const normalSets=doneSets.filter(s=>s.type!=="drop");
           if(!normalSets.length) return pex;
@@ -3322,31 +3457,49 @@ export default function App(){
   // Apply updated profile's volume landmarks to all exercises in the current program
   const handleApplyProfileToProgram=(newProf)=>{
     const newMuscles=getMuscles(newProf.experience,newProf.sex);
-    setProgram(p=>p.map(day=>({
-      ...day,
-      exercises:day.exercises.map(ex=>{
-        const lm=newMuscles[ex.muscle];
-        if(!lm) return ex;
-        // Recalculate set counts for this exercise based on new MEV/MRV
-        // Keep same ratio of exercises per muscle per day
-        const sameMuscleSiblings=day.exercises.filter(e=>e.muscle===ex.muscle).length||1;
-        const mevSets=Math.max(2,Math.min(5,Math.round(lm.mev/sameMuscleSiblings)));
-        const mrvSets=Math.max(mevSets+1,Math.min(mevSets+3,Math.round(lm.mav/sameMuscleSiblings)));
-        const mvSets=Math.max(1,Math.round(lm.mv/sameMuscleSiblings));
-        // Resize sets array to new MEV count, preserving any logged weight
-        const current=ex.sets.filter(s=>s.type!=="drop");
-        let newSets;
-        if(mevSets>current.length){
-          const last=current[current.length-1];
-          const extras=Array(mevSets-current.length).fill(null).map(()=>newSet(last?last.weight:"","normal"));
-          newSets=[...current,...extras];
-        } else {
-          newSets=current.slice(0,mevSets);
-        }
-        const drops=ex.sets.filter(s=>s.type==="drop");
-        return {...ex,mevSets,mrvSets,mvSets,sets:[...newSets,...drops]};
-      })
-    })));
+    const expCap={new:3,returning:3,intermediate:4,advanced:5}[newProf.experience]||4;
+    setProgram(p=>p.map(day=>{
+      // Build muscle order map for tapered distribution (same as autoGen)
+      const muscleExOrder={};
+      day.exercises.forEach(ex=>{
+        if(!muscleExOrder[ex.muscle]) muscleExOrder[ex.muscle]=[];
+        muscleExOrder[ex.muscle].push(ex.name);
+      });
+      // Count how many times each muscle appears across all days
+      const muscleFreq={};
+      p.forEach(d=>d.exercises.forEach(ex=>{
+        const ms=new Set(d.exercises.map(e=>e.muscle));
+        ms.forEach(m=>{muscleFreq[m]=(muscleFreq[m]||0)+(d===day?0:0);});
+      }));
+      // Use frequency of 1 per day (apply-to-program doesn't know full schedule context)
+      return({
+        ...day,
+        exercises:day.exercises.map(ex=>{
+          const lm=newMuscles[ex.muscle];
+          if(!lm) return ex;
+          const exsForMuscle=muscleExOrder[ex.muscle]||[ex.name];
+          const posInMuscle=exsForMuscle.indexOf(ex.name);
+          const totalExs=exsForMuscle.length;
+          const taperWeights=totalExs===1?[1.0]:totalExs===2?[0.55,0.45]:[0.50,0.32,0.18];
+          const weight=taperWeights[Math.min(posInMuscle,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
+          const minSets=ex.type==="compound"?3:2;
+          const mevSets=Math.min(expCap,Math.max(minSets,Math.round(lm.mev*weight)));
+          const mrvSets=Math.min(expCap+2,Math.max(mevSets+1,Math.round(lm.mav*weight)));
+          const mvSets=Math.max(1,Math.round(lm.mv*weight));
+          const current=ex.sets.filter(s=>s.type!=="drop");
+          let newSets;
+          if(mevSets>current.length){
+            const last=current[current.length-1];
+            const extras=Array(mevSets-current.length).fill(null).map(()=>newSet(last?last.weight:"","normal"));
+            newSets=[...current,...extras];
+          } else {
+            newSets=current.slice(0,mevSets);
+          }
+          const drops=ex.sets.filter(s=>s.type==="drop");
+          return {...ex,mevSets,mrvSets,mvSets,sets:[...newSets,...drops]};
+        })
+      });
+    }));
   };
 
   const handleProfileSave=()=>{
@@ -3384,6 +3537,7 @@ export default function App(){
     setLoggerOpen(false);
     setMesoComplete(null);
     setShowProfile(false);
+    setExUpdateKey(0);
     setTab("home");
   };
 
@@ -3414,12 +3568,12 @@ export default function App(){
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          {meso?<div style={{fontSize:10,background:C.card,border:"1px solid "+C.border2,borderRadius:5,padding:"4px 9px",color:C.muted2,transition:"background .25s"}}>{meso.label} - WK {meso.week}</div>:null}
+          {meso?null:<div/>}
           <div onClick={()=>{setProfileDraft({...profile});setShowProfile(true);}} style={{width:28,height:28,borderRadius:"50%",background:C.accent+"22",border:"1px solid "+C.accent+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:C.accent,cursor:"pointer"}}>{initLetter}</div>
         </div>
       </div>
       {toast?(
-        <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:900,background:toast.ok?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px #0006",whiteSpace:"nowrap",pointerEvents:"none",transition:"opacity .3s"}}>
+        <div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",left:"50%",transform:"translateX(-50%)",zIndex:900,background:toast.ok?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px #0006",whiteSpace:"nowrap",pointerEvents:"none",transition:"opacity .3s"}}>
           {toast.msg}
         </div>
       ):null}
@@ -3536,7 +3690,7 @@ export default function App(){
         </div>
       ):null}
       {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)}/>:null}
-      {activeLog?<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs}/>:null}
+      {activeLog?(()=>{const _lastNote=(history.find(h=>h.day===activeLog.name&&h.note)||{}).note||null;return(<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs} exUpdateKey={exUpdateKey} lastSessionNote={_lastNote}/>);})():null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
       <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         {(meso&&program&&program.length>0)?(
