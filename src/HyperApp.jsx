@@ -3670,7 +3670,7 @@ function OnboardingScreen({onComplete}){
     return(
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
         <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#534434}button,input{font-family:'Inter',sans-serif}`}</style>
-        <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"14px 20px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"14px 20px",paddingTop:"calc(14px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <button onClick={()=>setPhase("intro")} style={{background:"none",border:"none",color:C.muted2,fontSize:13,cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:5}}>← Back</button>
           <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.1em",color:C.text}}>HOW IT WORKS</div>
           <button onClick={()=>setPhase("form")} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"6px 14px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Skip →</button>
