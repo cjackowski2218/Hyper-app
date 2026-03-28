@@ -1,17 +1,17 @@
-import { useState, useRef, useEffect, useMemo, memo, createContext, useContext } from "react";
+import { useState, useRef, useEffect, useMemo, createContext, useContext } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const DARK={
-  bg:"#10141e",surf:"#151a26",card:"#1a2030",card2:"#1e2538",
-  border:"#232d3f",border2:"#2a3549",text:"#dde3ed",
-  muted:"#475569",muted2:"#8896a8",accent:"#f59e0b",
+  bg:"#131313",surf:"#1c1b1b",card:"#201f1f",card2:"#2a2a2a",
+  border:"#353534",border2:"#404040",text:"#e5e2e1",
+  muted:"#7a7470",muted2:"#d8c3ad",accent:"#f59e0b",
   green:"#22c55e",red:"#ef4444",blue:"#60a5fa",orange:"#f97316",
 };
 const LIGHT={
-  bg:"#f4f0eb",surf:"#faf8f5",card:"#ffffff",card2:"#f0ece6",
-  border:"#e6e0d6",border2:"#d4cdc0",text:"#1a1d2e",
-  muted:"#94a3b8",muted2:"#64748b",accent:"#f59e0b",
-  green:"#16a34a",red:"#dc2626",blue:"#3b82f6",orange:"#ea580c",
+  bg:"#f8f9fb",surf:"#ffffff",card:"#ffffff",card2:"#f2f4f6",
+  border:"#d8c3ad",border2:"#a89880",text:"#191c1e",
+  muted:"#867461",muted2:"#534434",accent:"#f59e0b",
+  green:"#16a34a",red:"#ba1a1a",blue:"#00658b",orange:"#ea580c",
 };
 const ThemeCtx=createContext(DARK);
 const ProfileCtx=createContext({experience:"intermediate",sex:"male",bodyweight:185});
@@ -36,10 +36,13 @@ const BASE_MUSCLES = {
   Hamstrings:{mv:4,  mev:6,  mav:12, mrv:18},
   Glutes:    {mv:0,  mev:0,  mav:8,  mrv:16},
   Calves:    {mv:6,  mev:8,  mav:14, mrv:20},
+  // Core: indirect stimulus from all compound work makes direct MEV effectively 0
+  // Direct work targets stability and anti-rotation — not primary hypertrophy driver
+  Core:      {mv:0,  mev:0,  mav:8,  mrv:16},
 };
 // Muscles where indirect volume from compounds is significant (per RP)
 // These have MV/MEV of 0 — direct work is a bonus, not a requirement
-const INDIRECT_VOLUME_MUSCLES=new Set(["Glutes"]);
+const INDIRECT_VOLUME_MUSCLES=new Set(["Glutes","Core"]);
 // Per RP: "exceeding the 8-12 set per muscle per session maximum makes training very inefficient"
 const MAX_SETS_PER_MUSCLE_PER_SESSION = 8;
 
@@ -129,6 +132,7 @@ const EX_PROFILE = {
   "Goblet Squat":            {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
   "Walking Lunge":           {type:"compound",  pct:0.020, preferReps:true,  minReps:10, maxReps:20},
   "Leg Press":               {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
+  "Angled Leg Press":        {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
   "Leg Extension":           {type:"isolation", pct:0.020, preferReps:true,  minReps:10, maxReps:20},
   "Step Up":                 {type:"compound",  pct:0.020, preferReps:true,  minReps:10, maxReps:20},
   "Sissy Squat":             {type:"isolation", pct:0.000, preferReps:true,  minReps:8,  maxReps:20, stretchFocused:true},
@@ -143,6 +147,7 @@ const EX_PROFILE = {
   "Single Leg Romanian Deadlift":{type:"compound",pct:0.020,preferReps:false,minReps:8, maxReps:15},
   // Glutes — hip thrust/bridge 8-15, isolation 15-25
   "Hip Thrust":              {type:"compound",  pct:0.025, preferReps:false, minReps:8,  maxReps:15},
+  "Glute Thrust":            {type:"compound",  pct:0.025, preferReps:false, minReps:10, maxReps:20},
   "Barbell Hip Thrust":      {type:"compound",  pct:0.030, preferReps:false, minReps:8,  maxReps:15},
   "Sumo Deadlift":           {type:"compound",  pct:0.030, preferReps:false, minReps:5,  maxReps:10},
   "Glute Bridge":            {type:"compound",  pct:0.025, preferReps:false, minReps:10, maxReps:20},
@@ -168,6 +173,7 @@ const EX_PROFILE = {
   "Landmine Rotation":       {type:"isolation", pct:0.010, preferReps:true,  minReps:8,  maxReps:15},
   "Dead Bug":                {type:"isolation", pct:0.000, preferReps:true,  minReps:8,  maxReps:20},
   "Cable Woodchop":          {type:"isolation", pct:0.010, preferReps:true,  minReps:10, maxReps:20},
+  "Rotary Torso":            {type:"isolation", pct:0.010, preferReps:true,  minReps:15, maxReps:25},
   // Full Body — mostly rep-based or weight-based depending on exercise
   "Farmers Carry":           {type:"compound",  pct:0.000, preferReps:false, minReps:1,  maxReps:5},
   "Sled Push":               {type:"compound",  pct:0.000, preferReps:false, minReps:1,  maxReps:5},
@@ -407,6 +413,7 @@ const INIT_LIBRARY=[
   {name:"Goblet Squat",muscle:"Quads",type:"compound",fav:false},
   {name:"Walking Lunge",muscle:"Quads",type:"compound",fav:false},
   {name:"Leg Press",muscle:"Quads",type:"compound",fav:false},
+  {name:"Angled Leg Press",muscle:"Quads",type:"compound",fav:false},
   {name:"Leg Extension",muscle:"Quads",type:"isolation",fav:false},
   {name:"Step Up",muscle:"Quads",type:"compound",fav:false},
   {name:"Sissy Squat",muscle:"Quads",type:"isolation",fav:false},
@@ -421,6 +428,7 @@ const INIT_LIBRARY=[
   {name:"Seated Leg Curl",muscle:"Hamstrings",type:"isolation",fav:false},
   // Glutes
   {name:"Hip Thrust",muscle:"Glutes",type:"compound",fav:true},
+  {name:"Glute Thrust",muscle:"Glutes",type:"compound",fav:false},
   {name:"Barbell Hip Thrust",muscle:"Glutes",type:"compound",fav:false},
   {name:"Single Leg Hip Thrust",muscle:"Glutes",type:"compound",fav:false},
   {name:"Sumo Deadlift",muscle:"Glutes",type:"compound",fav:false},
@@ -446,6 +454,7 @@ const INIT_LIBRARY=[
   {name:"Landmine Rotation",muscle:"Core",type:"isolation",fav:false},
   {name:"Dead Bug",muscle:"Core",type:"isolation",fav:false},
   {name:"Cable Woodchop",muscle:"Core",type:"isolation",fav:false},
+  {name:"Rotary Torso",muscle:"Core",type:"isolation",fav:false},
   // Full Body
   {name:"Farmers Carry",muscle:"Full Body",type:"compound",fav:false},
   {name:"Sled Push",muscle:"Full Body",type:"compound",fav:false},
@@ -868,6 +877,48 @@ const nextRepRange=current=>{
   return REP_RANGE_CYCLE[(idx+1)%REP_RANGE_CYCLE.length];
 };
 // ─────────────────────────────────────────────────────────────────────────────
+// SPECIALIZATION SCHEDULING HELPER
+// Per RP: target muscle needs ≥48h (2 days) between sessions. We exhaustively
+// check all C(5,3)=10 triples from the user's 5 days, find the one with the
+// largest minimum gap, then assign Heavy/Moderate/Pump by preceding gap length
+// (longest preceding rest → heaviest session).
+//
+// Mathematical property: every possible selection of exactly 5 days from a
+// 7-day week is guaranteed to contain at least one valid triple (minGap ≥ 2).
+// Proof: each of the 7 valid triples appears in exactly 3 of the 21 possible
+// 5-day sets, and no 2 days can "cover" (appear in) all 7 valid triples —
+// so any 5-day selection must contain at least one valid triple.
+// This means findBestTargetDays never returns null when given exactly 5 days.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function findBestTargetDays(availDays) {
+  // availDays: array of exactly 5 weekday name strings
+  const indices = availDays.map(d=>WEEK_DAYS.indexOf(d)).sort((a,b)=>a-b);
+  let best = null;
+  for(let i=0;i<3;i++) for(let j=i+1;j<4;j++) for(let k=j+1;k<5;k++){
+    const t=[indices[i],indices[j],indices[k]];
+    const g1=t[1]-t[0];          // gap A→B
+    const g2=t[2]-t[1];          // gap B→C
+    const g3=7-t[2]+t[0];        // gap C→A (wrap)
+    const minGap=Math.min(g1,g2,g3);
+    if(minGap<2) continue;
+    if(!best||minGap>best.minGap||(minGap===best.minGap&&Math.min(g1,g2,g3)>Math.min(...best.gaps))){
+      best={triple:t,gaps:[g1,g2,g3],minGap};
+    }
+  }
+  if(!best) return null;
+  // Preceding gap for each day: A←C (gaps[2]), B←A (gaps[0]), C←B (gaps[1])
+  const assignments=best.triple.map((idx,i)=>({idx,preceding:[best.gaps[2],best.gaps[0],best.gaps[1]][i]}));
+  assignments.sort((a,b)=>b.preceding-a.preceding||a.idx-b.idx);
+  const heavyDay=WEEK_DAYS[assignments[0].idx];
+  const moderateDay=WEEK_DAYS[assignments[1].idx];
+  const pumpDay=WEEK_DAYS[assignments[2].idx];
+  const targetIdxSet=new Set(best.triple);
+  const maintDays=indices.filter(i=>!targetIdxSet.has(i)).map(i=>WEEK_DAYS[i]);
+  return {heavyDay,moderateDay,pumpDay,maintADay:maintDays[0],maintBDay:maintDays[1],minGap:best.minGap,gaps:best.gaps};
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SPECIALIZATION PHASE ENGINE
 // Based on RP Hypertrophy methodology: target muscle → MRV volume, all other
 // muscles hard-capped at MV to free systemic recovery capacity.
@@ -1051,55 +1102,47 @@ function genSpecializationProgram(targetMuscle, lib, muscles, experience, availD
     }];
   };
 
-  // Assemble 5-day structure
-  const days5 = [...availDays.slice(0,5)];
-  while(days5.length<5) days5.push(WEEK_DAYS[days5.length%7]);
+  // Use smart spacing algorithm — assigns Heavy/Moderate/Pump to days that
+  // maximize recovery gaps per RP guidance (≥48h between target sessions).
+  const assignment=findBestTargetDays(availDays);
+  if(!assignment) return [];
 
-  const dayConfigs = [
-    {
-      name:`${targetMuscle} — Heavy`,
-      exs:[
-        ...buildTargetExs("heavy"),
-        ...(companions.heavy||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
-      ],
-    },
-    {
-      name:`${targetMuscle} — Moderate`,
-      exs:[
-        ...buildTargetExs("moderate"),
-        ...(companions.moderate||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
-      ],
-    },
-    {
-      name:"Maintenance A",
-      exs:maintSplit[0].flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
-    },
-    {
-      name:`${targetMuscle} — Pump`,
-      exs:[
-        ...buildTargetExs("pump"),
-        ...(companions.pump||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
-      ],
-    },
-    {
-      name:"Maintenance B",
-      exs:(maintSplit[1]||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1)),
-    },
-  ];
+  const sessionDayMap={
+    [assignment.heavyDay]:   {name:`${targetMuscle} — Heavy`,   exs:[...buildTargetExs("heavy"),  ...(companions.heavy  ||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1))]},
+    [assignment.moderateDay]:{name:`${targetMuscle} — Moderate`,exs:[...buildTargetExs("moderate"),...(companions.moderate||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1))]},
+    [assignment.maintADay]:  {name:"Maintenance A",             exs:maintSplit[0].flatMap(m=>buildMaintEx(m,muscleFreq[m]||1))},
+    [assignment.pumpDay]:    {name:`${targetMuscle} — Pump`,    exs:[...buildTargetExs("pump"),   ...(companions.pump   ||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1))]},
+    [assignment.maintBDay]:  {name:"Maintenance B",             exs:(maintSplit[1]||[]).flatMap(m=>buildMaintEx(m,muscleFreq[m]||1))},
+  };
 
-  return dayConfigs.map((dc,i)=>({
-    id:uid("d"),
-    day:days5[i]||WEEK_DAYS[i],
-    name:dc.name,
-    exercises:dc.exs.filter(e=>e&&e.sets&&e.sets.length>0),
-  }));
+  // Return sorted by weekday order so the program displays Mon → Sun
+  return availDays
+    .slice().sort((a,b)=>WEEK_DAYS.indexOf(a)-WEEK_DAYS.indexOf(b))
+    .map(day=>{
+      const dc=sessionDayMap[day];
+      if(!dc) return null;
+      return {id:uid("d"),day,name:dc.name,exercises:dc.exs.filter(e=>e&&e.sets&&e.sets.length>0)};
+    }).filter(Boolean);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const Tag=({label,color})=>{const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:4,padding:"2px 7px",letterSpacing:1,fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
-const SLbl=({children})=>{const C=useContext(ThemeCtx);return(<div style={{fontSize:10,color:C.muted,letterSpacing:2.5,textTransform:"uppercase",marginBottom:8}}>{children}</div>);};
-const Card=({children,style,hi})=>{const C=useContext(ThemeCtx);return(<div style={{background:C.card,border:"1px solid "+(hi||C.border),borderRadius:12,padding:"14px 15px",marginBottom:10,...(style||{})}}>{children}</div>);};
+const Tag=({label,color})=>{const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:3,padding:"2px 6px",letterSpacing:"0.12em",fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
+const SLbl=({children,style})=>{const C=useContext(ThemeCtx);return(<div style={{fontSize:9,color:C.muted2,letterSpacing:"0.15em",textTransform:"uppercase",fontWeight:800,marginBottom:10,...(style||{})}}>{children}</div>);};
+// Section — the core layout primitive. Replaces Card. Tonal depth + optional left accent.
+const Section=({children,style,accent,marginBottom})=>{
+  const C=useContext(ThemeCtx);
+  return(
+    <div style={{background:C.card,marginBottom:marginBottom!==undefined?marginBottom:8,borderLeft:accent?"3px solid "+accent:"3px solid transparent",...(style||{})}}>
+      <div style={{padding:"16px 15px"}}>{children}</div>
+    </div>
+  );
+};
+// Keep Card as alias for backward compat — maps to Section
+const Card=({children,style,hi})=>{
+  const C=useContext(ThemeCtx);
+  return(<Section accent={hi?hi:undefined} style={style} marginBottom={8}>{children}</Section>);
+};
 
 function IcoFlame({sz,col}){return(<svg width={sz||16} height={sz||16} viewBox="0 0 24 24" fill="none" stroke={col||"currentColor"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2c0 0-5 4-5 9a5 5 0 0010 0c0-2-1-4-2-5 0 2-1 3-3 4 1-3 0-6 0-8z"/></svg>);}
 function IcoTrophy({sz,col}){return(<svg width={sz||16} height={sz||16} viewBox="0 0 24 24" fill="none" stroke={col||"currentColor"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8M12 17v4M7 4H4v3a3 3 0 003 3m10-6h3v3a3 3 0 01-3 3M7 10a5 5 0 005 5 5 5 0 005-5V4H7v6z"/></svg>);}
@@ -1121,47 +1164,65 @@ function IcoDown({sz,col}){return(<svg width={sz||14} height={sz||14} viewBox="0
 function IcoMoon({sz,col}){return(<svg width={sz||16} height={sz||16} viewBox="0 0 24 24" fill="none" stroke={col||"currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>);}
 
 // ── Specialization Phase Builder ─────────────────────────────────────────────
-function SpecBuilder({library,muscles,experience,onLaunch,onCancel,existingMeso}){
+function SpecBuilder({library,muscles,experience,onLaunch,onBack,onCancel,existingMeso}){
   const C=useContext(ThemeCtx);
   const [target,setTarget]=useState(null);
   const [days,setDays]=useState([]);
   const [step,setStep]=useState(0);  // 0=pick muscle, 1=pick days, 2=preview
 
   const availMuscles=Object.keys(SPEC_EX_MAP).filter(m=>muscles[m]);
-  const toggleDay=d=>setDays(p=>p.includes(d)?p.filter(x=>x!==d):[...p,d]);
 
-  const preview=target&&days.length>=5
-    ?genSpecializationProgram(target,library,muscles,experience,days)
-    :null;
+  // Cap at 5, prevent selecting more
+  const toggleDay=d=>setDays(p=>{
+    if(p.includes(d)) return p.filter(x=>x!==d);
+    if(p.length>=5) return p;
+    return [...p,d];
+  });
+
+  // Real-time validation — any selection of exactly 5 days is always schedulable
+  // (provably true: every C(7,5) combination contains a valid target triple)
+  const validation=useMemo(()=>{
+    if(days.length<5) return {status:"need_more",remaining:5-days.length};
+    const result=findBestTargetDays(days);
+    return {status:"valid",...result};
+  },[days]);
+
+  const canPreview=validation.status==="valid";
+
+  const preview=useMemo(()=>
+    canPreview&&target?genSpecializationProgram(target,library,muscles,experience,days):null
+  ,[canPreview,target,days,library,muscles,experience]);
 
   const doLaunch=()=>{
     if(!preview) return;
     onLaunch(
       {
         label:`${target} Specialization`,
-        week:1, totalWeeks:5, repRange:"hypertrophy",
+        week:1,totalWeeks:5,repRange:"hypertrophy",
         deloadStyle:null,
         mode:"specialization",
-        spec:{targetMuscle:target, heavyDay:`${target} — Heavy`, moderateDay:`${target} — Moderate`, pumpDay:`${target} — Pump`},
+        spec:{targetMuscle:target,heavyDay:`${target} — Heavy`,moderateDay:`${target} — Moderate`,pumpDay:`${target} — Pump`},
       },
       preview
     );
   };
 
+  const SHORT_DAY={"Monday":"Mon","Tuesday":"Tue","Wednesday":"Wed","Thursday":"Thu","Friday":"Fri","Saturday":"Sat","Sunday":"Sun"};
+
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {/* Header */}
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 16px",flexShrink:0}}>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"12px 16px",flexShrink:0}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <div style={{fontSize:13,fontWeight:700}}>Specialization Phase</div>
-          {existingMeso?<button onClick={onCancel} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted,fontSize:11,cursor:"pointer"}}>Cancel</button>:null}
+          <div style={{fontSize:11,fontWeight:800,letterSpacing:"0.15em",textTransform:"uppercase",color:C.text}}>Specialization Phase</div>
+          {existingMeso?<button onClick={onCancel} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 10px",color:C.muted,fontSize:11,fontWeight:600,cursor:"pointer"}}>Cancel</button>:null}
         </div>
-        <div style={{display:"flex",gap:5}}>
+        <div style={{display:"flex",gap:4}}>
           {["Target Muscle","Training Days","Preview"].map((s,i)=>(
-            <div key={s} style={{flex:1,height:3,borderRadius:2,background:i<=step?C.blue:C.border2}}/>
+            <div key={s} style={{flex:1,height:2,background:i<=step?C.blue:C.border}}/>
           ))}
         </div>
-        <div style={{fontSize:10,color:C.blue,marginTop:6,letterSpacing:1.5,textTransform:"uppercase"}}>{["Target Muscle","Training Days","Preview"][step]}</div>
+        <div style={{fontSize:9,color:C.blue,marginTop:6,letterSpacing:"0.15em",textTransform:"uppercase",fontWeight:700}}>{["Target Muscle","Training Days","Preview"][step]}</div>
       </div>
 
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
@@ -1170,68 +1231,106 @@ function SpecBuilder({library,muscles,experience,onLaunch,onCancel,existingMeso}
           {/* Step 0: pick target muscle */}
           {step===0&&(
             <div>
-              <div style={{background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:10,padding:"12px 14px",marginBottom:20}}>
-                <div style={{fontSize:12,fontWeight:700,color:C.blue,marginBottom:4}}>How specialization works</div>
+              <button onClick={onBack} style={{background:"none",border:"none",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",marginBottom:20,padding:0,letterSpacing:"0.05em"}}>← Back</button>
+              <div style={{background:C.blue+"12",borderLeft:"3px solid "+C.blue,padding:"12px 14px",marginBottom:20}}>
+                <div style={{fontSize:11,fontWeight:800,color:C.blue,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>How specialization works</div>
                 <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>
-                  Your target muscle trains 3× per week — Heavy (4-8 reps), Moderate (8-15 reps), and Pump (15-30 reps) — ramping from MEV to MRV over 5 weeks.
-                </div>
-                <div style={{fontSize:11,color:C.muted2,lineHeight:1.6,marginTop:6}}>
-                  All other muscles are capped at maintenance volume to free up systemic recovery. This is temporary and intentional — the trade-off is what drives specialization results.
+                  Your target muscle trains 3× per week — Heavy (4–8 reps), Moderate (8–15 reps), and Pump (15–30 reps) — ramping from MEV to MRV over 5 weeks. All other muscles are capped at maintenance volume to free systemic recovery capacity.
                 </div>
               </div>
               <SLbl>Choose your target muscle</SLbl>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
                 {availMuscles.map(m=>{
                   const mc=MC[m]||"#888";
                   const sel=target===m;
                   const lm=muscles[m];
                   return(
-                    <button key={m} onClick={()=>setTarget(m)} style={{background:sel?mc+"18":C.card,border:"1px solid "+(sel?mc:C.border),borderRadius:10,padding:"12px",textAlign:"left",cursor:"pointer",transition:"all .15s"}}>
+                    <button key={m} onClick={()=>setTarget(m)} style={{background:sel?mc+"18":C.card,border:"none",borderLeft:"3px solid "+(sel?mc:C.border2),padding:"12px",textAlign:"left",cursor:"pointer",transition:"all .12s"}}>
                       <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:4}}>
-                        <div style={{width:8,height:8,borderRadius:"50%",background:mc}}/>
-                        <span style={{fontSize:13,fontWeight:700,color:sel?mc:C.text}}>{m}</span>
+                        <div style={{width:7,height:7,borderRadius:"50%",background:mc,flexShrink:0}}/>
+                        <span style={{fontSize:12,fontWeight:800,color:sel?mc:C.text,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m}</span>
                       </div>
                       <div style={{fontSize:10,color:C.muted}}>MEV {lm.mev} → MRV {lm.mrv} sets/wk</div>
                     </button>
                   );
                 })}
               </div>
-              <button onClick={()=>setStep(1)} disabled={!target} style={{width:"100%",marginTop:20,padding:"14px",background:target?C.blue:C.border,color:target?"#fff":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:target?"pointer":"default",transition:"all .2s"}}>NEXT</button>
+              <button onClick={()=>setStep(1)} disabled={!target} style={{width:"100%",marginTop:20,padding:"14px",background:target?C.blue:C.card2,color:target?"#fff":C.muted,border:"none",borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:900,letterSpacing:"0.12em",cursor:target?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>Next</button>
             </div>
           )}
 
           {/* Step 1: pick training days */}
           {step===1&&(
             <div>
-              <button onClick={()=>setStep(0)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
-              <div style={{marginBottom:6,fontSize:13,fontWeight:700}}>{target} Specialization</div>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:20,lineHeight:1.6}}>Pick exactly 5 training days. The app will assign Heavy, Moderate, and Pump sessions to days 1, 2, and 4.</div>
-              <SLbl>Available days</SLbl>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:20}}>
+              <button onClick={()=>setStep(0)} style={{background:"none",border:"none",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",marginBottom:20,padding:0,letterSpacing:"0.05em"}}>← Back</button>
+              <div style={{fontSize:13,fontWeight:800,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{target} Specialization</div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:20,lineHeight:1.6}}>Select exactly 5 training days. The app schedules Heavy, Moderate, and Pump sessions with at least 2 rest days between each, per RP methodology.</div>
+              <SLbl>Training days</SLbl>
+              <div style={{display:"flex",gap:4,marginBottom:16}}>
                 {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((short,i)=>{
                   const full=WEEK_DAYS[i];
                   const sel=days.includes(full);
+                  const disabled=!sel&&days.length>=5;
                   return(
-                    <button key={full} onClick={()=>toggleDay(full)} style={{flex:"0 0 calc(14.28% - 4px)",padding:"10px 4px",borderRadius:8,border:"1px solid "+(sel?C.blue:C.border),background:sel?C.blue+"20":"none",color:sel?C.blue:C.muted,fontSize:11,fontWeight:sel?700:400,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>{short}</button>
+                    <button key={full} onClick={()=>!disabled&&toggleDay(full)} style={{flex:1,height:52,borderRadius:0,border:"none",background:sel?C.blue:disabled?C.surf:C.card2,color:sel?"#fff":disabled?C.muted:C.muted2,fontSize:9,fontWeight:800,cursor:disabled?"default":"pointer",transition:"all .12s",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,letterSpacing:"0.05em",opacity:disabled?0.4:1}}>
+                      {short}
+                      {sel?<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>:null}
+                    </button>
                   );
                 })}
               </div>
-              {days.length>0&&days.length!==5&&<div style={{fontSize:11,color:C.accent,marginBottom:12}}>Select exactly 5 days (currently {days.length})</div>}
-              <button onClick={()=>setStep(2)} disabled={days.length!==5} style={{width:"100%",padding:"14px",background:days.length===5?C.blue:C.border,color:days.length===5?"#fff":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:days.length===5?"pointer":"default",transition:"all .2s"}}>PREVIEW PROGRAM</button>
+
+              {/* Real-time validation feedback */}
+              {validation.status==="need_more"&&(
+                <div style={{fontSize:11,color:C.muted2,marginBottom:16,padding:"10px 12px",background:C.card2,borderLeft:"3px solid "+C.border2}}>
+                  Select {validation.remaining} more day{validation.remaining!==1?"s":""} — specialization needs 3 target sessions + 2 maintenance days.
+                </div>
+              )}
+
+              {validation.status==="valid"&&(
+                <div style={{padding:"10px 12px",background:C.green+"12",borderLeft:"3px solid "+C.green,marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:800,color:C.green,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Schedule confirmed</div>
+                  <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>
+                    {target} sessions: <strong style={{color:C.text}}>{SHORT_DAY[validation.heavyDay]} (Heavy) · {SHORT_DAY[validation.moderateDay]} (Moderate) · {SHORT_DAY[validation.pumpDay]} (Pump)</strong>
+                    <br/>Minimum {validation.minGap} rest day{validation.minGap!==1?"s":""} between sessions ✓
+                  </div>
+                </div>
+              )}
+
+              <button onClick={()=>setStep(2)} disabled={!canPreview} style={{width:"100%",padding:"14px",background:canPreview?C.blue:C.card2,color:canPreview?"#fff":C.muted,border:"none",borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:900,letterSpacing:"0.12em",cursor:canPreview?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>Preview Program</button>
             </div>
           )}
 
           {/* Step 2: preview */}
           {step===2&&preview&&(
             <div>
-              <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,marginBottom:4}}>{target.toUpperCase()} SPECIALIZATION</div>
+              <button onClick={()=>setStep(1)} style={{background:"none",border:"none",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",marginBottom:20,padding:0,letterSpacing:"0.05em"}}>← Back</button>
+              <div style={{fontSize:24,fontWeight:900,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em"}}>{target} Specialization</div>
               <div style={{fontSize:11,color:C.muted2,marginBottom:16,lineHeight:1.6}}>5 weeks · 3 target sessions/week · all other muscles at maintenance volume</div>
 
-              {/* Volume ramp preview */}
+              {/* Schedule summary */}
+              <div style={{background:C.card2,borderLeft:"3px solid "+C.blue,padding:"12px 14px",marginBottom:16}}>
+                <div style={{fontSize:10,fontWeight:800,color:C.blue,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Session Schedule</div>
+                {[
+                  {day:validation.heavyDay,label:"Heavy",sub:"4–8 reps · neurological focus",color:C.red},
+                  {day:validation.moderateDay,label:"Moderate",sub:"8–15 reps · hypertrophy focus",color:C.accent},
+                  {day:validation.pumpDay,label:"Pump",sub:"15–30 reps · stretch-mediated",color:C.blue},
+                ].map(s=>(
+                  <div key={s.label} style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                    <div style={{width:3,alignSelf:"stretch",background:s.color,flexShrink:0}}/>
+                    <div style={{minWidth:36,fontSize:10,fontWeight:800,color:C.muted2,letterSpacing:"0.05em"}}>{SHORT_DAY[s.day]}</div>
+                    <div>
+                      <span style={{fontSize:11,fontWeight:800,color:s.color,textTransform:"uppercase",letterSpacing:"0.06em"}}>{s.label}</span>
+                      <span style={{fontSize:10,color:C.muted,marginLeft:8}}>{s.sub}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Volume ramp */}
               <Card hi={C.blue+"33"}>
                 <SLbl>Weekly {target} volume (sets)</SLbl>
-                <div style={{display:"flex",gap:6,alignItems:"flex-end",height:48,marginBottom:8}}>
+                <div style={{display:"flex",gap:4,alignItems:"flex-end",height:48,marginBottom:8}}>
                   {[1,2,3,4,5].map(w=>{
                     const lm=muscles[target];
                     const isDeload=w===5;
@@ -1240,29 +1339,29 @@ function SpecBuilder({library,muscles,experience,onLaunch,onCancel,existingMeso}
                     return(
                       <div key={w} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
                         <div style={{fontSize:9,color:isDeload?C.muted:C.text,fontWeight:700}}>{total}</div>
-                        <div style={{width:"100%",height:Math.round(pct*36),background:isDeload?C.muted:C.blue,borderRadius:"3px 3px 0 0",transition:"height .3s"}}/>
+                        <div style={{width:"100%",height:Math.round(pct*36),background:isDeload?C.muted:C.blue,transition:"height .3s"}}/>
                         <div style={{fontSize:9,color:C.muted}}>{isDeload?"DL":"W"+w}</div>
                       </div>
                     );
                   })}
                 </div>
-                <div style={{fontSize:10,color:C.muted2,lineHeight:1.5}}>RIR 3 → 2 → 1 → 0 → deload. Volume ramps aggressively toward MRV in Week 4.</div>
+                <div style={{fontSize:10,color:C.muted2,lineHeight:1.5}}>RIR 3→2→1→0→deload. Volume ramps aggressively toward MRV in Week 4.</div>
               </Card>
 
               {/* Day-by-day preview */}
               <SLbl>5-Day Program</SLbl>
-              {preview.map((day,i)=>{
+              {preview.map((day)=>{
                 const isTarget=day.name.includes("—");
                 const focus=day.name.includes("Heavy")?"heavy":day.name.includes("Moderate")?"moderate":day.name.includes("Pump")?"pump":null;
                 const focusColor=focus==="heavy"?C.red:focus==="moderate"?C.accent:focus==="pump"?C.blue:C.muted;
                 return(
-                  <div key={day.id} style={{background:C.card,border:"1px solid "+(isTarget?focusColor+"44":C.border),borderRadius:10,padding:"12px 13px",marginBottom:8}}>
+                  <div key={day.id} style={{background:C.card,borderLeft:"3px solid "+(isTarget?focusColor:C.border2),marginBottom:5,padding:"12px 13px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                       <div>
-                        <div style={{fontSize:10,color:C.muted,marginBottom:2}}>{day.day}</div>
-                        <div style={{fontSize:13,fontWeight:700,color:isTarget?focusColor:C.text}}>{day.name}</div>
+                        <div style={{fontSize:10,color:C.muted,marginBottom:2,letterSpacing:"0.06em"}}>{day.day}</div>
+                        <div style={{fontSize:12,fontWeight:800,color:isTarget?focusColor:C.text,textTransform:"uppercase",letterSpacing:"0.04em"}}>{day.name}</div>
                       </div>
-                      {focus&&<Tag label={focus==="heavy"?"4-8 reps":focus==="moderate"?"8-15 reps":"15-30 reps"} color={focusColor}/>}
+                      {focus&&<Tag label={focus==="heavy"?"4–8 reps":focus==="moderate"?"8–15 reps":"15–30 reps"} color={focusColor}/>}
                       {!focus&&<Tag label="Maintenance" color={C.muted}/>}
                     </div>
                     {day.exercises.map(ex=>(
@@ -1276,13 +1375,13 @@ function SpecBuilder({library,muscles,experience,onLaunch,onCancel,existingMeso}
                 );
               })}
 
-              <div style={{background:C.card2,borderRadius:10,padding:"12px 14px",marginBottom:16,marginTop:4}}>
+              <div style={{background:C.card2,borderLeft:"3px solid "+C.border2,padding:"12px 14px",marginBottom:16,marginTop:8}}>
                 <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>
-                  <strong style={{color:C.text}}>Why is maintenance volume so low?</strong> Systemic recovery is a finite resource. By capping non-target muscles at their minimum, your body can pour all of its recovery capacity into growing {target}. This is exactly how RP specialization programs work — the trade-off is intentional and temporary.
+                  <strong style={{color:C.text}}>Why is maintenance volume so low?</strong> Systemic recovery is finite. Capping non-target muscles at MV lets your body pour all recovery capacity into growing {target}. The trade-off is intentional and temporary.
                 </div>
               </div>
 
-              <button onClick={doLaunch} style={{width:"100%",padding:"15px",background:C.blue,color:"#fff",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>LAUNCH SPECIALIZATION</button>
+              <button onClick={doLaunch} style={{width:"100%",padding:"15px",background:C.blue,color:"#fff",border:"none",borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",textTransform:"uppercase"}}>Launch Specialization</button>
             </div>
           )}
         </div>
@@ -1300,8 +1399,8 @@ function GlossaryModal({onClose}){
       <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:"16px 16px 0 0",padding:"0 0 32px",width:"100%",maxWidth:480,maxHeight:"80vh",overflowY:"auto"}}>
         <div style={{position:"sticky",top:0,background:C.surf,padding:"16px 16px 12px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div>
-            <div style={{fontSize:10,color:C.muted,letterSpacing:2.5,textTransform:"uppercase",marginBottom:2}}>Reference</div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:22,fontWeight:900,letterSpacing:-0.5}}>RP GLOSSARY</div>
+            <div style={{fontSize:10,color:C.muted,letterSpacing:"0.13em",textTransform:"uppercase",marginBottom:2}}>Reference</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontSize:22,fontWeight:900,letterSpacing:-0.5}}>RP GLOSSARY</div>
           </div>
           <button onClick={onClose} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:8,padding:"6px 12px",color:C.muted2,fontSize:12,cursor:"pointer"}}>CLOSE</button>
         </div>
@@ -1309,7 +1408,7 @@ function GlossaryModal({onClose}){
           {GLOSSARY.map((g,i)=>(
             <div key={i} style={{marginBottom:14,paddingBottom:14,borderBottom:i<GLOSSARY.length-1?"1px solid "+C.accent+"33":"none"}}>
               <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:5}}>
-                <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,color:C.text}}>{g.term}</span>
+                <span style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,color:C.text}}>{g.term}</span>
                 <span style={{fontSize:11,color:C.muted2,fontStyle:"italic"}}>{g.full}</span>
               </div>
               <div style={{fontSize:13,color:C.muted2,lineHeight:1.6}}>{g.def}</div>
@@ -1383,7 +1482,7 @@ function ExPicker({library,onAdd,onClose,title,excludeNames}){
             <button onClick={onClose} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:8,padding:"5px 12px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Cancel</button>
           </div>
           <div style={{position:"relative",marginBottom:7}}>
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search exercises..." style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:8,padding:"8px 12px 8px 32px",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search exercises..." style={{width:"100%",background:C.card2,border:"none",borderBottom:"1px solid "+C.border2,padding:"8px 12px 8px 32px",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
             <span style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)",color:C.muted,display:"flex",pointerEvents:"none"}}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </span>
@@ -1417,41 +1516,41 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
   const lifts=exs.filter(e=>e.muscle!=="Cardio");
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:19,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+        <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
         <div style={{flex:1}}>
-          <div style={{fontSize:13,fontWeight:700}}>Session Summary</div>
-          <div style={{fontSize:10,color:C.muted}}>{workout.day} - {workout.name}</div>
+          <div style={{fontSize:12,fontWeight:800,letterSpacing:"0.08em",textTransform:"uppercase"}}>Session Summary</div>
+          <div style={{fontSize:10,color:C.muted,letterSpacing:"0.04em"}}>{workout.day} — {workout.name}</div>
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 14px 24px"}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:32,fontWeight:900,marginBottom:16,display:"flex",alignItems:"center",gap:10}}>
-          {(()=>{const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);return don===0?"SESSION LOGGED":don<tot?"SESSION DONE":"GREAT WORK";})()}{don===exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0)&&don>0?<IcoFlame sz={28} col={C.accent}/>:null}
+        <div style={{fontSize:28,fontWeight:900,marginBottom:16,display:"flex",alignItems:"center",gap:10,letterSpacing:"0.04em",textTransform:"uppercase"}}>
+          {(()=>{const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);return don===0?"Session Logged":don<tot?"Session Done":"Great Work";})()}{don===exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0)&&don>0?<IcoFlame sz={26} col={C.accent}/>:null}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,marginBottom:16}}>
           {(()=>{
             const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);
             const allDone=don===tot&&don>0;
             const exsDone=exs.filter(e=>e.sets.some(s=>s.done&&!s.incomplete)).length;
             return[
-              <div key="ex" style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"13px 8px",textAlign:"center"}}>
-                <div style={{fontSize:19,fontWeight:800,color:exsDone===exs.length?C.green:C.text}}>{exsDone}/{exs.length}</div>
-                <div style={{fontSize:9,color:exsDone===exs.length?C.green:C.muted,letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>EXERCISES</div>
+              <div key="ex" style={{background:C.card2,padding:"14px 8px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:900,color:exsDone===exs.length?C.green:C.text}}>{exsDone}/{exs.length}</div>
+                <div style={{fontSize:9,color:exsDone===exs.length?C.green:C.muted,letterSpacing:"0.1em",marginTop:4,textTransform:"uppercase",fontWeight:700}}>Exercises</div>
               </div>,
-              <div key="sets" style={{background:C.card,border:"1px solid "+(allDone?C.green+"44":C.border),borderRadius:10,padding:"13px 8px",textAlign:"center"}}>
-                <div style={{fontSize:19,fontWeight:800,color:allDone?C.green:C.text}}>{don}/{tot}</div>
-                <div style={{fontSize:9,color:allDone?C.green:C.muted,letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>SETS</div>
+              <div key="sets" style={{background:C.card2,padding:"14px 8px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:900,color:allDone?C.green:C.text}}>{don}/{tot}</div>
+                <div style={{fontSize:9,color:allDone?C.green:C.muted,letterSpacing:"0.1em",marginTop:4,textTransform:"uppercase",fontWeight:700}}>Sets</div>
               </div>,
-              <div key="time" style={{background:C.card,border:"1px solid "+C.border,borderRadius:10,padding:"13px 8px",textAlign:"center"}}>
-                <div style={{fontSize:19,fontWeight:800}}>{fmt(elapsed)}</div>
-                <div style={{fontSize:9,color:C.muted,letterSpacing:2,marginTop:3,textTransform:"uppercase"}}>TIME</div>
+              <div key="time" style={{background:C.card2,padding:"14px 8px",textAlign:"center"}}>
+                <div style={{fontSize:22,fontWeight:900}}>{fmt(elapsed)}</div>
+                <div style={{fontSize:9,color:C.muted,letterSpacing:"0.1em",marginTop:4,textTransform:"uppercase",fontWeight:700}}>Time</div>
               </div>
             ];
           })()}
         </div>
         <div style={{marginBottom:16}}>
           <SLbl>Session Note</SLbl>
-          <textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} placeholder="Performance vs last week? Soreness going in? Any muscles that didn't fire? PRs, injuries, notes for next session..." rows={4} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+          <textarea value={sessionNote} onChange={e=>setSessionNote(e.target.value)} placeholder="Performance vs last week? Soreness, PRs, notes for next session..." rows={3} style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+C.border2,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
         </div>
         <SLbl>Rate Each Exercise (SFR)</SLbl>
         {lifts.map(ex=>{
@@ -1463,17 +1562,17 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
             {id:"flagged",label:"Joint pain or poor stimulus",color:C.red,flag:true},
           ];
           return(
-            <div key={ex.id} style={{background:C.card,border:"1px solid "+(r==="flagged"?C.red+"44":C.border),borderRadius:10,padding:"12px 13px",marginBottom:8}}>
+            <div key={ex.id} style={{background:C.card,borderLeft:"3px solid "+(r==="flagged"?C.red:r==="good"?C.green:C.border),borderRadius:0,padding:"12px 13px",marginBottom:6}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div>
-                  <div style={{fontSize:14,fontWeight:700}}>{ex.name}</div>
+                  <div style={{fontSize:13,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.04em"}}>{ex.name}</div>
                   {scheme?<div style={{fontSize:11,color:C.muted,marginTop:2}}>{scheme}</div>:null}
                 </div>
                 <Tag label={ex.muscle} color={mc}/>
               </div>
-              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+              <div style={{display:"flex",gap:5}}>
                 {opts.map(opt=>(
-                  <button key={opt.id} onClick={()=>setRatings(prev=>({...prev,[ex.id]:opt.id}))} style={{width:"100%",padding:"9px 12px",background:r===opt.id?opt.color+"18":C.surf,border:"1px solid "+(r===opt.id?opt.color+"66":C.border),borderRadius:7,cursor:"pointer",textAlign:"left",fontSize:12,fontWeight:r===opt.id?700:400,color:r===opt.id?opt.color:C.muted2,transition:"all .12s"}}>
+                  <button key={opt.id} onClick={()=>setRatings(prev=>({...prev,[ex.id]:opt.id}))} style={{flex:1,padding:"9px 12px",background:r===opt.id?opt.color+"20":C.card2,border:"none",borderBottom:"2px solid "+(r===opt.id?opt.color:C.border2),cursor:"pointer",textAlign:"center",fontSize:11,fontWeight:r===opt.id?800:500,color:r===opt.id?opt.color:C.muted2,transition:"all .12s",letterSpacing:"0.04em"}}>
                     {opt.label}
                   </button>
                 ))}
@@ -1486,7 +1585,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
             </div>
           );
         })}
-        <button onClick={()=>onComplete(exs,ratings,sessionNote)} style={{width:"100%",marginTop:8,padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:"pointer",transition:"all .2s"}}>
+        <button onClick={()=>onComplete(exs,ratings,sessionNote)} style={{width:"100%",marginTop:8,padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",transition:"all .2s"}}>
           SAVE SESSION
         </button>
       </div>
@@ -1679,42 +1778,42 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
 
   return(
     <div style={{position:"fixed",inset:0,zIndex:300,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 14px 10px",paddingTop:"calc(12px + env(safe-area-inset-top))",flexShrink:0}}>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"12px 14px 10px",paddingTop:"calc(12px + env(safe-area-inset-top))",flexShrink:0}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <button onClick={onMinimize} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted2,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+          <button onClick={onMinimize} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 10px",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:4,letterSpacing:"0.05em"}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="19 12 5 12"/><polyline points="12 19 5 12 12 5"/></svg>
             Minimize
           </button>
-          <div style={{fontSize:13,fontWeight:600,color:elapsed>3600?C.red:C.muted2,fontVariantNumeric:"tabular-nums"}}>{fmt(elapsed)}</div>
+          <div style={{fontSize:13,fontWeight:800,color:elapsed>3600?C.red:C.muted2,fontVariantNumeric:"tabular-nums",letterSpacing:"0.06em"}}>{fmt(elapsed)}</div>
         </div>
         <div style={{marginBottom:8}}>
-          <div style={{display:"flex",alignItems:"baseline",gap:6}}>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,letterSpacing:0.5,color:C.muted}}>{workout.day.toUpperCase()}</span>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,color:C.muted}}>·</span>
-            <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:700,letterSpacing:0.5,color:C.text}}>{workout.name.toUpperCase()}</span>
+          <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}>
+            <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.12em",color:C.muted,textTransform:"uppercase"}}>{workout.day}</span>
+            <span style={{color:C.border2}}>·</span>
+            <span style={{fontSize:13,fontWeight:800,letterSpacing:"0.06em",color:C.text,textTransform:"uppercase"}}>{workout.name}</span>
           </div>
-          <div style={{fontSize:11,color:C.muted,marginTop:3}}>
-            Week {wk} &nbsp;·&nbsp; RIR {defaultRIR(wk,totalWeeks,exp)} target
+          <div style={{fontSize:10,color:C.muted,letterSpacing:"0.06em"}}>
+            Week {wk} · RIR {defaultRIR(wk,totalWeeks,exp)} target
             {workout.name&&workout.name.includes("—")?(
-              <span style={{marginLeft:6,color:C.blue,fontWeight:600}}>
-                {workout.name.includes("Heavy")?"· Strength focus":workout.name.includes("Moderate")?"· Hypertrophy focus":"· Pump focus"}
+              <span style={{marginLeft:6,color:C.blue,fontWeight:700}}>
+                {workout.name.includes("Heavy")?"· Strength":workout.name.includes("Moderate")?"· Hypertrophy":"· Pump"}
               </span>
             ):null}
           </div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{flex:1,height:3,background:C.border,borderRadius:2,overflow:"hidden"}}>
-            <div style={{height:"100%",width:pct+"%",background:pct===100?C.green:C.accent,borderRadius:2,transition:"width .4s"}}/>
+          <div style={{flex:1,height:2,background:C.border,overflow:"hidden"}}>
+            <div style={{height:"100%",width:pct+"%",background:pct===100?C.green:C.accent,transition:"width .4s"}}/>
           </div>
-          <span style={{fontSize:10,color:C.muted,flexShrink:0}}>{don}/{tot}</span>
+          <span style={{fontSize:10,color:C.muted,flexShrink:0,fontWeight:700,letterSpacing:"0.06em"}}>{don}/{tot}</span>
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}} onTouchStart={e=>{if(e.target.tagName!=="INPUT"&&e.target.tagName!=="TEXTAREA"&&document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA")){document.activeElement.blur();}}}>
         <div ref={listRef} style={{padding:"8px 12px 120px",position:"relative"}}>
           {lastSessionNote&&!noteDismissed?(
-            <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.surf,border:"1px solid "+C.border2,borderRadius:9,padding:"10px 12px",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.surf,border:"1px solid "+C.border2,borderRadius:4,padding:"10px 12px",marginBottom:10}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:9,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",marginBottom:3}}>Last session note</div>
+                <div style={{fontSize:9,color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:3}}>Last session note</div>
                 <div style={{fontSize:12,color:C.muted2,lineHeight:1.5,fontStyle:"italic"}}>"{lastSessionNote}"</div>
               </div>
               <button onClick={()=>setNoteDismissed(true)} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",padding:"2px",flexShrink:0,display:"flex",alignItems:"center"}}>
@@ -1724,10 +1823,10 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
           ):null}
           {dragFrom!==null?(
             <div style={{position:"fixed",left:0,right:0,top:ghostPos.y-24,zIndex:999,maxWidth:480,margin:"0 auto",padding:"0 12px",pointerEvents:"none"}}>
-              <div style={{background:C.card2,border:"1px solid "+C.accent,borderRadius:10,padding:"12px 14px",boxShadow:"0 4px 24px #000000aa",display:"flex",alignItems:"center",gap:10}}>
+              <div style={{background:C.card2,border:"1px solid "+C.accent,borderRadius:6,padding:"12px 14px",boxShadow:"0 4px 24px #000000aa",display:"flex",alignItems:"center",gap:10}}>
                 <IcoDrag sz={15} col={C.accent}/>
                 <span style={{fontSize:14,fontWeight:700,color:C.text,flex:1}}>{ghostLbl}</span>
-                <span style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:1}}>MOVE</span>
+                <span style={{fontSize:11,color:C.accent,fontWeight:600,letterSpacing:"0.06em"}}>MOVE</span>
               </div>
             </div>
           ):null}
@@ -1742,7 +1841,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
             return(
               <div key={ex.id} data-xi={idx}>
                 {isTgt?<div style={{height:3,background:C.accent,borderRadius:2,marginBottom:4,marginTop:-2,boxShadow:"0 0 8px "+C.accent+"88"}}/>:null}
-                <div style={{background:isDrag?"#0f1420":isO?C.card2:C.card,border:"1px solid "+(isO?C.border2:C.border),borderLeft:"3px solid "+(isDone?C.green+"66":isO?mc:C.border),borderRadius:10,marginBottom:6,overflow:"hidden",opacity:isDrag?0.25:(isDone&&!isO?0.5:1),transition:"opacity .15s"}}>
+                <div style={{background:isDrag?"#0f1420":isO?C.card2:C.card,borderLeft:"3px solid "+(isDone?C.green:isO?mc:C.border),borderRadius:0,marginBottom:5,overflow:"hidden",opacity:isDrag?0.25:(isDone&&!isO?0.5:1),transition:"opacity .15s"}}>
                   <div onClick={()=>!dragRef.current.active&&setExpId(isO?null:ex.id)} style={{display:"flex",alignItems:"center",padding:"11px 12px",cursor:"pointer",gap:9}}>
                     <span onTouchStart={e=>hdlTS(e,idx)} onTouchMove={e=>hdlTM(e,idx)} onTouchEnd={hdlTE} style={{color:isDone?"transparent":C.muted2,cursor:isDone?"default":"grab",flexShrink:0,userSelect:"none",display:"flex",alignItems:"center",padding:"4px",touchAction:"none"}}>
                       <IcoDrag sz={15} col={isDone?"transparent":C.muted2}/>
@@ -1783,7 +1882,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                     <div style={{borderTop:"1px solid "+C.border,padding:"12px 12px 14px"}}>
                       {ex.lastScheme?(
                         <div style={{display:"flex",alignItems:"center",gap:8,background:C.surf,borderRadius:7,padding:"7px 10px",marginBottom:10}}>
-                          <div style={{fontSize:9,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",flexShrink:0}}>Last</div>
+                          <div style={{fontSize:9,color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",flexShrink:0}}>Last</div>
                           <div style={{fontSize:12,color:C.muted2,fontWeight:500}}>{ex.lastScheme}</div>
                         </div>
                       ):null}
@@ -1791,7 +1890,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
 
                       <div style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr 44px 56px 28px",gap:6,marginBottom:7,paddingBottom:6,borderBottom:"1px solid "+C.border}}>
                         {["#","Weight","Reps","RIR","",""].map((h,i)=>(
-                          <span key={i} style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:1.5}}>{h}</span>
+                          <span key={i} style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"0.09em"}}>{h}</span>
                         ))}
                       </div>
                       {ex.sets.map((set,si)=>{
@@ -1829,7 +1928,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                     const est=e1rm(w,r);
                                     const best=allTimeBest[ex.name]||0;
                                     if(est>0&&est>=best&&best>0) return(
-                                      <span style={{position:"absolute",top:-6,right:-4,fontSize:8,fontWeight:800,color:C.accent,letterSpacing:0.5,background:C.accent+"22",borderRadius:3,padding:"1px 4px",lineHeight:1.4}}>PR</span>
+                                      <span style={{position:"absolute",top:-6,right:-4,fontSize:8,fontWeight:800,color:C.accent,letterSpacing:"0.03em",background:C.accent+"22",borderRadius:3,padding:"1px 4px",lineHeight:1.4}}>PR</span>
                                     );
                                     return null;
                                   })()}
@@ -1840,7 +1939,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                   <div style={{display:"flex",alignItems:"center",justifyContent:"center",background:C.border2,border:"1px solid "+C.border2,borderRadius:6,padding:"8px 0",fontSize:11,fontWeight:700,color:C.muted2}}>{fmt(restTimers[set.id])}</div>
                                 ):(()=>{
                                   return(
-                                    <button onClick={()=>{if(set.done)return;logSet(ex.id,set.id);}} style={{padding:"8px 0",borderRadius:6,fontWeight:800,fontSize:11,letterSpacing:1,cursor:set.done?"default":"pointer",transition:"all .15s",background:set.done?C.green+"22":(!set.weight||!set.reps)?C.card:C.accent,border:"1px solid "+(set.done?C.green+"44":(!set.weight||!set.reps)?C.border2:C.accent),color:set.done?C.green:(!set.weight||!set.reps)?C.muted:"#000",display:"flex",alignItems:"center",justifyContent:"center",WebkitTapHighlightColor:"transparent"}}>
+                                    <button onClick={()=>{if(set.done)return;logSet(ex.id,set.id);}} style={{padding:"8px 0",borderRadius:6,fontWeight:800,fontSize:11,letterSpacing:"0.06em",cursor:set.done?"default":"pointer",transition:"all .15s",background:set.done?C.green+"22":(!set.weight||!set.reps)?C.card:C.accent,border:"1px solid "+(set.done?C.green+"44":(!set.weight||!set.reps)?C.border2:C.accent),color:set.done?C.green:(!set.weight||!set.reps)?C.muted:"#000",display:"flex",alignItems:"center",justifyContent:"center",WebkitTapHighlightColor:"transparent"}}>
                                       {set.done?<IcoCheck sz={13} col={C.green}/>:"LOG"}
                                     </button>
                                   );
@@ -1862,7 +1961,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                         <IcoPlus sz={12} col={C.muted}/> Add Set
                       </button>
                       <div style={{marginTop:10}}>
-                        <textarea rows={1} value={ex.note} onChange={e=>updN(ex.id,e.target.value)} placeholder="Exercise cue" style={{width:"100%",background:C.surf,border:"1px solid "+C.border,borderRadius:7,padding:"8px 10px",color:C.muted2,fontSize:12,resize:"none",outline:"none",lineHeight:1.5}}/>
+                        <textarea rows={1} value={ex.note} onChange={e=>updN(ex.id,e.target.value)} placeholder="Exercise cue" style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid "+C.border2,padding:"6px 0",color:C.muted2,fontSize:12,resize:"none",outline:"none",lineHeight:1.5}}/>
                       </div>
                     </div>
                   ):null}
@@ -1876,7 +1975,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
         <button onClick={()=>{
           setExs(p=>p.map(e=>({...e,sets:e.sets.map(s=>s.done?s:{...s,done:true,weight:s.weight||"0",reps:"0",incomplete:true})})));
           setPhase("summary");
-        }} disabled={don===0} style={{width:"100%",padding:"14px",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:don===0?"default":"pointer",transition:"all .2s",background:pct===100?C.accent:don===0?C.border:C.card2,border:"1px solid "+(pct===100?C.accent:don===0?C.border:C.border2),color:pct===100?"#000":don===0?C.muted+"66":C.muted}}>
+        }} disabled={don===0} style={{width:"100%",padding:"14px",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:don===0?"default":"pointer",transition:"all .2s",background:pct===100?C.accent:don===0?C.border:C.card2,border:"1px solid "+(pct===100?C.accent:don===0?C.border:C.border2),color:pct===100?"#000":don===0?C.muted+"66":C.muted}}>
           {pct===100?"FINISH WORKOUT":"FINISH EARLY — "+don+" of "+tot+" sets done"}
         </button>
       </div>
@@ -2008,7 +2107,7 @@ function SessionEditModal({session,onSave,onClose}){
       <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
         <div style={{padding:"16px 16px 12px",borderBottom:"1px solid "+C.border,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
           <div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,letterSpacing:1}}>{session.day}</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.06em"}}>{session.day}</div>
             <div style={{fontSize:11,color:C.muted}}>{session.date} · Week {session.week}</div>
           </div>
           <button onClick={onClose} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:8,padding:"6px 12px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Cancel</button>
@@ -2016,7 +2115,7 @@ function SessionEditModal({session,onSave,onClose}){
         <div style={{flex:1,overflowY:"auto",padding:"14px 16px"}}>
           <div style={{marginBottom:16}}>
             <SLbl>Session Note</SLbl>
-            <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Session notes..." style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
+            <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} placeholder="Session notes..." style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+C.border2,padding:"10px 0",color:C.text,fontSize:13,resize:"none",outline:"none",lineHeight:1.6,boxSizing:"border-box"}}/>
           </div>
           {exs?exs.map(ex=>{
             const isOpen=expandedId===ex.id;
@@ -2024,7 +2123,7 @@ function SessionEditModal({session,onSave,onClose}){
             const totalCount=ex.sets.filter(s=>s.type!=="drop").length;
             const mc=MC[ex.muscle]||"#888";
             return(
-              <div key={ex.id} style={{marginBottom:6,background:C.card,border:"1px solid "+(isOpen?C.border2:C.border),borderRadius:10,overflow:"hidden"}}>
+              <div key={ex.id} style={{marginBottom:6,background:C.card,border:"1px solid "+(isOpen?C.border2:C.border),borderRadius:6,overflow:"hidden"}}>
                 <div onClick={()=>setExpandedId(isOpen?null:ex.id)} style={{display:"flex",alignItems:"center",gap:8,padding:"11px 13px",cursor:"pointer"}}>
                   <div style={{width:7,height:7,borderRadius:"50%",background:mc,flexShrink:0}}/>
                   <div style={{flex:1}}>
@@ -2037,8 +2136,8 @@ function SessionEditModal({session,onSave,onClose}){
                   <div style={{borderTop:"1px solid "+C.border,padding:"10px 13px 12px"}}>
                     <div style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr",gap:8,marginBottom:6}}>
                       <span style={{fontSize:9,color:C.muted,textAlign:"center"}}>#</span>
-                      <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:1,textTransform:"uppercase"}}>Weight</span>
-                      <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:1,textTransform:"uppercase"}}>Reps</span>
+                      <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:"0.06em",textTransform:"uppercase"}}>Weight</span>
+                      <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:"0.06em",textTransform:"uppercase"}}>Reps</span>
                     </div>
                     {ex.sets.filter(s=>s.type!=="drop"||s.done).map((set,si)=>(
                       <div key={set.id} style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr",gap:8,alignItems:"center",marginBottom:6}}>
@@ -2057,14 +2156,14 @@ function SessionEditModal({session,onSave,onClose}){
           }):<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No detailed set data for this session</div>}
         </div>
         <div style={{padding:"12px 16px",borderTop:"1px solid "+C.border,flexShrink:0}}>
-          <button onClick={()=>onSave(note,exs)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>SAVE CHANGES</button>
+          <button onClick={()=>onSave(note,exs)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer"}}>SAVE CHANGES</button>
         </div>
       </div>
     </div>
   );
 }
 
-function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,program}){
+function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,onSpecialize,program}){
   const C=useContext(ThemeCtx);
   const suggested=nextRepRange(meso.repRange);
   const mesoEntries=liftHistory.filter(e=>e.mesoNum===mesoNum&&!e.isDeload);
@@ -2088,28 +2187,28 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,progr
   });
   return(
     <div style={{position:"fixed",inset:0,zIndex:400,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column"}}>
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:19,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",gap:10}}>
+        <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
         <div style={{flex:1}}>
-          <div style={{fontSize:13,fontWeight:700}}>Meso Complete</div>
+          <div style={{fontSize:11,fontWeight:800,letterSpacing:"0.1em",textTransform:"uppercase"}}>Meso Complete</div>
           <div style={{fontSize:10,color:C.muted}}>{meso.label}</div>
         </div>
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"20px 14px 100px"}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:36,fontWeight:900,marginBottom:4,display:"flex",alignItems:"center",gap:12}}>
-          MESO {mesoNum} DONE <IcoTrophy sz={32} col={C.accent}/>
+        <div style={{fontSize:32,fontWeight:900,marginBottom:4,display:"flex",alignItems:"center",gap:12,letterSpacing:"0.04em",textTransform:"uppercase"}}>
+          Meso {mesoNum} Done <IcoTrophy sz={28} col={C.accent}/>
         </div>
         <div style={{fontSize:13,color:C.muted2,marginBottom:24,lineHeight:1.6}}>{meso.totalWeeks} weeks in the books. Here is what you built.</div>
         <Card hi={C.accent+"33"}>
           <SLbl>Meso Summary</SLbl>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-            <div style={{background:C.surf,borderRadius:9,padding:"12px"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,color:C.accent}}>{meso.totalWeeks}</div>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",marginTop:2}}>Weeks trained</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4}}>
+            <div style={{background:C.card2,padding:"14px 12px"}}>
+              <div style={{fontSize:32,fontWeight:900,color:C.accent,lineHeight:1}}>{meso.totalWeeks}</div>
+              <div style={{fontSize:9,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:4,fontWeight:700}}>Weeks trained</div>
             </div>
-            <div style={{background:C.surf,borderRadius:9,padding:"12px"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,color:C.green}}>{prs.length}</div>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",marginTop:2}}>Lifts improved</div>
+            <div style={{background:C.card2,padding:"14px 12px"}}>
+              <div style={{fontSize:32,fontWeight:900,color:C.green,lineHeight:1}}>{prs.length}</div>
+              <div style={{fontSize:9,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginTop:4,fontWeight:700}}>Lifts improved</div>
             </div>
           </div>
         </Card>
@@ -2159,29 +2258,33 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,progr
         ):null}
         <Card hi={C.blue+"33"}>
           <SLbl>Rep Range — Next Meso</SLbl>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-            <div style={{flex:1,background:C.surf,borderRadius:8,padding:"10px 12px",textAlign:"center",opacity:0.6}}>
-              <div style={{fontSize:11,fontWeight:600,color:C.muted2}}>{REP_RANGE_LABELS[meso.repRange||"hypertrophy"]}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+            <div style={{flex:1,background:C.card2,padding:"10px 12px",textAlign:"center",opacity:0.6}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted2}}>{REP_RANGE_LABELS[meso.repRange||"hypertrophy"]}</div>
               <div style={{fontSize:10,color:C.muted,marginTop:2}}>{REP_RANGE_SUBS[meso.repRange||"hypertrophy"]}</div>
-              <div style={{fontSize:9,color:C.muted,marginTop:3,letterSpacing:1,textTransform:"uppercase"}}>This meso</div>
+              <div style={{fontSize:9,color:C.muted,marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:700}}>This meso</div>
             </div>
-            <div style={{fontSize:16,color:C.muted}}>→</div>
-            <div style={{flex:1,background:C.accent+"18",border:"1px solid "+C.accent+"44",borderRadius:8,padding:"10px 12px",textAlign:"center"}}>
-              <div style={{fontSize:11,fontWeight:700,color:C.accent}}>{REP_RANGE_LABELS[suggested]}</div>
+            <div style={{fontSize:14,color:C.muted,fontWeight:900}}>→</div>
+            <div style={{flex:1,background:C.accent+"20",borderBottom:"2px solid "+C.accent,padding:"10px 12px",textAlign:"center"}}>
+              <div style={{fontSize:11,fontWeight:800,color:C.accent}}>{REP_RANGE_LABELS[suggested]}</div>
               <div style={{fontSize:10,color:C.muted2,marginTop:2}}>{REP_RANGE_SUBS[suggested]}</div>
-              <div style={{fontSize:9,color:C.accent,marginTop:3,letterSpacing:1,textTransform:"uppercase"}}>Suggested next</div>
+              <div style={{fontSize:9,color:C.accent,marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:700}}>Suggested next</div>
             </div>
           </div>
           <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>RP recommends rotating rep ranges across mesos to prevent accommodation and protect joints.</div>
         </Card>
         {meso.mode==="specialization"?(
-          <div style={{background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:10,padding:"12px 14px",marginBottom:16}}>
+          <div style={{background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:6,padding:"12px 14px",marginBottom:16}}>
             <div style={{fontSize:12,fontWeight:700,color:C.blue,marginBottom:4}}>Specialization complete</div>
             <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>Your {meso.spec?.targetMuscle} has been pushed to MRV. Return to a standard balanced meso to let all muscles catch up and lock in your gains.</div>
           </div>
         ):null}
-        <button onClick={()=>onStartNext(suggested)} style={{width:"100%",padding:"15px",background:C.accent,color:"#000",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer",marginBottom:10}}>START NEXT MESO</button>
-        <button onClick={()=>onReview(suggested)} style={{width:"100%",padding:"13px",background:"none",color:C.muted2,border:"1px solid "+C.border2,borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:13,fontWeight:700,letterSpacing:2,cursor:"pointer"}}>REVIEW &amp; EDIT PROGRAM FIRST</button>
+        <button onClick={()=>onStartNext(suggested)} style={{width:"100%",padding:"15px",background:C.accent,color:"#000",border:"none",borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",marginBottom:8,textTransform:"uppercase"}}>Start Next Meso</button>
+        <button onClick={()=>onReview(suggested)} style={{width:"100%",padding:"13px",background:"none",color:C.muted2,border:"1px solid "+C.border2,borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,letterSpacing:"0.1em",cursor:"pointer",marginBottom:8,textTransform:"uppercase"}}>Review &amp; Edit Program First</button>
+        <button onClick={onSpecialize} style={{width:"100%",padding:"13px",background:"none",color:C.blue,border:"1px solid "+C.blue+"44",borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,letterSpacing:"0.1em",cursor:"pointer",marginBottom:16,textTransform:"uppercase"}}>Specialize a Muscle →</button>
+        <div style={{textAlign:"center"}}>
+          <button onClick={()=>onStartNext(suggested)} style={{background:"none",border:"none",padding:0,color:C.muted,fontSize:11,cursor:"pointer",textDecoration:"underline",textDecorationColor:C.border2,letterSpacing:"0.04em"}}>Dismiss and decide later</button>
+        </div>
       </div>
     </div>
   );
@@ -2194,6 +2297,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
   const isDeloadWeek=meso.week===meso.totalWeeks;
   const needsDeloadChoice=isDeloadWeek&&!meso.deloadStyle;
   const [confirmAbandon,setConfirmAbandon]=useState(false);
+  const [showExtraPicker,setShowExtraPicker]=useState(false);
   useEffect(()=>{if(!activeLog) setConfirmAbandon(false);},[activeLog]);
   const TODAY=getTodayName();
   const todayWorkout=program.find(d=>d.day===TODAY)||null;
@@ -2229,26 +2333,27 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
     if(p>=l) return "Push";
     return "Pull";
   };
-  const userName=profile&&profile.name?profile.name:"";
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-      <div style={{padding:"16px 14px 100px"}}>
-        <Card hi={C.accent+"33"}>
+      <div style={{padding:"12px 14px 100px",display:"flex",flexDirection:"column",gap:6}}>
+
+        {/* Active Meso */}
+        <Section accent={C.accent}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
               <SLbl>Active Mesocycle</SLbl>
               <div style={{display:"flex",alignItems:"center",gap:7}}>
-                <div style={{fontSize:16,fontWeight:700}}>{meso.label}</div>
+                <div style={{fontSize:16,fontWeight:900,letterSpacing:"0.04em",textTransform:"uppercase"}}>{meso.label}</div>
                 {meso.mode==="specialization"?<Tag label="Spec" color={C.blue}/>:null}
               </div>
-              {meso.startDate?<div style={{fontSize:10,color:C.muted,marginTop:1}}>Started {meso.startDate}</div>:null}
+              {meso.startDate?<div style={{fontSize:10,color:C.muted,marginTop:2}}>Started {meso.startDate}</div>:null}
             </div>
             <div style={{textAlign:"right"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,color:C.accent,lineHeight:1}}>Week {meso.week}</div>
-              <div style={{fontSize:10,color:C.muted}}>of {meso.totalWeeks}</div>
+              <div style={{fontSize:26,fontWeight:900,color:C.accent,lineHeight:1}}>W{meso.week}</div>
+              <div style={{fontSize:9,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>OF {meso.totalWeeks}</div>
             </div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:10}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:12}}>
             {FULL.map((full,i)=>{
               const dp=dmap[full];
               const isT=full===TODAY;
@@ -2257,125 +2362,192 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
               const isDone=dp&&completedDayNames.has(dp.name);
               return(
                 <div key={full} style={{textAlign:"center"}}>
-                  <div style={{fontSize:9,fontWeight:isT?700:400,color:isT?C.accent:C.muted,letterSpacing:0.5,marginBottom:4,textTransform:"uppercase"}}>{SHORT[i]}</div>
-                  <div style={{height:42,borderRadius:7,background:isDone?C.green+"18":cat?C.card2:C.surf,border:"1px solid "+(isDone?C.green+"44":isT?C.accent+"88":cat?C.border2:C.border),display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:2,opacity:isPast&&!isDone?0.40:1}}>
-                    {isDone?<IcoCheck sz={12} col={C.green}/>:cat?<span style={{fontSize:10,fontWeight:700,color:isT?C.accent:C.muted2,letterSpacing:0.3}}>{cat}</span>:<div style={{width:12,height:1.5,background:C.border,borderRadius:1}}/>}
+                  <div style={{fontSize:8,fontWeight:isT?800:500,color:isT?C.accent:C.muted,letterSpacing:"0.1em",marginBottom:4,textTransform:"uppercase"}}>{SHORT[i]}</div>
+                  <div style={{height:38,background:isDone?C.green+"28":isT&&cat?C.accent+"22":cat?C.card2:C.bg,borderBottom:isDone?"2px solid "+C.green:isT?"2px solid "+C.accent:"2px solid transparent",display:"flex",alignItems:"center",justifyContent:"center",opacity:isPast&&!isDone?0.3:1}}>
+                    {isDone?<IcoCheck sz={10} col={C.green}/>:cat?<span style={{fontSize:8,fontWeight:800,color:isT?C.accent:C.muted2}}>{cat}</span>:<div style={{width:10,height:1,background:C.border}}/>}
                   </div>
                 </div>
               );
             })}
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,paddingTop:8,borderTop:"1px solid "+C.border}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.muted,paddingTop:10,borderTop:"1px solid "+C.border+"60"}}>
             <span>RIR target: <strong style={{color:C.text}}>{defaultRIR(meso.week,meso.totalWeeks,exp)}</strong></span>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{color:meso.totalWeeks-meso.week===0?C.accent:C.muted}}>{meso.totalWeeks-meso.week===0?"Deload Week":meso.totalWeeks-meso.week+" weeks remaining"}</span>
-              {meso.totalWeeks-meso.week===1?(
-                <button onClick={onExtendMeso} style={{background:"none",border:"1px solid "+C.border2,borderRadius:5,padding:"3px 8px",color:C.muted2,fontSize:10,cursor:"pointer",whiteSpace:"nowrap"}}>+ 1 week</button>
-              ):null}
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{color:meso.totalWeeks-meso.week===0?C.accent:C.muted,fontWeight:meso.totalWeeks-meso.week===0?700:400}}>{meso.totalWeeks-meso.week===0?"Deload Week":meso.totalWeeks-meso.week+" wks remaining"}</span>
+              {meso.totalWeeks-meso.week===1?(<button onClick={onExtendMeso} style={{background:"none",border:"1px solid "+C.border2,borderRadius:3,padding:"2px 7px",color:C.muted2,fontSize:10,cursor:"pointer"}}>+1 wk</button>):null}
             </div>
           </div>
-        </Card>
+        </Section>
+
+        {/* Deload choice */}
         {needsDeloadChoice?(
-          <Card hi={C.blue+"44"}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:900,letterSpacing:1,marginBottom:4}}>DELOAD WEEK</div>
-            <div style={{fontSize:12,color:C.muted2,lineHeight:1.6,marginBottom:16}}>Choose your deload style for this week. This can't be changed once selected.</div>
-            <div style={{display:"flex",gap:10,marginBottom:4}}>
-              <button onClick={()=>onSetDeloadStyle("volume")} style={{flex:1,padding:"14px 10px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10,cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
-                <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>Volume Deload</div>
-                <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Same weight, sets cut in half. Best when you're tired but joints feel okay.</div>
+          <Section accent={C.blue}>
+            <div style={{fontSize:11,fontWeight:900,letterSpacing:"0.1em",textTransform:"uppercase",color:C.blue,marginBottom:4}}>Deload Week</div>
+            <div style={{fontSize:11,color:C.muted2,lineHeight:1.6,marginBottom:12}}>Choose your deload style. Can't be changed once selected.</div>
+            <div style={{display:"flex",gap:5}}>
+              <button onClick={()=>onSetDeloadStyle("volume")} style={{flex:1,padding:"12px 10px",background:C.card2,border:"none",borderLeft:"3px solid "+C.blue,cursor:"pointer",textAlign:"left"}}>
+                <div style={{fontSize:11,fontWeight:800,color:C.text,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.06em"}}>Volume</div>
+                <div style={{fontSize:10,color:C.muted2,lineHeight:1.5}}>Same weight, sets cut in half.</div>
               </button>
-              <button onClick={()=>onSetDeloadStyle("intensity")} style={{flex:1,padding:"14px 10px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10,cursor:"pointer",textAlign:"left",transition:"all .15s"}}>
-                <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:4}}>Intensity Deload</div>
-                <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Same sets, weight cut ~50%. Best when joints are sore and you need physical relief.</div>
+              <button onClick={()=>onSetDeloadStyle("intensity")} style={{flex:1,padding:"12px 10px",background:C.card2,border:"none",borderLeft:"3px solid "+C.blue,cursor:"pointer",textAlign:"left"}}>
+                <div style={{fontSize:11,fontWeight:800,color:C.text,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.06em"}}>Intensity</div>
+                <div style={{fontSize:10,color:C.muted2,lineHeight:1.5}}>Same sets, weight cut ~50%.</div>
               </button>
             </div>
-          </Card>
+          </Section>
         ):isDeloadWeek&&meso.deloadStyle?(
-          <div style={{display:"flex",alignItems:"center",gap:8,background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:10,padding:"10px 14px",marginBottom:10}}>
-            <IcoInfo/>
-            <span style={{fontSize:12,color:C.muted2}}><strong style={{color:C.text}}>{meso.deloadStyle==="intensity"?"Intensity":"Volume"} Deload</strong> — {meso.deloadStyle==="intensity"?"Same sets, ~50% weight.":"Same weight, sets halved."} RIR 4 throughout.</span>
-          </div>
+          <Section accent={C.blue}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <IcoInfo/>
+              <span style={{fontSize:12,color:C.muted2}}><strong style={{color:C.text}}>{meso.deloadStyle==="intensity"?"Intensity":"Volume"} Deload</strong> — {meso.deloadStyle==="intensity"?"Same sets, ~50% weight.":"Same weight, sets halved."} RIR 4.</span>
+            </div>
+          </Section>
         ):null}
-        <Card hi={activeLog&&todayWorkout&&activeLog.name===todayWorkout.name?C.green+"44":completedDayNames.has(todayWorkout?.name)?C.green+"33":C.accent+"55"}>
-          <SLbl>Today - {TODAY}</SLbl>
-          {todayWorkout?(
-            <div>
-              <div style={{fontSize:20,fontWeight:800,marginBottom:14}}>{todayWorkout.name}</div>
-              <div style={{display:"flex",gap:20,paddingTop:12,borderTop:"1px solid "+C.border,marginBottom:14}}>
-                <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>{totalSets}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>SETS</span></div>
-                <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>{todayWorkout.exercises.length}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>EXERCISES</span></div>
-                <div><span style={{fontSize:22,fontWeight:800,color:C.accent}}>RIR {defaultRIR(meso.week,meso.totalWeeks,exp)}</span></div>
-              </div>
-              {activeLog&&activeLog.name===todayWorkout.name?(
+
+        {/* Today */}
+        {(()=>{
+          const todayDone=completedDayNames.has(todayWorkout?.name);
+          const inProgress=activeLog&&todayWorkout&&activeLog.name===todayWorkout.name;
+          const accentColor=inProgress?C.green:todayDone?C.green:C.accent;
+
+          // After completing today, show the next upcoming session as a preview
+          if(todayDone&&!inProgress){
+            const sortedProgram=program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day));
+            const nextSess=sortedProgram.find(d=>FULL.indexOf(d.day)>todayIdx&&!completedDayNames.has(d.name))||sortedProgram.find(d=>!completedDayNames.has(d.name));
+            const nextSets=nextSess?nextSess.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0):0;
+            return(
+              <Section accent={C.green}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+                  <IcoCheck sz={14} col={C.green}/>
+                  <span style={{fontSize:11,fontWeight:800,color:C.green,letterSpacing:"0.08em",textTransform:"uppercase"}}>
+                    {todayWorkout?todayWorkout.name+" complete":"Session complete"}
+                  </span>
+                </div>
+                {nextSess?(
+                  <div>
+                    <div style={{fontSize:9,color:C.muted,letterSpacing:"0.12em",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Next Session — {nextSess.day}</div>
+                    <div style={{fontSize:15,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:12}}>{nextSess.name}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:C.card2}}>
+                      {[{v:nextSets,l:"Sets"},{v:nextSess.exercises.length,l:"Exercises"},{v:defaultRIR(meso.week,meso.totalWeeks,exp),l:"Target RIR"}].map((stat,i)=>(
+                        <div key={i} style={{padding:"10px 8px",borderRight:i<2?"1px solid "+C.border+"60":undefined,textAlign:"center"}}>
+                          <div style={{fontSize:20,fontWeight:900,color:C.accent,lineHeight:1}}>{stat.v}</div>
+                          <div style={{fontSize:8,color:C.muted,letterSpacing:"0.12em",fontWeight:700,marginTop:3,textTransform:"uppercase"}}>{stat.l}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ):(
+                  <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>All sessions for this week complete. Rest up — next week starts soon.</div>
+                )}
+              </Section>
+            );
+          }
+
+          return(
+            <Section accent={accentColor}>
+              <SLbl>Today — {TODAY}</SLbl>
+              {todayWorkout?(
                 <div>
-                  <button onClick={onResume} style={{width:"100%",padding:"14px",background:C.green+"22",color:C.green,border:"1px solid "+C.green+"44",borderRadius:9,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer",marginBottom:8}}>RESUME WORKOUT</button>
-                  {confirmAbandon?(
-                    <div style={{background:C.card,borderRadius:9,padding:"12px 14px"}}>
-                      <div style={{fontSize:12,color:C.muted2,marginBottom:8}}>Abandon this session? All progress will be lost.</div>
-                      <div style={{display:"flex",gap:8}}>
-                        <button onClick={()=>setConfirmAbandon(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,cursor:"pointer",fontSize:12}}>Keep Going</button>
-                        <button onClick={()=>{setConfirmAbandon(false);onAbandon();}} style={{flex:1,padding:"9px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:8,color:C.red,cursor:"pointer",fontSize:12,fontWeight:700}}>Yes, Abandon</button>
+                  <div style={{fontSize:15,fontWeight:900,marginBottom:14,textTransform:"uppercase",letterSpacing:"0.04em"}}>{todayWorkout.name}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",marginBottom:14,background:C.card2}}>
+                    {[{v:totalSets,l:"Sets"},{v:todayWorkout.exercises.length,l:"Exercises"},{v:defaultRIR(meso.week,meso.totalWeeks,exp),l:"Target RIR"}].map((stat,i)=>(
+                      <div key={i} style={{padding:"12px 10px",borderRight:i<2?"1px solid "+C.border+"60":undefined,textAlign:"center"}}>
+                        <div style={{fontSize:24,fontWeight:900,color:C.accent,lineHeight:1}}>{stat.v}</div>
+                        <div style={{fontSize:8,color:C.muted,letterSpacing:"0.12em",fontWeight:700,marginTop:3,textTransform:"uppercase"}}>{stat.l}</div>
                       </div>
+                    ))}
+                  </div>
+                  {inProgress?(
+                    <div>
+                      <button onClick={onResume} style={{width:"100%",padding:"13px",background:C.green+"18",color:C.green,border:"none",borderBottom:"2px solid "+C.green,fontSize:12,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",textTransform:"uppercase"}}>Resume Workout</button>
+                      {confirmAbandon?(
+                        <div style={{background:C.card2,padding:"12px 14px",marginTop:6}}>
+                          <div style={{fontSize:11,color:C.muted2,marginBottom:8}}>Abandon this session? All progress will be lost.</div>
+                          <div style={{display:"flex",gap:6}}>
+                            <button onClick={()=>setConfirmAbandon(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:11,fontWeight:600}}>Keep Going</button>
+                            <button onClick={()=>{setConfirmAbandon(false);onAbandon();}} style={{flex:1,padding:"9px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:4,color:C.red,cursor:"pointer",fontSize:11,fontWeight:700}}>Yes, Abandon</button>
+                          </div>
+                        </div>
+                      ):(
+                        <button onClick={()=>setConfirmAbandon(true)} style={{width:"100%",padding:"8px",background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",letterSpacing:"0.06em",marginTop:4}}>Abandon session</button>
+                      )}
                     </div>
                   ):(
-                    <button onClick={()=>setConfirmAbandon(true)} style={{width:"100%",padding:"8px",background:"none",border:"none",color:C.muted,fontSize:12,cursor:"pointer"}}>Abandon session</button>
+                    <button onClick={()=>onStart(null)} style={{width:"100%",padding:"13px",background:C.accent,color:"#000",border:"none",fontSize:12,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",textTransform:"uppercase"}}>Start Workout</button>
                   )}
                 </div>
-              ):completedDayNames.has(todayWorkout.name)?(
-                <div>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                    <IcoCheck sz={16} col={C.green}/>
-                    <span style={{fontSize:14,fontWeight:700,color:C.green}}>Session complete</span>
-                  </div>
-                  <button onClick={()=>onStart(null)} style={{width:"100%",padding:"10px",background:"none",border:"1px solid "+C.border2,borderRadius:9,color:C.muted,fontSize:12,cursor:"pointer"}}>Train again</button>
-                </div>
               ):(
-                <button onClick={()=>onStart(null)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:9,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>START WORKOUT</button>
+                <div>
+                  <div style={{fontSize:15,fontWeight:800,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em",color:C.muted2}}>Rest Day</div>
+                  <div style={{fontSize:11,color:C.muted,lineHeight:1.6,marginBottom:14}}>{nextTraining?"Next up: "+nextTraining.day+" — "+nextTraining.name:"Next session starts next week."}</div>
+                  <SLbl>Train anyway</SLbl>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day)).map(d=>{
+                      const done=completedDayNames.has(d.name);
+                      return(
+                        <button key={d.id} onClick={()=>onStart(d)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 12px",background:C.card2,border:"none",borderLeft:"3px solid "+(done?C.green:C.border2),color:done?C.muted:C.text,fontSize:12,fontWeight:700,cursor:"pointer",textAlign:"left",textTransform:"uppercase",letterSpacing:"0.04em",opacity:done?0.6:1}}>
+                          <span>{d.name}{done?" ✓":""}</span>
+                          <span style={{fontSize:10,color:C.muted,fontWeight:400,textTransform:"none",letterSpacing:0}}>{d.exercises.length} exercises</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
-            </div>
+            </Section>
+          );
+        })()}
+
+        {/* Recent Sessions */}
+        <Section>
+          <SLbl>Recent Sessions</SLbl>
+          {history.length===0?(
+            <div style={{fontSize:12,color:C.muted,padding:"16px 0",textAlign:"center"}}>No sessions logged yet</div>
           ):(
-            <div>
-              <div style={{fontSize:18,fontWeight:700,marginBottom:4,color:C.muted2}}>Rest Day</div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:16}}>{nextTraining?"Next up: "+nextTraining.day+" — "+nextTraining.name:"Next session starts next week."}</div>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:8}}>Train anyway</div>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day)).map(d=>{
-                  const done=completedDayNames.has(d.name);
-                  return(
-                    <button key={d.id} onClick={()=>onStart(d)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:C.card2,border:"1px solid "+(done?C.green+"44":C.border2),borderRadius:9,color:done?C.muted:C.text,fontSize:13,fontWeight:600,cursor:"pointer",textAlign:"left",opacity:done?0.6:1}}>
-                      <span>{d.name}{done?" ✓":""}</span>
-                      <span style={{fontSize:11,color:C.muted}}>{d.exercises.length} exercises</span>
-                    </button>
-                  );
-                })}
-              </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {history.slice(0,6).map((s,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:7}}>
+                      <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.04em"}}>{s.day}</div>
+                      <div style={{fontSize:10,color:C.muted}}>Week {s.week}</div>
+                    </div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:1}}>{s.date}{s.note?<span style={{fontStyle:"italic",marginLeft:6}}>"{s.note.slice(0,40)}{s.note.length>40?"…":""}"</span>:null}</div>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{textAlign:"right"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:s.sets===s.planned?C.green:C.accent}}>{s.sets}/{s.planned}</div>
+                      <div style={{fontSize:9,color:C.muted,letterSpacing:"0.06em"}}>SETS</div>
+                    </div>
+                    <button onClick={()=>onEdit(s,i)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 9px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer"}}>Edit</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-        </Card>
-        <Card>
-          <SLbl>Recent Sessions</SLbl>
-          {history.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No sessions logged yet</div>:history.slice(0,6).map((s,i)=>(
-            <div key={i} style={{paddingBottom:i<Math.min(history.length,6)-1?"12px":0,marginBottom:i<Math.min(history.length,6)-1?"12px":0,borderBottom:i<Math.min(history.length,6)-1?"1px solid "+C.border:"none"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          {/* Additional session — tucked away, for the rare case */}
+          {program.length>0?(
+            <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid "+C.border+"60"}}>
+              {showExtraPicker?(
                 <div>
-                  <div style={{display:"flex",alignItems:"baseline",gap:7}}>
-                    <div style={{fontSize:13,fontWeight:700}}>{s.day}</div>
-                    <div style={{fontSize:11,color:C.muted}}>Week {s.week}</div>
+                  <div style={{fontSize:10,color:C.muted2,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Choose session</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day)).map(d=>(
+                      <button key={d.id} onClick={()=>{setShowExtraPicker(false);onStart(d);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 12px",background:C.card2,border:"none",borderLeft:"3px solid "+C.border2,color:C.text,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"left",textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                        <span>{d.name}</span>
+                        <span style={{fontSize:10,color:C.muted,fontWeight:400,textTransform:"none",letterSpacing:0}}>{d.day}</span>
+                      </button>
+                    ))}
                   </div>
-                  <div style={{fontSize:11,color:C.muted2,marginTop:1}}>{s.date}</div>
+                  <button onClick={()=>setShowExtraPicker(false)} style={{background:"none",border:"none",padding:"8px 0 0",color:C.muted,fontSize:10,cursor:"pointer",letterSpacing:"0.06em"}}>Cancel</button>
                 </div>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{fontSize:12,fontWeight:600,color:s.sets===s.planned?C.green:C.accent+"99"}}>{s.sets}/{s.planned}</div>
-                    <div style={{fontSize:9,color:C.muted,marginTop:1}}>sets</div>
-                  </div>
-                  <button onClick={()=>onEdit(s,i)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"4px 9px",color:C.muted2,fontSize:11,cursor:"pointer"}}>Edit</button>
-                </div>
-              </div>
-              {s.note?<div style={{fontSize:11,color:C.muted2,marginTop:5,fontStyle:"italic",lineHeight:1.4}}>"{s.note}"</div>:null}
+              ):(
+                <button onClick={()=>setShowExtraPicker(true)} style={{background:"none",border:"none",padding:0,color:C.muted,fontSize:10,cursor:"pointer",letterSpacing:"0.06em",fontWeight:600,textDecoration:"underline",textDecorationColor:C.border2}}>+ Log additional session</button>
+              )}
             </div>
-          ))}
-        </Card>
+          ):null}
+        </Section>
+
       </div>
     </div>
   );
@@ -2416,61 +2588,65 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
 
   const programMuscles=Object.keys(weeklyVol).filter(m=>muscles[m]);
   return(
-    <div>
-      <Card hi={C.accent+"33"}>
+    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+      {/* Meso header */}
+      <Section accent={C.accent}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
           <div>
             <SLbl>Current Meso</SLbl>
             <div style={{display:"flex",alignItems:"center",gap:7}}>
-              <div style={{fontSize:15,fontWeight:700}}>{meso.label}</div>
+              <div style={{fontSize:15,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em"}}>{meso.label}</div>
               {meso.mode==="specialization"?<Tag label="Spec" color={C.blue}/>:null}
             </div>
-            {meso.startDate?<div style={{fontSize:11,color:C.muted,marginTop:1}}>Started {meso.startDate}</div>:null}
+            {meso.startDate?<div style={{fontSize:10,color:C.muted,marginTop:2}}>Started {meso.startDate}</div>:null}
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,color:C.accent,lineHeight:1}}>Week {meso.week}</div>
-            <div style={{fontSize:10,color:C.muted}}>of {meso.totalWeeks}</div>
+            <div style={{fontSize:26,fontWeight:900,color:C.accent,lineHeight:1}}>W{meso.week}</div>
+            <div style={{fontSize:9,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>OF {meso.totalWeeks}</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:6,marginBottom:8}}>
+        <div style={{display:"flex",gap:4,marginBottom:0}}>
           {Array(meso.totalWeeks).fill(null).map((_,i)=>(
-            <div key={i} style={{flex:1,height:4,borderRadius:2,background:i<meso.week-1?C.accent:i===meso.week-1?C.accent+"88":C.border2}}/>
+            <div key={i} style={{flex:1,background:i===meso.week-1?C.accent:i<meso.week-1?C.accent+"33":C.card2,padding:"10px 4px",textAlign:"center"}}>
+              <div style={{fontSize:11,fontWeight:900,color:i===meso.week-1?"#000":i<meso.week-1?C.accent:C.muted2}}>{i===meso.totalWeeks-1?"DL":"W"+(i+1)}</div>
+              <div style={{fontSize:8,color:i===meso.week-1?"#000":C.muted,marginTop:2,letterSpacing:"0.06em"}}>RIR {defaultRIR(i+1,meso.totalWeeks,exp)}</div>
+            </div>
           ))}
         </div>
-        <div style={{display:"flex",gap:16,paddingTop:10,borderTop:"1px solid "+C.border}}>
-          <div><span style={{fontSize:18,fontWeight:800}}>{completed}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>SESSIONS</span></div>
-          <div><span style={{fontSize:18,fontWeight:800}}>{defaultRIR(meso.week,meso.totalWeeks,exp)}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>TARGET RIR</span></div>
-          <div><span style={{fontSize:18,fontWeight:800,color:meso.totalWeeks-meso.week<=1?C.accent:C.text}}>{meso.totalWeeks-meso.week}</span><span style={{fontSize:10,color:C.muted,marginLeft:4}}>WKS LEFT</span></div>
-        </div>
-      </Card>
-      <Card>
+      </Section>
+
+      {/* Session consistency */}
+      <Section>
         <SLbl>Session Consistency — Week {meso.week}</SLbl>
-        {sessions.map((s,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:10,paddingBottom:i<sessions.length-1?"9px":0,marginBottom:i<sessions.length-1?"9px":0,borderBottom:i<sessions.length-1?"1px solid "+C.border:"none",opacity:s.done?1:0.5}}>
-            <div style={{width:8,height:8,borderRadius:"50%",flexShrink:0,background:s.done?C.green:C.border2}}/>
-            <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:600,color:s.done?C.text:C.muted}}>{s.day}</div>
-              <div style={{fontSize:10,color:C.muted}}>{s.weekday}</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {sessions.map((s,i)=>(
+            <div key={i} style={{display:"flex",alignItems:"center",gap:10,opacity:s.done?1:0.45}}>
+              <div style={{width:3,height:32,background:s.done?C.green:C.border2,flexShrink:0}}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:12,fontWeight:700,color:s.done?C.text:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>{s.day}</div>
+                <div style={{fontSize:10,color:C.muted}}>{s.weekday}</div>
+              </div>
+              <div style={{fontSize:11,color:C.muted}}>{s.done?s.sets+"/"+s.planned+" sets":"Upcoming"}</div>
+              {s.done&&s.sets<s.planned?<Tag label={s.planned-s.sets+" skipped"} color={C.accent}/>:null}
             </div>
-            <div style={{fontSize:11,color:C.muted}}>{s.done?s.sets+"/"+s.planned+" sets":"Upcoming"}</div>
-            {s.done&&s.sets<s.planned?<span style={{fontSize:9,background:C.accent+"22",color:C.accent,borderRadius:4,padding:"2px 6px",letterSpacing:1,fontWeight:700}}>{s.planned-s.sets} SKIPPED</span>:null}
-          </div>
-        ))}
-      </Card>
-      <Card>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+          ))}
+        </div>
+      </Section>
+
+      {/* Volume landmarks */}
+      <Section>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
           <div>
             <SLbl>Volume vs Landmarks</SLbl>
-            <div style={{fontSize:11,color:C.muted,marginTop:-4}}>Week {meso.week} — actual vs planned sets per muscle</div>
+            <div style={{fontSize:10,color:C.muted}}>Week {meso.week} — actual vs planned sets per muscle</div>
           </div>
-          <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:20,padding:"3px 10px",color:C.muted2,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Landmarks
-          </button>
+          <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"3px 9px",color:C.muted2,fontSize:10,cursor:"pointer",fontWeight:600,letterSpacing:"0.05em"}}>Glossary</button>
         </div>
-        <div style={{display:"flex",gap:12,marginBottom:14,fontSize:10,color:C.muted,flexWrap:"wrap"}}>
-          {[{l:"Below MEV",c:"#f59e0b44"},{l:"In range",c:C.green},{l:"Above MAV",c:C.red},{l:"Planned",c:C.border2}].map(x=>(
-            <div key={x.l} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:8,height:8,borderRadius:2,background:x.c}}/>{x.l}</div>
+        <div style={{display:"flex",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+          {[{l:"Below MEV",c:C.accent+"88"},{l:"In range",c:C.green},{l:"Above MAV",c:C.red},{l:"Planned",c:C.border2}].map(x=>(
+            <div key={x.l} style={{display:"flex",alignItems:"center",gap:4,fontSize:9,color:C.muted,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase"}}>
+              <div style={{width:8,height:4,background:x.c}}/>{x.l}
+            </div>
           ))}
         </div>
         {programMuscles.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>Build your program to see volume tracking</div>:programMuscles.map(m=>{
@@ -2478,72 +2654,43 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
           const planned=weeklyVol[m]||0;
           const actual=actualVol[m]||0;
           const hasActual=actual>0;
-          // Status and color based on actual if we have it, otherwise planned
           const sv=hasActual?actual:planned;
           const pv=Math.min(sv/lm.mrv,1);
           const plannedPv=Math.min(planned/lm.mrv,1);
           const mc=MC[m]||"#888";
-          const sl=sv<lm.mev?"BELOW MEV":sv<=lm.mav?"IN RANGE":sv<lm.mrv?"HIGH VOL":"AT MRV";
-          const fc=sv>=lm.mrv?C.red:sv>lm.mav?C.red:sv>=lm.mev?C.green:"#f59e0b44";
+          const sl=lm.mev===0?"BONUS":sv<lm.mev?"BELOW MEV":sv<=lm.mav?"IN RANGE":sv<lm.mrv?"HIGH VOL":"AT MRV";
+          const fc=lm.mev===0?C.accent:sv>=lm.mrv?C.red:sv>lm.mav?C.red:sv>=lm.mev?C.green:C.accent+"88";
           const sc=fc===C.muted+"66"?C.muted:fc;
           const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===m)?1:0),0);
-          // Have all planned sessions for this muscle been done this week?
           const muscleSessionsDone=program.filter(d=>d.exercises.some(e=>e.muscle===m)).every(d=>completedDayNames.has(d.name));
           return(
-            <div key={m} style={{marginBottom:14}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+            <div key={m} style={{marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                 <div style={{display:"flex",alignItems:"center",gap:7}}>
-                  <div style={{width:7,height:7,borderRadius:"50%",background:mc}}/>
-                  <span style={{fontSize:12,fontWeight:600}}>{m}</span>
-                  <span style={{fontSize:9,color:C.muted,background:C.card2,borderRadius:3,padding:"1px 5px"}}>{freq}×/wk</span>
+                  <div style={{width:6,height:6,borderRadius:"50%",background:mc}}/>
+                  <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>{m}</span>
+                  <span style={{fontSize:9,color:C.muted,background:C.card2,padding:"1px 5px"}}>{freq}×/wk</span>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:12,fontWeight:700,color:hasActual?C.text:C.muted}}>
-                    {hasActual?(
-                      <>{actual}<span style={{fontSize:10,fontWeight:400,color:C.muted}}> sets logged</span></>
-                    ):null}
-                  </span>
+                  {hasActual?<span style={{fontSize:11,fontWeight:700,color:C.text}}>{actual}<span style={{fontSize:10,fontWeight:400,color:C.muted}}> logged</span></span>:null}
                   {hasActual?<Tag label={sl} color={sc}/>:null}
                 </div>
               </div>
-              <div style={{position:"relative",height:8,background:"#1f2937",borderRadius:4,marginBottom:16}}>
-                {/* Zone backgrounds */}
-                <div style={{position:"absolute",left:0,top:0,bottom:0,width:(lm.mev/lm.mrv*100)+"%",background:"#ffffff08",borderRadius:"4px 0 0 4px"}}/>
-                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:0,bottom:0,width:((lm.mrv-lm.mev)/lm.mrv*100)+"%",background:"#ffffff05"}}/>
-                {/* MEV, MAV, MRV tick marks */}
-                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:-4,bottom:-4,width:1.5,background:"#ffffff88",borderRadius:1,zIndex:3}}/>
-                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:-4,bottom:-4,width:1.5,background:"#ffffff88",borderRadius:1,zIndex:3}}/>
-                <div style={{position:"absolute",left:"100%",top:-4,bottom:-4,width:1.5,background:"#ffffff55",borderRadius:1,zIndex:3}}/>
-                {/* Planned bar */}
-                {hasActual?(
-                  <div style={{position:"absolute",top:0,left:0,height:"100%",width:(plannedPv*100)+"%",background:"#4B5563",borderRadius:4,zIndex:1}}/>
-                ):null}
-                {/* Actual bar */}
-                <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:hasActual?fc:"#4B5563",borderRadius:4,zIndex:2,transition:"width .4s"}}/>
-                {/* Labels aligned to ticks */}
-                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:12,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MEV {lm.mev}</div>
-                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:12,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MAV {lm.mav}</div>
-                <div style={{position:"absolute",right:0,top:12,fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MRV {lm.mrv}</div>
+              <div style={{position:"relative",height:6,background:C.card2,marginBottom:18}}>
+                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:-5,bottom:-5,width:1.5,background:C.border2,zIndex:3}}/>
+                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:-5,bottom:-5,width:1.5,background:C.border2,zIndex:3}}/>
+                {hasActual?<div style={{position:"absolute",top:0,left:0,height:"100%",width:(plannedPv*100)+"%",background:C.border2,zIndex:1}}/>:null}
+                <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:hasActual?fc:C.border2,zIndex:2,transition:"width .4s"}}/>
+                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:10,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MEV {lm.mev}</div>
+                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:10,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MAV {lm.mav}</div>
+                <div style={{position:"absolute",right:0,top:10,fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MRV {lm.mrv}</div>
               </div>
-              {hasActual&&actual<planned&&!muscleSessionsDone?(
-                <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
-                  <IcoWarn sz={9} col={C.muted2}/> {planned-actual} sets still to go this week
-                </div>
-              ):null}
-              {freq===1&&sv>=lm.mev?(
-                <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
-                  <IcoWarn sz={9} col={C.muted2}/> Training 2×/week improves SRA for this muscle
-                </div>
-              ):null}
-              {INDIRECT_VOLUME_MUSCLES.has(m)?(
-                <div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}>
-                  <IcoInfo/> <span>Squats, RDLs &amp; lunges provide significant indirect stimulus — direct sets are a bonus</span>
-                </div>
-              ):null}
+              {hasActual&&actual<planned&&!muscleSessionsDone?<div style={{fontSize:10,color:C.muted2,display:"flex",alignItems:"center",gap:4}}><IcoWarn sz={9} col={C.muted2}/> {planned-actual} sets still to go this week</div>:null}
+              {INDIRECT_VOLUME_MUSCLES.has(m)?<div style={{fontSize:10,color:C.muted2,display:"flex",alignItems:"center",gap:4}}><IcoInfo/> <span>Squats, RDLs &amp; lunges provide indirect stimulus — direct sets are a bonus</span></div>:null}
             </div>
           );
         })}
-      </Card>
+      </Section>
     </div>
   );
 }
@@ -2616,30 +2763,28 @@ function HistoryTab({onGlossary,liftHistory}){
   });
   const prs=Object.values(prMap).sort((a,b)=>Object.keys(MC).indexOf(a.muscle)-Object.keys(MC).indexOf(b.muscle)).slice(0,6);
   return(
-    <div>
-      <Card>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+      {/* Lift chart */}
+      <Section>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
           <SLbl>Lift Progress</SLbl>
-          <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:20,padding:"3px 10px",color:C.muted2,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            Glossary
-          </button>
+          <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"3px 9px",color:C.muted2,fontSize:10,cursor:"pointer",fontWeight:600,letterSpacing:"0.05em"}}>Glossary</button>
         </div>
         {liftHistory.length===0?(
           <div style={{padding:"32px 0",textAlign:"center",color:C.muted,fontSize:12}}>Complete your first session to start tracking lift progress</div>
         ):(
           <div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
-              <select value={aMuscle} onChange={e=>pickMuscle(e.target.value)} style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:12,fontWeight:600,outline:"none",cursor:"pointer",width:"100%"}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:5,marginBottom:12}}>
+              <select value={aMuscle} onChange={e=>pickMuscle(e.target.value)} style={{background:C.card2,border:"none",borderBottom:"2px solid "+C.border2,padding:"9px 10px",color:C.text,fontSize:11,fontWeight:700,outline:"none",cursor:"pointer",width:"100%"}}>
                 {allMuscles.map(m=><option key={m} value={m}>{m}</option>)}
               </select>
-              <select value={aEx} onChange={e=>setAEx(e.target.value)} style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:12,fontWeight:600,outline:"none",cursor:"pointer",width:"100%"}}>
+              <select value={aEx} onChange={e=>setAEx(e.target.value)} style={{background:C.card2,border:"none",borderBottom:"2px solid "+C.border2,padding:"9px 10px",color:C.text,fontSize:11,fontWeight:700,outline:"none",cursor:"pointer",width:"100%"}}>
                 {exsForMuscle.length>0?exsForMuscle.map(n=><option key={n} value={n}>{n}</option>):<option>No data</option>}
               </select>
             </div>
-            <div style={{display:"flex",gap:6,marginBottom:14}}>
+            <div style={{display:"flex",gap:4,marginBottom:14}}>
               {[{id:"alltime",l:"All Mesos"},{id:"thismeso",l:"This Meso"}].map(z=>(
-                <button key={z.id} onClick={()=>setZoom(z.id)} style={{padding:"5px 14px",borderRadius:6,border:"1px solid "+(zoom===z.id?C.blue:C.border),background:zoom===z.id?C.blue+"15":C.surf,color:zoom===z.id?C.blue:C.muted,fontSize:11,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{z.l}</button>
+                <button key={z.id} onClick={()=>setZoom(z.id)} style={{padding:"5px 12px",border:"none",borderBottom:"2px solid "+(zoom===z.id?C.blue:"transparent"),background:"none",color:zoom===z.id?C.blue:C.muted,fontSize:11,fontWeight:zoom===z.id?800:500,cursor:"pointer",letterSpacing:"0.04em"}}>{z.l}</button>
               ))}
             </div>
             {chartData.length>0?(
@@ -2648,14 +2793,14 @@ function HistoryTab({onGlossary,liftHistory}){
                   <LineChart data={chartData} margin={{top:4,right:4,left:-20,bottom:0}}>
                     <XAxis dataKey="label" tick={{fontSize:9,fill:C.muted}} axisLine={false} tickLine={false} interval={zoom==="alltime"?2:0}/>
                     <YAxis tick={{fontSize:10,fill:C.muted}} axisLine={false} tickLine={false} domain={["auto","auto"]}/>
-                    <Tooltip contentStyle={{background:C.card2,border:"1px solid "+C.border2,borderRadius:8,fontSize:12}} itemStyle={{color:C.accent}} labelStyle={{color:C.muted2}} formatter={(v,_,entry)=>[v+" lbs"+(entry.payload&&entry.payload.deload?" (deload)":""),entry.payload?.date||""]} labelFormatter={l=>l}/>
+                    <Tooltip contentStyle={{background:C.card2,border:"none",borderRadius:4,fontSize:11}} itemStyle={{color:C.accent}} labelStyle={{color:C.muted2}} formatter={(v,_,entry)=>[v+" lbs"+(entry.payload&&entry.payload.deload?" (deload)":""),entry.payload?.date||""]} labelFormatter={l=>l}/>
                     {zoom==="alltime"?bounds.map(b=><ReferenceLine key={b} x={b} stroke={C.border2} strokeDasharray="3 3"/>):null}
                     <Line type="monotone" dataKey="v" stroke={C.accent} strokeWidth={2} dot={<ChartDot/>} activeDot={{r:6,fill:C.accent}} connectNulls/>
                   </LineChart>
                 </ResponsiveContainer>
                 {zoom==="alltime"?(
-                  <div style={{marginTop:10,padding:"8px 10px",background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:7,fontSize:11,color:C.muted2,lineHeight:1.5,display:"flex",alignItems:"flex-start",gap:7}}>
-                    <IcoUp sz={13} col={C.blue}/>
+                  <div style={{marginTop:10,padding:"9px 12px",background:C.card2,borderLeft:"3px solid "+C.blue,fontSize:11,color:C.muted2,lineHeight:1.5,display:"flex",alignItems:"flex-start",gap:7}}>
+                    <IcoUp sz={12} col={C.blue}/>
                     <span>The dip after each deload is intentional. You come back lighter and build to a new peak.</span>
                   </div>
                 ):null}
@@ -2663,44 +2808,45 @@ function HistoryTab({onGlossary,liftHistory}){
             ):<div style={{padding:"24px 0",textAlign:"center",color:C.muted,fontSize:12}}>No history yet for this exercise</div>}
           </div>
         )}
-      </Card>
+      </Section>
 
+      {/* Meso peaks */}
       {mesoPeaks.length>=2?(
-        <Card>
+        <Section>
           <SLbl>Peak Per Meso — {aEx}</SLbl>
-          <div style={{fontSize:11,color:C.muted2,marginBottom:14,lineHeight:1.5}}>Top set weight each block. This is the clearest signal of long-term progress.</div>
-          {(()=>{
-            const maxW=Math.max(...mesoPeaks.map(p=>p.weight));
-            const minW=Math.min(...mesoPeaks.map(p=>p.weight));
-            return mesoPeaks.map((p,i)=>{
-              const prev=mesoPeaks[i-1];
-              const diff=prev?p.weight-prev.weight:null;
-              const pct=prev?parseFloat(((p.weight-prev.weight)/prev.weight*100).toFixed(1)):null;
-              const trending=diff===null?null:diff>0?"up":diff<0?"down":"flat";
-              const barColor=trending==="up"?C.green:trending==="down"?C.red:trending==="flat"?C.muted:C.accent;
-              const barW=maxW>minW?((p.weight-minW)/(maxW-minW)*60+40):80;
-              return(
-                <div key={p.mesoNum} style={{marginBottom:i<mesoPeaks.length-1?14:0,paddingBottom:i<mesoPeaks.length-1?14:0,borderBottom:i<mesoPeaks.length-1?"1px solid "+C.accent+"33":"none"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
-                    <div style={{fontSize:11,color:C.muted,fontWeight:600,minWidth:52}}>{p.label}</div>
-                    <div style={{flex:1,height:7,background:C.border2,borderRadius:4,overflow:"hidden"}}>
-                      <div style={{height:"100%",width:barW+"%",background:barColor,borderRadius:4,transition:"width .5s"}}/>
+          <div style={{fontSize:10,color:C.muted2,marginBottom:14,lineHeight:1.5}}>Top set weight each block. The clearest signal of long-term progress.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            {(()=>{
+              const maxW=Math.max(...mesoPeaks.map(p=>p.weight));
+              const minW=Math.min(...mesoPeaks.map(p=>p.weight));
+              return mesoPeaks.map((p,i)=>{
+                const prev=mesoPeaks[i-1];
+                const diff=prev?p.weight-prev.weight:null;
+                const pct=prev?parseFloat(((p.weight-prev.weight)/prev.weight*100).toFixed(1)):null;
+                const trending=diff===null?null:diff>0?"up":diff<0?"down":"flat";
+                const barColor=trending==="up"?C.green:trending==="down"?C.red:trending==="flat"?C.muted:C.accent;
+                const barW=maxW>minW?((p.weight-minW)/(maxW-minW)*60+40):80;
+                return(
+                  <div key={p.mesoNum}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+                      <div style={{fontSize:10,color:C.muted,fontWeight:700,minWidth:52,textTransform:"uppercase",letterSpacing:"0.04em"}}>{p.label}</div>
+                      <div style={{flex:1,height:5,background:C.card2,overflow:"hidden"}}>
+                        <div style={{height:"100%",width:barW+"%",background:barColor,transition:"width .5s"}}/>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:800,color:C.text,minWidth:52,textAlign:"right"}}>{p.weight} lbs</div>
+                      <div style={{minWidth:44,textAlign:"right"}}>
+                        {trending==="up"?<span style={{fontSize:11,fontWeight:700,color:C.green}}>+{diff}</span>:
+                         trending==="down"?<span style={{fontSize:11,fontWeight:700,color:C.red}}>{diff}</span>:
+                         trending==="flat"?<span style={{fontSize:11,color:C.muted}}>—</span>:
+                         <span style={{fontSize:10,color:C.muted}}>Base</span>}
+                      </div>
                     </div>
-                    <div style={{fontSize:14,fontWeight:800,color:C.text,minWidth:52,textAlign:"right"}}>{p.weight} lbs</div>
-                    <div style={{minWidth:44,textAlign:"right"}}>
-                      {trending==="up"?<span style={{fontSize:11,fontWeight:700,color:C.green}}>+{diff} lbs</span>:
-                       trending==="down"?<span style={{fontSize:11,fontWeight:700,color:C.red}}>{diff} lbs</span>:
-                       trending==="flat"?<span style={{fontSize:11,color:C.muted}}>—</span>:
-                       <span style={{fontSize:10,color:C.muted}}>Baseline</span>}
-                    </div>
+                    {pct!==null&&trending!=="flat"?<div style={{paddingLeft:62,fontSize:9,color:trending==="up"?C.green:C.red,letterSpacing:"0.04em"}}>{trending==="up"?"+":""}{pct}% vs previous block</div>:null}
                   </div>
-                  {pct!==null&&trending!=="flat"?(
-                    <div style={{paddingLeft:62,fontSize:10,color:trending==="up"?C.green:C.red}}>{trending==="up"?"+":""}{pct}% vs previous block</div>
-                  ):null}
-                </div>
-              );
-            });
-          })()}
+                );
+              });
+            })()}
+          </div>
           {(()=>{
             if(mesoPeaks.length<2) return null;
             const first=mesoPeaks[0].weight;
@@ -2710,42 +2856,42 @@ function HistoryTab({onGlossary,liftHistory}){
             const up=totalDiff>0;
             const flat=totalDiff===0;
             return(
-              <div style={{marginTop:14,padding:"10px 12px",background:flat?C.surf:up?C.green+"12":C.red+"12",border:"1px solid "+(flat?C.border:up?C.green+"33":C.red+"33"),borderRadius:8,display:"flex",alignItems:"center",gap:8}}>
-                {flat?<span style={{fontSize:12,color:C.muted}}>No change across {mesoPeaks.length} mesos.</span>:(
-                  <>
-                    {up?<IcoUp sz={13} col={C.green}/>:<IcoDown sz={13} col={C.red}/>}
-                    <span style={{fontSize:12,color:up?C.green:C.red,fontWeight:600}}>
-                      {up?"+":""}{totalDiff} lbs ({up?"+":""}{totalPct}%) across {mesoPeaks.length} mesos
-                    </span>
-                  </>
+              <div style={{marginTop:14,padding:"9px 12px",background:flat?C.card2:up?C.green+"12":C.red+"12",borderLeft:"3px solid "+(flat?C.border2:up?C.green:C.red),display:"flex",alignItems:"center",gap:8}}>
+                {flat?<span style={{fontSize:11,color:C.muted}}>No change across {mesoPeaks.length} mesos.</span>:(
+                  <>{up?<IcoUp sz={12} col={C.green}/>:<IcoDown sz={12} col={C.red}/>}
+                  <span style={{fontSize:11,color:up?C.green:C.red,fontWeight:700}}>{up?"+":""}{totalDiff} lbs ({up?"+":""}{totalPct}%) across {mesoPeaks.length} mesos</span></>
                 )}
               </div>
             );
           })()}
-        </Card>
+        </Section>
       ):null}
 
-      <Card>
+      {/* Personal records */}
+      <Section>
         <SLbl>Personal Records</SLbl>
-        {prs.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No sessions logged yet</div>:prs.map((p,i)=>(
-          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:i<prs.length-1?"10px":0,marginBottom:i<prs.length-1?"10px":0,borderBottom:i<prs.length-1?"1px solid "+C.border:"none"}}>
-            <div>
-              <div style={{fontSize:13,fontWeight:700}}>{p.name}</div>
-              <div style={{fontSize:11,color:C.muted,marginTop:2,display:"flex",gap:6,alignItems:"center"}}>
-                <span style={{color:MC[p.muscle]||"#888"}}>{p.muscle}</span>
-                {p.date?<span>- {p.date}</span>:null}
+        {prs.length===0?<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No sessions logged yet</div>:(
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {prs.map((p,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.04em"}}>{p.name}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2,display:"flex",gap:6,alignItems:"center"}}>
+                    <span style={{color:MC[p.muscle]||"#888",fontWeight:700}}>{p.muscle}</span>
+                    {p.date?<span>{p.date}</span>:null}
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <div style={{textAlign:"right"}}>
+                    <span style={{fontSize:14,fontWeight:900,color:C.accent}}>{p.weight}<span style={{fontSize:10,fontWeight:400,color:C.muted,marginLeft:2}}>lbs</span></span>
+                    {p.reps>1?<div style={{fontSize:9,color:C.muted,letterSpacing:"0.06em"}}>×{p.reps} REPS</div>:null}
+                  </div>
+                </div>
               </div>
-            </div>
-            <div style={{display:"flex",alignItems:"center",gap:6}}>
-              <IcoTrophy sz={15} col={C.accent}/>
-              <div style={{textAlign:"right"}}>
-                <span style={{fontSize:14,fontWeight:800,color:C.accent}}>{p.weight} lbs</span>
-                {p.reps>1?<div style={{fontSize:10,color:C.muted}}>×{p.reps} reps</div>:null}
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </Card>
+        )}
+      </Section>
     </div>
   );
 }
@@ -2765,13 +2911,13 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
   }
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-      <div style={{display:"flex",background:C.surf,borderBottom:"1px solid "+C.border,flexShrink:0}}>
+      <div style={{display:"flex",background:C.surf,borderBottom:"1px solid "+C.border+"60",flexShrink:0}}>
         {[{id:"meso",l:"This Meso",disabled:!hasMeso},{id:"history",l:"History"}].map(t=>(
-          <button key={t.id} onClick={()=>!t.disabled&&setSub(t.id)} style={{flex:1,padding:"11px 0",background:"none",border:"none",borderBottom:"2px solid "+(sub===t.id?C.accent:"transparent"),color:sub===t.id?C.accent:t.disabled?C.muted+"44":C.muted,fontSize:13,fontWeight:sub===t.id?700:400,cursor:t.disabled?"default":"pointer",transition:"all .15s"}}>{t.l}</button>
+          <button key={t.id} onClick={()=>!t.disabled&&setSub(t.id)} style={{flex:1,padding:"12px 0",background:"none",border:"none",borderBottom:"2px solid "+(sub===t.id?C.accent:"transparent"),color:sub===t.id?C.accent:t.disabled?C.muted+"44":C.muted,fontSize:11,fontWeight:sub===t.id?800:500,cursor:t.disabled?"default":"pointer",letterSpacing:"0.08em",textTransform:"uppercase"}}>{t.l}</button>
         ))}
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-        <div style={{padding:"14px 14px 100px"}}>
+        <div style={{padding:"6px 14px 100px"}}>
           {sub==="meso"&&hasMeso?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles}/>:null}
           {sub==="meso"&&!hasMeso?<div style={{padding:"40px 0",textAlign:"center",color:C.muted,fontSize:13,lineHeight:1.7}}>No active mesocycle. Your lift history is in the History tab.</div>:null}
           {sub==="history"?<HistoryTab onGlossary={onGlossary} liftHistory={liftHistory}/>:null}
@@ -2794,94 +2940,106 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
         else onAddExercise(picker.dayId,ex);
         setPicker(null);
       }} onClose={()=>setPicker(null)}/>:null}
-      <div style={{padding:"16px 14px 100px"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
-          <div>
-            <SLbl>Active Mesocycle</SLbl>
-            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:900,letterSpacing:-0.5}}>{meso.label}</div>
-              {meso.mode==="specialization"?<Tag label="Specialization" color={C.blue}/>:null}
-            </div>
-            {meso.mode==="specialization"&&meso.spec?(
-              <div style={{fontSize:11,color:C.blue,marginTop:4,lineHeight:1.5}}>
-                Target: <strong>{meso.spec.targetMuscle}</strong> · 3×/wk at MEV→MRV · all other muscles at maintenance
+      <div style={{padding:"6px 14px 100px",display:"flex",flexDirection:"column",gap:6}}>
+
+        {/* Meso header */}
+        <Section accent={C.accent}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+            <div>
+              <SLbl>Active Mesocycle</SLbl>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div style={{fontSize:18,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em"}}>{meso.label}</div>
+                {meso.mode==="specialization"?<Tag label="Spec" color={C.blue}/>:null}
               </div>
-            ):null}
-            {meso.startDate?<div style={{fontSize:11,color:C.muted,marginTop:2}}>Started {meso.startDate}</div>:null}
-          </div>
-          <button onClick={()=>setConfirmNew(true)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"7px 12px",color:C.muted2,fontSize:11,cursor:"pointer",flexShrink:0}}>New Meso</button>
-        </div>
-        {confirmNew?(
-          <div style={{background:C.card2,border:"1px solid "+C.accent+"44",borderRadius:10,padding:"14px",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Start a new mesocycle?</div>
-            <div style={{fontSize:11,color:C.muted2,marginBottom:12}}>Your logged sessions are preserved. Your current program will be replaced.</div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setConfirmNew(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border,borderRadius:8,color:C.muted2,cursor:"pointer",fontSize:12}}>Cancel</button>
-              <button onClick={()=>{setConfirmNew(false);onNewMeso();}} style={{flex:2,padding:"9px",background:C.accent,border:"none",borderRadius:8,color:"#000",cursor:"pointer",fontSize:12,fontWeight:700}}>Build New Meso</button>
+              {meso.mode==="specialization"&&meso.spec?(
+                <div style={{fontSize:10,color:C.blue,marginTop:4,lineHeight:1.5,letterSpacing:"0.03em"}}>
+                  Target: <strong>{meso.spec.targetMuscle}</strong> · 3×/wk MEV→MRV · all others at MV
+                </div>
+              ):null}
+              {meso.startDate?<div style={{fontSize:10,color:C.muted,marginTop:2}}>Started {meso.startDate}</div>:null}
             </div>
+            <button onClick={()=>setConfirmNew(true)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"6px 12px",color:C.muted2,fontSize:10,fontWeight:700,cursor:"pointer",letterSpacing:"0.06em",textTransform:"uppercase"}}>New Meso</button>
           </div>
-        ):null}
-        <Card>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <SLbl>Week Structure</SLbl>
-            <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:20,padding:"3px 10px",color:C.muted2,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:5,marginTop:-6}}>
-              <IcoInfo/> Terms
-            </button>
-          </div>
-          <div style={{display:"flex",gap:6,marginBottom:8}}>
+          {/* Week tiles */}
+          <div style={{display:"flex",gap:4}}>
             {Array(meso.totalWeeks).fill(null).map((_,i)=>(
-              <div key={i} style={{flex:1,background:i===meso.week-1?C.accent+"20":C.surf,border:"1px solid "+(i===meso.week-1?C.accent:C.border),borderRadius:8,padding:"10px 4px",textAlign:"center"}}>
-                <div style={{fontSize:12,fontWeight:800,color:i===meso.week-1?C.accent:C.muted2}}>{i===meso.totalWeeks-1?"DL":"W"+(i+1)}</div>
-                <div style={{fontSize:9,color:C.muted,marginTop:3}}>RIR {defaultRIR(i+1,meso.totalWeeks,P?.experience||"intermediate")}</div>
+              <div key={i} style={{flex:1,background:i===meso.week-1?C.accent:C.card2,padding:"10px 4px",textAlign:"center"}}>
+                <div style={{fontSize:11,fontWeight:900,color:i===meso.week-1?"#000":C.muted2}}>{i===meso.totalWeeks-1?"DL":"W"+(i+1)}</div>
+                <div style={{fontSize:8,color:i===meso.week-1?"#000":C.muted,marginTop:2,letterSpacing:"0.06em"}}>RIR {defaultRIR(i+1,meso.totalWeeks,P?.experience||"intermediate")}</div>
               </div>
             ))}
           </div>
-        </Card>
-        <SLbl>Training Days</SLbl>
-        {program.map((day,di)=>(
-          <div key={day.id} style={{background:C.card,border:"1px solid "+(expDay===day.id?C.border2:C.border),borderRadius:12,marginBottom:8,overflow:"hidden"}}>
-            <div onClick={()=>setExpDay(expDay===day.id?null:day.id)} style={{display:"flex",alignItems:"center",padding:"13px 14px",cursor:"pointer",gap:10}}>
-              <div style={{width:28,height:28,borderRadius:"50%",background:C.accent+"20",border:"1px solid "+C.accent+"44",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                <span style={{fontSize:11,fontWeight:800,color:C.accent}}>{di+1}</span>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:14,fontWeight:700}}>{day.name}</div>
-                <div style={{fontSize:11,color:C.muted,marginTop:2}}>{day.day} · {day.exercises.length} exercises</div>
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{expDay===day.id?<polyline points="18 15 12 9 6 15"/>:<polyline points="6 9 12 15 18 9"/>}</svg>
-            </div>
-            {expDay===day.id?(
-              <div style={{borderTop:"1px solid "+C.border,padding:"10px 14px 14px"}}>
+        </Section>
 
-                <div style={{fontSize:10,color:C.muted,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8}}>Exercises</div>
-                {day.exercises.map((ex,ei)=>(
-                  <div key={ex.id} style={{display:"flex",alignItems:"center",gap:8,paddingBottom:ei<day.exercises.length-1?"10px":0,marginBottom:ei<day.exercises.length-1?"10px":0,borderBottom:ei<day.exercises.length-1?"1px solid "+C.border:"none"}}>
-                    <div style={{width:7,height:7,borderRadius:"50%",background:MC[ex.muscle]||"#888",flexShrink:0}}/>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:13,fontWeight:600}}>{ex.name}</div>
-                      <div style={{fontSize:11,color:C.muted}}>{ex.muscle} · {ex.sets.filter(s=>s.type!=="drop").length} sets</div>
-                    </div>
-                    <button onClick={()=>setPicker({dayId:day.id,swapName:ex.name})} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 9px",color:C.muted2,fontSize:11,cursor:"pointer"}}>Swap</button>
-                    {day.exercises.length>1?(
-                      <button onClick={()=>onRemoveExercise(day.id,ex.name)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",alignItems:"center"}}>
-                        <IcoX sz={13} col={C.muted}/>
-                      </button>
-                    ):null}
-                  </div>
-                ))}
-                <button onClick={()=>setPicker({dayId:day.id})} style={{width:"100%",marginTop:12,padding:"8px",background:"none",border:"1px dashed "+C.border2,borderRadius:8,color:C.accent,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
-                  <IcoPlus sz={12} col={C.accent}/> Add Exercise
-                </button>
-              </div>
-            ):null}
+        {/* Confirm new meso */}
+        {confirmNew?(
+          <Section accent={C.accent}>
+            <div style={{fontSize:12,fontWeight:800,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Start a new mesocycle?</div>
+            <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>Your logged sessions are preserved. Your current program will be replaced.</div>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>setConfirmNew(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:11,fontWeight:600}}>Cancel</button>
+              <button onClick={()=>{setConfirmNew(false);onNewMeso();}} style={{flex:2,padding:"9px",background:C.accent,border:"none",color:"#000",cursor:"pointer",fontSize:11,fontWeight:800,letterSpacing:"0.06em",textTransform:"uppercase"}}>Build New Meso</button>
+            </div>
+          </Section>
+        ):null}
+
+        {/* Training days */}
+        <div>
+          <div style={{padding:"4px 0 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <SLbl style={{marginBottom:0}}>Training Days</SLbl>
+            <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"3px 9px",color:C.muted2,fontSize:10,cursor:"pointer",fontWeight:600,letterSpacing:"0.05em"}}>Glossary</button>
           </div>
-        ))}
+          {program.map((day,di)=>(
+            <div key={day.id} style={{background:C.card,borderLeft:"3px solid "+(expDay===day.id?C.accent:C.border2),marginBottom:4,overflow:"hidden"}}>
+              <div onClick={()=>setExpDay(expDay===day.id?null:day.id)} style={{display:"flex",alignItems:"center",padding:"12px 14px",cursor:"pointer",gap:10}}>
+                <div style={{width:20,height:20,background:expDay===day.id?C.accent:C.card2,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:9,fontWeight:900,color:expDay===day.id?"#000":C.muted2}}>{di+1}</span>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:12,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em"}}>{day.name}</div>
+                  <div style={{fontSize:9,color:C.muted,marginTop:1,letterSpacing:"0.06em"}}>{day.day} · {day.exercises.length} exercises</div>
+                </div>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">{expDay===day.id?<polyline points="18 15 12 9 6 15"/>:<polyline points="6 9 12 15 18 9"/>}</svg>
+              </div>
+              {expDay===day.id?(
+                <div style={{borderTop:"1px solid "+C.border+"60",padding:"10px 14px 12px"}}>
+                  <SLbl>Exercises</SLbl>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {day.exercises.map((ex)=>(
+                      <div key={ex.id} style={{display:"flex",alignItems:"center",gap:8}}>
+                        <div style={{width:6,height:6,borderRadius:"50%",background:MC[ex.muscle]||"#888",flexShrink:0}}/>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:12,fontWeight:700}}>{ex.name}</div>
+                          <div style={{fontSize:10,color:C.muted}}>{ex.muscle} · {ex.sets.filter(s=>s.type!=="drop").length} sets</div>
+                        </div>
+                        <button onClick={()=>setPicker({dayId:day.id,swapName:ex.name})} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 8px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.04em"}}>Swap</button>
+                        {day.exercises.length>1?(
+                          <button onClick={()=>onRemoveExercise(day.id,ex.name)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",alignItems:"center"}}>
+                            <IcoX sz={12} col={C.muted}/>
+                          </button>
+                        ):null}
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={()=>setPicker({dayId:day.id})} style={{width:"100%",marginTop:12,padding:"8px",background:C.card2,border:"none",borderLeft:"3px solid "+C.accent,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"left",letterSpacing:"0.06em",textTransform:"uppercase"}}>
+                    + Add Exercise
+                  </button>
+                </div>
+              ):null}
+            </div>
+          ))}
+        </div>
+
+        <div style={{padding:"8px 0 4px",fontSize:10,color:C.muted2,lineHeight:1.6,display:"flex",alignItems:"flex-start",gap:7}}>
+          <IcoWarn sz={12} col={C.muted2}/>
+          Week 1 is your baseline. Start conservative — RIR 3 or higher. Log your RIR and the app takes over from Week 2.
+        </div>
       </div>
     </div>
   );
 }
 
-function PlanBuilder({meso,library,onLaunch,onCancel}){
+function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
@@ -2891,7 +3049,6 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
   const [bWeeks,setBWeeks]=useState(5);
   const [bDays,setBDays]=useState([]);
   const [qSplit,setQSplit]=useState("Push/Pull/Legs");
-  const [qDays,setQDays]=useState(3);
   const [qPriority,setQPriority]=useState(null);
   const [availDays,setAvailDays]=useState(["Monday","Tuesday","Wednesday","Thursday","Friday"]);
   const [repRange,setRepRange]=useState(meso?.repRange||"hypertrophy");
@@ -2953,17 +3110,17 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
           setPicker(null);
         }} onClose={()=>setPicker(null)}/>
       ):null}
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 16px",flexShrink:0}}>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"12px 16px",flexShrink:0}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-          <div style={{fontSize:13,fontWeight:700}}>New Mesocycle</div>
-          {meso?<button onClick={onCancel} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted,fontSize:11,cursor:"pointer"}}>Cancel</button>:null}
+          <div style={{fontSize:11,fontWeight:800,letterSpacing:"0.15em",textTransform:"uppercase",color:C.text}}>New Mesocycle</div>
+          {meso?<button onClick={onCancel} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 10px",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:"0.05em"}}>Cancel</button>:null}
         </div>
-        <div style={{display:"flex",gap:5}}>
+        <div style={{display:"flex",gap:4}}>
           {["Details","Training Days","Review"].map((s,i)=>(
-            <div key={s} style={{flex:1,height:3,borderRadius:2,background:i<=step?C.accent:C.border2}}/>
+            <div key={s} style={{flex:1,height:2,background:i<=step?C.accent:C.border}}/>
           ))}
         </div>
-        <div style={{fontSize:10,color:C.accent,marginTop:6,letterSpacing:1.5,textTransform:"uppercase"}}>{["Details","Training Days","Review"][step]}</div>
+        <div style={{fontSize:9,color:C.accent,marginTop:6,letterSpacing:"0.15em",textTransform:"uppercase",fontWeight:700}}>{["Details","Training Days","Review"][step]}</div>
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{padding:"16px 14px 24px"}}>
@@ -2971,64 +3128,93 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
             <div>
               {!mode?(
                 <div>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:20,lineHeight:1.6}}>How do you want to build your mesocycle?</div>
-                  <button onClick={()=>setMode("quick")} style={{width:"100%",background:C.card2,border:"1px solid "+C.accent+"44",borderRadius:12,padding:"18px 16px",marginBottom:10,textAlign:"left",cursor:"pointer",display:"block"}}>
-                    <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Quick Build</div>
-                    <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Pick your training days and split. The app fills in exercises — you can edit before launching.</div>
+                  <div style={{fontSize:10,color:C.muted2,marginBottom:20,lineHeight:1.6,fontWeight:600,letterSpacing:"0.05em",textTransform:"uppercase"}}>How do you want to build your mesocycle?</div>
+                  <button onClick={()=>setMode("quick")} style={{width:"100%",background:C.card2,border:"none",borderLeft:"3px solid "+C.accent,borderRadius:0,padding:"18px 16px",marginBottom:8,textAlign:"left",cursor:"pointer",display:"block",transition:"all .12s"}}>
+                    <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Quick Build</div>
+                    <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Pick your training days and split. The app fills in exercises — you can edit before launching.</div>
                   </button>
-                  <button onClick={()=>setMode("manual")} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:12,padding:"18px 16px",textAlign:"left",cursor:"pointer",display:"block"}}>
-                    <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Build Manually</div>
-                    <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Add training days and exercises yourself from scratch.</div>
+                  <button onClick={()=>setMode("manual")} style={{width:"100%",background:C.card,border:"none",borderLeft:"3px solid "+C.border2,borderRadius:0,padding:"18px 16px",textAlign:"left",cursor:"pointer",display:"block",transition:"all .12s"}}>
+                    <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Build Manually</div>
+                    <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Add training days and exercises yourself from scratch.</div>
                   </button>
+                  {onBack&&<button onClick={onBack} style={{background:"none",border:"none",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",marginTop:16,padding:0,letterSpacing:"0.05em"}}>← Change program type</button>}
                 </div>
               ):null}
               {mode==="quick"?(
                 <div>
-                  <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
+                  <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",marginBottom:20,padding:0,letterSpacing:"0.05em"}}>← Back</button>
 
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Meso name</div>
-                    <input value={bName} onChange={e=>setBName(e.target.value)} placeholder="e.g. Spring Block" style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"12px 14px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+                  {/* 01 — Meso Name */}
+                  <div style={{marginBottom:24}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>01</span>
+                      <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Meso Name</span>
+                    </div>
+                    <div style={{background:C.card2,padding:"4px 14px"}}>
+                      <input value={bName} onChange={e=>setBName(e.target.value)} placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
+                    </div>
                   </div>
 
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Training days</div>
-                    <div style={{display:"flex",gap:5}}>
+                  {/* 02 — Training days */}
+                  <div style={{marginBottom:24}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>02</span>
+                      <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Frequency</span>
+                    </div>
+                    <div style={{display:"flex",gap:4}}>
                       {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((short,i)=>{
                         const full=WEEK_DAYS[i];
                         const on=availDays.includes(full);
                         return(
-                          <button key={full} onClick={()=>setAvailDays(p=>on&&p.length>2?p.filter(d=>d!==full):[...p.filter(d=>d!==full),full].sort((a,b)=>WEEK_DAYS.indexOf(a)-WEEK_DAYS.indexOf(b)))} style={{flex:1,padding:"10px 0",borderRadius:8,border:"1px solid "+(on?C.accent:C.border),background:on?C.accent+"18":C.card,color:on?C.accent:C.muted,fontSize:11,fontWeight:on?700:400,cursor:"pointer",transition:"all .12s"}}>{short}</button>
+                          <button key={full} onClick={()=>setAvailDays(p=>on?p.filter(d=>d!==full):[...p.filter(d=>d!==full),full].sort((a,b)=>WEEK_DAYS.indexOf(a)-WEEK_DAYS.indexOf(b)))} style={{flex:1,height:52,borderRadius:0,border:"none",background:on?C.accent:C.card2,color:on?"#000":C.muted,fontSize:9,fontWeight:800,cursor:"pointer",transition:"all .12s",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:3,letterSpacing:"0.05em"}}>
+                            {short}
+                            {on?<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>:null}
+                          </button>
                         );
                       })}
                     </div>
-                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>{availDays.length} day{availDays.length!==1?"s":""}/week — sessions spaced optimally across your schedule.</div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:6,letterSpacing:"0.03em"}}>{availDays.length} day{availDays.length!==1?"s":""}/week selected</div>
                   </div>
 
-                  <div style={{marginBottom:16}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Total weeks (incl. deload)</div>
-                    <div style={{display:"flex",gap:8}}>
+                  {/* 03 — Duration */}
+                  <div style={{marginBottom:24}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>03</span>
+                      <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Duration (Weeks)</span>
+                    </div>
+                    <div style={{display:"flex",gap:6}}>
                       {[3,4,5,6].map(w=>(
-                        <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"12px 0",borderRadius:9,border:"1px solid "+(bWeeks===w?C.accent:C.border),background:bWeeks===w?C.accent+"15":C.card,color:bWeeks===w?C.accent:C.muted2,fontWeight:bWeeks===w?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>
-                          {w}<div style={{fontSize:9,color:bWeeks===w?C.accent+"aa":C.muted,marginTop:2,letterSpacing:1}}>{w===5?"★ REC":"WKS"}</div>
+                        <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"14px 0",borderRadius:0,border:"none",background:bWeeks===w?C.accent:C.card2,color:bWeeks===w?"#000":C.muted2,fontWeight:800,fontSize:18,cursor:"pointer",transition:"all .12s",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                          {w}
+                          <span style={{fontSize:8,fontWeight:700,letterSpacing:"0.08em",opacity:0.7}}>{w===5?"REC":"WKS"}</span>
                         </button>
                       ))}
                     </div>
                     {bWeeks===3?<div style={{fontSize:10,color:C.muted2,marginTop:6}}>2 working weeks + 1 deload. Good for specialization or returning lifters.</div>:null}
                   </div>
 
+                  {/* 04 — Training split */}
                   <div style={{marginBottom:16}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Training split</div>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>04</span>
+                      <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Program Architecture</span>
+                    </div>
                     {[
-                      {id:"Upper/Lower",     sub:"Every muscle 2×/week — best for most. Great on 4 days."},
-                      {id:"Push/Pull/Legs",  sub:"Classic PPL — optimal on 6 days. Needs at least 3."},
-                      {id:"Full Body",       sub:"Hit everything every session — ideal for 3 days or fewer."},
-                      {id:"Hybrid Split",    sub:"Push+Legs / Pull+Legs combos — ideal for 3–4 days."},
-                      {id:"Bro Split",       sub:"One muscle per day — each muscle trains once per week."},
+                      {id:"Upper/Lower",     sub:"Advanced periodization focus"},
+                      {id:"Push/Pull/Legs",  sub:"High volume hypertrophy"},
+                      {id:"Full Body",       sub:"Efficiency & frequency base"},
+                      {id:"Hybrid Split",    sub:"Push+Legs / Pull+Legs combos"},
+                      {id:"Bro Split",       sub:"One muscle group per day"},
                     ].map(s=>(
-                      <button key={s.id} onClick={()=>{setQSplit(s.id);setQPriority(null);}} style={{width:"100%",padding:"11px 14px",marginBottom:6,borderRadius:9,border:"1px solid "+(qSplit===s.id?C.accent:C.border),background:qSplit===s.id?C.accent+"12":C.card,cursor:"pointer",textAlign:"left",transition:"all .15s",display:"block"}}>
-                        <div style={{fontSize:13,fontWeight:qSplit===s.id?700:400,color:qSplit===s.id?C.accent:C.text,marginBottom:2}}>{s.id}</div>
-                        <div style={{fontSize:11,color:C.muted2,lineHeight:1.3}}>{s.sub}</div>
+                      <button key={s.id} onClick={()=>{setQSplit(s.id);setQPriority(null);}} style={{width:"100%",padding:"13px 14px",marginBottom:5,borderRadius:0,border:"1px solid "+(qSplit===s.id?C.accent:C.border2+"66"),background:qSplit===s.id?C.card2:C.card,cursor:"pointer",textAlign:"left",transition:"all .12s",display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative",overflow:"hidden"}}>
+                        {qSplit===s.id?<div style={{position:"absolute",left:0,top:0,bottom:0,width:2,background:C.accent}}/>:null}
+                        <div>
+                          <div style={{fontSize:13,fontWeight:800,color:qSplit===s.id?C.accent:C.text,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>{s.id}</div>
+                          <div style={{fontSize:10,color:C.muted2,letterSpacing:"0.04em",textTransform:"uppercase",fontWeight:600}}>{s.sub}</div>
+                        </div>
+                        <div style={{width:16,height:16,borderRadius:"50%",border:"2px solid "+(qSplit===s.id?C.accent:C.muted),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          {qSplit===s.id?<div style={{width:8,height:8,borderRadius:"50%",background:C.accent}}/>:null}
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -3064,46 +3250,50 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   })()}
 
                   {needsPriority?(
-                    <div style={{marginBottom:16,padding:"14px",background:C.card2,border:"1px solid "+C.border2,borderRadius:10}}>
+                    <div style={{marginBottom:16,padding:"14px",background:C.card2,borderLeft:"2px solid "+C.accent}}>
                       {availDays.length===4?(
                         <>
-                          <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group trains twice?</div>
-                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>Pick the one you want to train twice per week throughout this block — your weakest or most important group.</div>
-                          <div style={{display:"flex",gap:8}}>
+                          <div style={{fontSize:11,fontWeight:800,marginBottom:4,color:C.text,textTransform:"uppercase",letterSpacing:"0.1em"}}>Which group trains twice?</div>
+                          <div style={{fontSize:10,color:C.muted2,marginBottom:12,lineHeight:1.5}}>Pick your weakest or most important group to train twice this block.</div>
+                          <div style={{display:"flex",gap:5}}>
                             {["Push","Pull","Legs"].map(opt=>(
-                              <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
+                              <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"12px 0",borderRadius:0,border:"none",background:qPriority===opt?C.accent:C.card,color:qPriority===opt?"#000":C.muted2,fontSize:12,fontWeight:800,cursor:"pointer",transition:"all .12s",textTransform:"uppercase",letterSpacing:"0.05em"}}>{opt}</button>
                             ))}
                           </div>
                         </>
                       ):(
                         <>
-                          <div style={{fontSize:12,fontWeight:700,marginBottom:4,color:C.text}}>Which group only trains once?</div>
-                          <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>Pick the one you're happy training only once per week throughout this block.</div>
-                          <div style={{display:"flex",gap:8}}>
+                          <div style={{fontSize:11,fontWeight:800,marginBottom:4,color:C.text,textTransform:"uppercase",letterSpacing:"0.1em"}}>Which group only trains once?</div>
+                          <div style={{fontSize:10,color:C.muted2,marginBottom:12,lineHeight:1.5}}>Pick the one you're happy training only once per week this block.</div>
+                          <div style={{display:"flex",gap:5}}>
                             {["Push","Pull","Legs"].map(opt=>(
-                              <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(qPriority===opt?C.accent:C.border),background:qPriority===opt?C.accent+"15":C.surf,color:qPriority===opt?C.accent:C.muted2,fontSize:13,fontWeight:qPriority===opt?700:400,cursor:"pointer",transition:"all .15s"}}>{opt}</button>
+                              <button key={opt} onClick={()=>setQPriority(qPriority===opt?null:opt)} style={{flex:1,padding:"12px 0",borderRadius:0,border:"none",background:qPriority===opt?C.accent:C.card,color:qPriority===opt?"#000":C.muted2,fontSize:12,fontWeight:800,cursor:"pointer",transition:"all .12s",textTransform:"uppercase",letterSpacing:"0.05em"}}>{opt}</button>
                             ))}
                           </div>
                         </>
                       )}
-                      {!qPriority?<div style={{fontSize:10,color:C.accent,marginTop:10,display:"flex",alignItems:"center",gap:5}}><IcoWarn sz={10} col={C.accent}/> Select one to continue</div>:null}
+                      {!qPriority?<div style={{fontSize:10,color:C.accent,marginTop:10,display:"flex",alignItems:"center",gap:5,fontWeight:700}}><IcoWarn sz={10} col={C.accent}/> Select one to continue</div>:null}
                     </div>
                   ):null}
 
+                  {/* 05 — Rep range */}
                   <div style={{marginBottom:24}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:8,fontWeight:600}}>Rep range focus</div>
-                    <div style={{display:"flex",gap:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>05</span>
+                      <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Rep Range Focus</span>
+                    </div>
+                    <div style={{display:"flex",gap:5}}>
                       {[{id:"hypertrophy",l:"Hypertrophy",sub:"8–20 reps"},{id:"strength-hyp",l:"Strength-Hyp",sub:"4–12 reps"},{id:"power-hyp",l:"Power-Hyp",sub:"3–8 reps"}].map(opt=>(
-                        <button key={opt.id} onClick={()=>setRepRange(opt.id)} style={{flex:1,padding:"10px 0",borderRadius:9,border:"1px solid "+(repRange===opt.id?C.accent:C.border),background:repRange===opt.id?C.accent+"15":C.card,cursor:"pointer",textAlign:"center",transition:"all .15s"}}>
-                          <div style={{fontSize:11,fontWeight:repRange===opt.id?700:500,color:repRange===opt.id?C.accent:C.muted2}}>{opt.l}</div>
-                          <div style={{fontSize:9,color:C.muted,marginTop:2}}>{opt.sub}</div>
+                        <button key={opt.id} onClick={()=>setRepRange(opt.id)} style={{flex:1,padding:"12px 0",borderRadius:0,border:"none",background:repRange===opt.id?C.accent:C.card2,cursor:"pointer",textAlign:"center",transition:"all .12s"}}>
+                          <div style={{fontSize:10,fontWeight:800,color:repRange===opt.id?"#000":C.muted2,textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>{opt.l}</div>
+                          <div style={{fontSize:9,color:repRange===opt.id?"#000":C.muted,fontWeight:600}}>{opt.sub}</div>
                         </button>
                       ))}
                     </div>
                     <div style={{fontSize:10,color:C.muted2,marginTop:6}}>RP recommends rotating rep ranges across mesos for long-term development.</div>
                   </div>
 
-                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"14px",background:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card,color:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s"}}>GENERATE PROGRAM</button>
+                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"15px",background:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card2,color:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:0,fontSize:13,fontWeight:900,letterSpacing:"0.15em",cursor:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
@@ -3111,19 +3301,19 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
                   <div style={{marginBottom:14}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Meso name</div>
-                    <input value={bName} onChange={e=>setBName(e.target.value)} placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"12px 14px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+                    <input value={bName} onChange={e=>setBName(e.target.value)} placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                   <div style={{marginBottom:24}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:10,fontWeight:600}}>Total weeks (including deload)</div>
                     <div style={{display:"flex",gap:8}}>
                       {[3,4,5,6].map(w=>(
-                        <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"14px 0",borderRadius:9,border:"1px solid "+(bWeeks===w?C.accent:C.border),background:bWeeks===w?C.accent+"15":C.card,color:bWeeks===w?C.accent:C.muted2,fontWeight:bWeeks===w?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>
-                          {w}<div style={{fontSize:9,color:bWeeks===w?C.accent+"aa":C.muted,marginTop:3,letterSpacing:1}}>WEEKS</div>
+                        <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"14px 0",borderRadius:4,border:"1px solid "+(bWeeks===w?C.accent:C.border),background:bWeeks===w?C.accent+"15":C.card,color:bWeeks===w?C.accent:C.muted2,fontWeight:bWeeks===w?700:400,fontSize:15,cursor:"pointer",transition:"all .15s"}}>
+                          {w}<div style={{fontSize:9,color:bWeeks===w?C.accent+"aa":C.muted,marginTop:3,letterSpacing:"0.06em"}}>WEEKS</div>
                         </button>
                       ))}
                     </div>
                   </div>
-                  <button onClick={()=>setStep(1)} disabled={!bName.trim()} style={{width:"100%",padding:"14px",background:bName.trim()?C.accent:C.card,color:bName.trim()?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:bName.trim()?"pointer":"default",transition:"all .2s"}}>NEXT: TRAINING DAYS</button>
+                  <button onClick={()=>setStep(1)} disabled={!bName.trim()} style={{width:"100%",padding:"14px",background:bName.trim()?C.accent:C.card,color:bName.trim()?"#000":C.muted,border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:bName.trim()?"pointer":"default",transition:"all .2s"}}>NEXT: TRAINING DAYS</button>
                 </div>
               ):null}
             </div>
@@ -3137,7 +3327,7 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                 </div>
               ):null}
               {bDays.map(day=>(
-                <div key={day.id} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:12,marginBottom:10,overflow:"hidden"}}>
+                <div key={day.id} style={{background:C.card,border:"1px solid "+C.border2,borderRadius:6,marginBottom:10,overflow:"hidden"}}>
                   <div style={{padding:"12px 14px",borderBottom:"1px solid "+C.border}}>
                     <div style={{display:"flex",gap:8,marginBottom:8}}>
                       <input value={day.name} onChange={e=>updDay(day.id,"name",e.target.value)} placeholder="Session name (e.g. Push)" style={{flex:1,background:C.surf,border:"1px solid "+C.border,borderRadius:7,padding:"9px 11px",color:C.text,fontSize:13,outline:"none"}}/>
@@ -3168,12 +3358,12 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                   </div>
                 </div>
               ))}
-              <button onClick={addDay} style={{width:"100%",padding:"12px",background:"none",border:"1px dashed "+C.border2,borderRadius:10,color:C.muted2,fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              <button onClick={addDay} style={{width:"100%",padding:"12px",background:"none",border:"1px dashed "+C.border2,borderRadius:6,color:C.muted2,fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
                 <IcoPlus sz={13} col={C.muted2}/> Add Training Day
               </button>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>setStep(0)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:10,color:C.muted,cursor:"pointer",fontSize:13}}>Back</button>
-                <button onClick={()=>setStep(2)} disabled={bDays.length===0} style={{flex:2,padding:"13px",background:bDays.length>0?C.accent:C.card,color:bDays.length>0?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:bDays.length>0?"pointer":"default",transition:"all .2s"}}>REVIEW</button>
+                <button onClick={()=>setStep(0)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:6,color:C.muted,cursor:"pointer",fontSize:13}}>Back</button>
+                <button onClick={()=>setStep(2)} disabled={bDays.length===0} style={{flex:2,padding:"13px",background:bDays.length>0?C.accent:C.card,color:bDays.length>0?"#000":C.muted,border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:bDays.length>0?"pointer":"default",transition:"all .2s"}}>REVIEW</button>
               </div>
             </div>
           ):null}
@@ -3228,8 +3418,8 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
                 Week 1 is your baseline. Start conservative — RIR 3 or higher. Log your RIR and the app takes over from Week 2.
               </div>
               <div style={{display:"flex",gap:8,marginTop:4}}>
-                <button onClick={()=>{if(mode==="quick"){setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}else setStep(1);}} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:10,color:C.muted2,cursor:"pointer",fontSize:13}}>Regenerate</button>
-                <button onClick={doLaunch} disabled={!canLaunch} style={{flex:2,padding:"13px",background:canLaunch?C.accent:C.card,color:canLaunch?"#000":C.muted,border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:canLaunch?"pointer":"default",transition:"all .2s"}}>LAUNCH MESO</button>
+                <button onClick={()=>{if(mode==="quick"){setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}else setStep(1);}} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:6,color:C.muted2,cursor:"pointer",fontSize:13}}>Regenerate</button>
+                <button onClick={doLaunch} disabled={!canLaunch} style={{flex:2,padding:"13px",background:canLaunch?C.accent:C.card,color:canLaunch?"#000":C.muted,border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:canLaunch?"pointer":"default",transition:"all .2s"}}>LAUNCH MESO</button>
               </div>
             </div>
           ):null}
@@ -3239,39 +3429,45 @@ function PlanBuilder({meso,library,onLaunch,onCancel}){
   );
 }
 
-function PlannerScreen({meso,program,library,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary}){
+function PlannerScreen({meso,program,library,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,autoOpenSpec,onAutoOpenConsumed}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
   const [showBuilder,setShowBuilder]=useState(!meso);
   const [builderMode,setBuilderMode]=useState(null); // null=choose, "standard", "spec"
 
-  const doClose=()=>{setShowBuilder(false);setBuilderMode(null);};
+  // Auto-open spec builder when triggered from MesoComplete
+  useEffect(()=>{
+    if(autoOpenSpec){setShowBuilder(true);setBuilderMode("spec");onAutoOpenConsumed&&onAutoOpenConsumed();}
+  },[autoOpenSpec]);
+
+  const doBack=()=>setBuilderMode(null);           // returns to mode chooser, stays in builder
+  const doClose=()=>{setShowBuilder(false);setBuilderMode(null);}; // fully exits builder
   const doLaunch=(m,p)=>{onLaunch(m,p);doClose();};
 
   if(showBuilder){
     if(builderMode==="spec"){
-      return(<SpecBuilder library={library} muscles={muscles} experience={P.experience||"intermediate"} existingMeso={meso} onLaunch={doLaunch} onCancel={doClose}/>);
+      return(<SpecBuilder library={library} muscles={muscles} experience={P.experience||"intermediate"} existingMeso={meso} onLaunch={doLaunch} onBack={doBack} onCancel={doClose}/>);
     }
     if(builderMode==="standard"){
-      return(<PlanBuilder meso={meso} library={library} onLaunch={doLaunch} onCancel={doClose}/>);
+      return(<PlanBuilder meso={meso} library={library} onLaunch={doLaunch} onBack={doBack} onCancel={doClose}/>);
     }
     // Mode chooser
     return(
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"12px 16px",flexShrink:0,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:13,fontWeight:700}}>New Mesocycle</div>
-          {meso?<button onClick={doClose} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"5px 10px",color:C.muted,fontSize:11,cursor:"pointer"}}>Cancel</button>:null}
+        <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"12px 16px",flexShrink:0,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:11,fontWeight:800,letterSpacing:"0.15em",textTransform:"uppercase",color:C.text}}>New Mesocycle</div>
+          {meso?<button onClick={doClose} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 10px",color:C.muted,fontSize:11,fontWeight:600,cursor:"pointer"}}>Cancel</button>:null}
         </div>
         <div style={{flex:1,overflowY:"auto",padding:"16px 14px"}}>
-          <div style={{fontSize:11,color:C.muted2,marginBottom:20,lineHeight:1.6}}>How do you want to build your mesocycle?</div>
-          <button onClick={()=>setBuilderMode("standard")} style={{width:"100%",background:C.card2,border:"1px solid "+C.accent+"44",borderRadius:12,padding:"18px 16px",marginBottom:10,textAlign:"left",cursor:"pointer",display:"block"}}>
-            <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Standard Hypertrophy</div>
-            <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Full-body balanced program. All muscles trained with progressive volume from MEV toward MRV.</div>
+          <div style={{fontSize:10,color:C.muted2,marginBottom:20,lineHeight:1.6,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>Select program type</div>
+          <button onClick={()=>setBuilderMode("standard")} style={{width:"100%",background:C.card2,border:"none",borderLeft:"3px solid "+C.accent,borderRadius:0,padding:"18px 16px",marginBottom:8,textAlign:"left",cursor:"pointer",display:"block"}}>
+            <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Standard Hypertrophy</div>
+            <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Full-body balanced program. All muscles trained with progressive volume from MEV toward MRV.</div>
           </button>
-          <button onClick={()=>setBuilderMode("spec")} style={{width:"100%",background:C.card,border:"1px solid "+C.blue+"44",borderRadius:12,padding:"18px 16px",textAlign:"left",cursor:"pointer",display:"block"}}>
-            <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>Specialization Phase</div>
-            <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Target one muscle with aggressive volume (MEV→MRV). All other muscles held at maintenance to maximize recovery.</div>
+          <button onClick={()=>setBuilderMode("spec")} style={{width:"100%",background:C.card,border:"none",borderLeft:"3px solid "+C.blue,borderRadius:0,padding:"18px 16px",textAlign:"left",cursor:"pointer",display:"block"}}>
+            <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Specialization Phase</div>
+            <div style={{fontSize:11,color:C.muted2,lineHeight:1.5}}>Target one muscle with aggressive volume (MEV→MRV). All other muscles held at maintenance to maximize recovery.</div>
           </button>
         </div>
       </div>
@@ -3284,7 +3480,7 @@ function ExRow({ex,onToggleFav}){
   const C=useContext(ThemeCtx);
   const mc=MC[ex.muscle]||"#888";
   return(
-    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:C.card,border:"1px solid "+C.border,borderRadius:9,marginBottom:6}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:C.card,border:"1px solid "+C.border,borderRadius:4,marginBottom:6}}>
       <div style={{width:8,height:8,borderRadius:"50%",background:mc,flexShrink:0}}/>
       <div style={{flex:1}}>
         <div style={{fontSize:13,fontWeight:700}}>{ex.name}</div>
@@ -3305,6 +3501,7 @@ function LibraryScreen({library,setLibrary}){
   const [search,setSearch]=useState("");
   const [filt,setFilt]=useState("All");
   const [showAdd,setShowAdd]=useState(false);
+  const [addError,setAddError]=useState("");
   const [nEx,setNEx]=useState({name:"",muscle:"Chest",type:"compound"});
   const mf=["All",...Object.keys(MC)];
   const filtered=library.filter(e=>e.name.toLowerCase().includes(search.toLowerCase())&&(filt==="All"||e.muscle===filt)).sort((a,b)=>b.fav-a.fav||a.name.localeCompare(b.name));
@@ -3313,7 +3510,22 @@ function LibraryScreen({library,setLibrary}){
   const togFav=n=>setLibrary(p=>p.map(e=>e.name===n?{...e,fav:!e.fav}:e));
   const addEx=()=>{
     if(!nEx.name.trim()) return;
+    if(library.some(e=>e.name.toLowerCase()===nEx.name.trim().toLowerCase())){
+      setAddError("An exercise with that name already exists.");
+      return;
+    }
+    setAddError("");
+    // Add to library
     setLibrary(p=>[...p,{...nEx,fav:false}]);
+    // Inject into EX_PROFILE so progression engine works correctly for this exercise
+    const isIso=nEx.type==="isolation";
+    EX_PROFILE[nEx.name]={
+      type:nEx.type,
+      pct:isIso?0.015:0.025,
+      preferReps:isIso,
+      minReps:isIso?10:5,
+      maxReps:isIso?20:15,
+    };
     setNEx({name:"",muscle:"Chest",type:"compound"});
     setShowAdd(false);
   };
@@ -3322,10 +3534,10 @@ function LibraryScreen({library,setLibrary}){
       <div style={{padding:"16px 14px 100px"}}>
         <div style={{marginBottom:14}}>
           <SLbl>Exercise Library</SLbl>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,letterSpacing:-0.5}}>{library.length} EXERCISES</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:26,fontWeight:900,letterSpacing:"0.02em"}}>{library.length} EXERCISES</div>
         </div>
         <div style={{position:"relative",marginBottom:10}}>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search exercises..." style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:9,padding:"10px 14px 10px 38px",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search exercises..." style={{width:"100%",background:C.card2,border:"none",borderBottom:"1px solid "+C.border2,padding:"10px 14px 10px 38px",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
           <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:C.muted,display:"flex",alignItems:"center",pointerEvents:"none"}}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           </span>
@@ -3344,9 +3556,10 @@ function LibraryScreen({library,setLibrary}){
           </div>
         ):filtered.map(ex=><ExRow key={ex.name} ex={ex} onToggleFav={togFav}/>)}
         {showAdd?(
-          <div style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:12,padding:"14px",marginTop:10}}>
+          <div style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:6,padding:"14px",marginTop:10}}>
             <SLbl>New Custom Exercise</SLbl>
-            <input value={nEx.name} onChange={e=>setNEx(p=>({...p,name:e.target.value}))} placeholder="Exercise name" style={{width:"100%",background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:13,outline:"none",marginBottom:8,boxSizing:"border-box"}}/>
+            <input value={nEx.name} onChange={e=>{setNEx(p=>({...p,name:e.target.value}));setAddError("");}} placeholder="Exercise name" style={{width:"100%",background:C.surf,border:"none",borderBottom:"2px solid "+(addError?C.red:C.border2),padding:"10px 0",color:C.text,fontSize:13,outline:"none",marginBottom:addError?4:8,boxSizing:"border-box"}}/>
+            {addError?<div style={{fontSize:10,color:C.red,marginBottom:8,fontWeight:600}}>{addError}</div>:null}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
               <select value={nEx.muscle} onChange={e=>setNEx(p=>({...p,muscle:e.target.value}))} style={{background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
                 {Object.keys(MC).map(m=><option key={m}>{m}</option>)}
@@ -3361,7 +3574,7 @@ function LibraryScreen({library,setLibrary}){
               <button onClick={addEx} style={{flex:2,padding:"10px",background:C.accent,border:"none",borderRadius:8,color:"#000",cursor:"pointer",fontSize:13,fontWeight:700}}>Add Exercise</button>
             </div>
           </div>
-        ):<button onClick={()=>setShowAdd(true)} style={{width:"100%",padding:"12px",background:"none",border:"1px dashed "+C.border2,borderRadius:10,color:C.muted,fontSize:12,cursor:"pointer",marginTop:8}}>+ Create Custom Exercise</button>}
+        ):<button onClick={()=>setShowAdd(true)} style={{width:"100%",padding:"12px",background:"none",border:"1px dashed "+C.border2,borderRadius:6,color:C.muted,fontSize:12,cursor:"pointer",marginTop:8}}>+ Create Custom Exercise</button>}
       </div>
     </div>
   );
@@ -3395,28 +3608,29 @@ function OnboardingScreen({onComplete}){
   const OPT_STYLE=(active)=>({
     padding:"14px 16px",
     background:active?C.accent+"18":C.card2,
-    border:"1px solid "+(active?C.accent:C.border2),
-    borderRadius:10,
+    border:"none",
+    borderLeft:"3px solid "+(active?C.accent:C.border2),
+    borderRadius:0,
     cursor:"pointer",
     textAlign:"left",
-    transition:"all .15s",
+    transition:"all .12s",
     width:"100%",
     display:"block",
   });
 
   const ProgressDots=({current,total})=>(
-    <div style={{display:"flex",gap:6,marginBottom:28}}>
+    <div style={{display:"flex",gap:4,marginBottom:28}}>
       {Array(total).fill(null).map((_,i)=>(
-        <div key={i} style={{height:3,flex:1,borderRadius:2,background:i<=current?C.accent:C.border2,transition:"background .2s"}}/>
+        <div key={i} style={{height:2,flex:1,background:i<=current?C.accent:C.border2,transition:"background .2s"}}/>
       ))}
     </div>
   );
 
   const BtnBack=({onClick})=>(
-    <button onClick={onClick} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border2,borderRadius:10,color:C.muted2,cursor:"pointer",fontSize:13,fontWeight:500}}>Back</button>
+    <button onClick={onClick} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:12,fontWeight:600,letterSpacing:"0.06em"}}>Back</button>
   );
   const BtnNext=({onClick,disabled,label})=>(
-    <button onClick={onClick} disabled={disabled} style={{flex:2,padding:"13px",background:disabled?C.card:C.accent,color:disabled?C.muted2:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:disabled?"default":"pointer",transition:"all .2s"}}>{label||"CONTINUE"}</button>
+    <button onClick={onClick} disabled={disabled} style={{flex:2,padding:"13px",background:disabled?C.card2:C.accent,color:disabled?C.muted2:"#000",border:"none",borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:13,fontWeight:900,letterSpacing:"0.12em",cursor:disabled?"default":"pointer",transition:"all .2s"}}>{label||"CONTINUE"}</button>
   );
 
   const HOW_IT_WORKS=[
@@ -3432,18 +3646,18 @@ function OnboardingScreen({onComplete}){
   if(phase==="intro"){
     return(
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:"env(safe-area-inset-bottom)"}}>
-        <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:#4d607a}textarea::placeholder{color:#4d607a;font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'DM Sans',sans-serif}`}</style>
+        <style>{`*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;width:100%}::-webkit-scrollbar{width:0;height:0}input::placeholder{color:#534434}textarea::placeholder{color:#534434;font-style:italic}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,select,input,textarea{font-family:'Inter',sans-serif}`}</style>
         <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 28px",minHeight:"100%"}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:60,fontWeight:900,letterSpacing:4,color:C.accent,lineHeight:1,marginBottom:16}}>HYPER</div>
-          <div style={{fontSize:14,color:C.muted2,lineHeight:1.8,marginBottom:48}}>A hypertrophy training log that tells you what to lift, guides your progression week to week, and tracks your gains across training blocks so you can see real progress over time.</div>
-          <div style={{display:"flex",flexDirection:"column",gap:12}}>
-            <button onClick={()=>setPhase("howItWorks")} style={{width:"100%",padding:"18px 20px",background:C.card2,border:"1px solid "+C.border2,borderRadius:12,cursor:"pointer",textAlign:"left",display:"block",transition:"all .15s"}}>
-              <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>New to this style of training?</div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>See how the program works — mesocycles, progressive overload, RIR, and more. Takes about a minute.</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:48,fontWeight:900,letterSpacing:"0.2em",color:C.accent,lineHeight:1,marginBottom:20}}>HYPER</div>
+          <div style={{fontSize:13,color:C.muted2,lineHeight:1.8,marginBottom:40}}>A hypertrophy training log that tells you what to lift, guides your progression week to week, and tracks your gains across training blocks so you can see real progress over time.</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <button onClick={()=>setPhase("howItWorks")} style={{width:"100%",padding:"16px",background:C.card2,border:"none",borderLeft:"3px solid "+C.accent,borderRadius:0,cursor:"pointer",textAlign:"left",display:"block",transition:"all .12s"}}>
+              <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.06em"}}>New to this style of training?</div>
+              <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>See how mesocycles, progressive overload, RIR, and more work. Takes about a minute.</div>
             </button>
-            <button onClick={()=>setPhase("form")} style={{width:"100%",padding:"18px 20px",background:C.card2,border:"1px solid "+C.border2,borderRadius:12,cursor:"pointer",textAlign:"left",display:"block",transition:"all .15s"}}>
-              <div style={{fontSize:14,fontWeight:700,color:C.text,marginBottom:4}}>I already know how this works</div>
-              <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Skip the intro and set up your profile.</div>
+            <button onClick={()=>setPhase("form")} style={{width:"100%",padding:"16px",background:C.card,border:"none",borderLeft:"3px solid "+C.border2,borderRadius:0,cursor:"pointer",textAlign:"left",display:"block",transition:"all .12s"}}>
+              <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:3,textTransform:"uppercase",letterSpacing:"0.06em"}}>I already know how this works</div>
+              <div style={{fontSize:11,color:C.muted,lineHeight:1.5}}>Skip the intro and set up your profile.</div>
             </button>
           </div>
         </div>
@@ -3455,21 +3669,21 @@ function OnboardingScreen({onComplete}){
   if(phase==="howItWorks"){
     return(
       <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",paddingBottom:"env(safe-area-inset-bottom)"}}>
-        <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#4d607a}button,input{font-family:'DM Sans',sans-serif}`}</style>
+        <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#534434}button,input{font-family:'Inter',sans-serif}`}</style>
         <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"14px 20px",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <button onClick={()=>setPhase("intro")} style={{background:"none",border:"none",color:C.muted2,fontSize:13,cursor:"pointer",padding:0,display:"flex",alignItems:"center",gap:5}}>← Back</button>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,letterSpacing:2,color:C.text}}>HOW IT WORKS</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.1em",color:C.text}}>HOW IT WORKS</div>
           <button onClick={()=>setPhase("form")} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"6px 14px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Skip →</button>
         </div>
         <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",padding:"20px 24px 24px"}}>
           {HOW_IT_WORKS.map((s,i,arr)=>(
             <div key={i} style={{marginBottom:i<arr.length-1?28:0,paddingBottom:i<arr.length-1?28:0,borderBottom:i<arr.length-1?"1px solid "+C.accent+"33":"none"}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:18,fontWeight:900,color:C.text,marginBottom:8,letterSpacing:0.5}}>{s.title}</div>
+              <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,color:C.text,marginBottom:8,letterSpacing:"0.03em"}}>{s.title}</div>
               <div style={{fontSize:13,color:C.muted2,lineHeight:1.75,marginBottom:s.credit?8:0}}>{s.body}</div>
               {s.credit?<div style={{fontSize:11,color:C.muted,fontStyle:"italic"}}>{s.credit}</div>:null}
             </div>
           ))}
-          <button onClick={()=>setPhase("form")} style={{width:"100%",marginTop:32,padding:"16px",background:C.accent,color:"#000",border:"none",borderRadius:11,fontFamily:"'Barlow Condensed',sans-serif",fontSize:16,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>
+          <button onClick={()=>setPhase("form")} style={{width:"100%",marginTop:32,padding:"16px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:16,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer"}}>
             GOT IT — LET'S START
           </button>
         </div>
@@ -3482,10 +3696,10 @@ function OnboardingScreen({onComplete}){
     // Step 0: Name
     <div key="s0" style={{width:"100%"}}>
       <ProgressDots current={0} total={4}/>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>What should we call you?</div>
+      <div style={{fontFamily:"'Inter',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>What should we call you?</div>
       <div style={{fontSize:13,color:C.muted2,lineHeight:1.6,marginBottom:24}}>This is just for your greeting screen. You can change it anytime.</div>
       <div style={{marginBottom:28}}>
-        <input ref={nameRef} value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&name.trim()) setStep(1);}} placeholder="Your name" style={{width:"100%",background:C.card2,border:"1px solid "+C.border2,borderRadius:10,padding:"14px 16px",color:C.text,fontSize:16,outline:"none",boxSizing:"border-box"}}/>
+        <input ref={nameRef} value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&name.trim()) setStep(1);}} placeholder="Your name" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(name?C.accent:C.border2),padding:"14px 0",color:C.text,fontSize:18,fontWeight:700,outline:"none",boxSizing:"border-box",transition:"border-color .15s"}}/>
       </div>
       <div style={{display:"flex",gap:10}}>
         <BtnBack onClick={()=>setPhase("intro")}/>
@@ -3496,7 +3710,7 @@ function OnboardingScreen({onComplete}){
     // Step 1: Biological sex
     <div key="s1" style={{width:"100%"}}>
       <ProgressDots current={1} total={4}/>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>Biological sex</div>
+      <div style={{fontFamily:"'Inter',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>Biological sex</div>
       <div style={{fontSize:13,color:C.muted2,lineHeight:1.6,marginBottom:24}}>Used to calibrate your volume landmarks.</div>
       <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:28}}>
         {[{id:"male",l:"Male"},{id:"female",l:"Female"}].map(opt=>(
@@ -3514,7 +3728,7 @@ function OnboardingScreen({onComplete}){
     // Step 2: Experience
     <div key="s2" style={{width:"100%"}}>
       <ProgressDots current={2} total={4}/>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>Training experience</div>
+      <div style={{fontFamily:"'Inter',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>Training experience</div>
       <div style={{fontSize:13,color:C.muted2,lineHeight:1.6,marginBottom:16}}>Used to set your starting volume. Be honest — the app recalibrates as you log sessions.</div>
       <div style={{fontSize:11,color:C.muted,lineHeight:1.6,marginBottom:16,padding:"10px 12px",background:C.card2,borderRadius:8,borderLeft:"2px solid "+C.border2}}>
         <strong style={{color:C.muted2}}>Structured training</strong> means following a planned program — specific exercises, sets, reps, and progressive overload over time. Casual gym-going without a plan doesn't count.
@@ -3536,11 +3750,11 @@ function OnboardingScreen({onComplete}){
     // Step 3: Bodyweight
     <div key="s3" style={{width:"100%"}}>
       <ProgressDots current={3} total={4}/>
-      <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>Your bodyweight</div>
+      <div style={{fontFamily:"'Inter',sans-serif",fontSize:30,fontWeight:900,marginBottom:8,lineHeight:1.1,color:C.text}}>Your bodyweight</div>
       <div style={{fontSize:13,color:C.muted2,lineHeight:1.6,marginBottom:24}}>Used as a reference point for progression increments. You can update this anytime.</div>
       <div style={{marginBottom:24}}>
         <div style={{position:"relative"}}>
-          <input ref={bwRef} type="number" inputMode="decimal" pattern="[0-9]*" value={bodyweight} onChange={e=>setBodyweight(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&parseFloat(bodyweight)>0) finish();}} placeholder="185" style={{width:"100%",background:C.card2,border:"1px solid "+C.border2,borderRadius:10,padding:"14px 54px 14px 16px",color:C.text,fontSize:22,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
+          <input ref={bwRef} type="number" inputMode="decimal" pattern="[0-9]*" value={bodyweight} onChange={e=>setBodyweight(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&parseFloat(bodyweight)>0) finish();}} placeholder="185" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bodyweight?C.accent:C.border2),padding:"14px 54px 14px 0",color:C.text,fontSize:28,fontWeight:900,outline:"none",boxSizing:"border-box"}}/>
           <span style={{position:"absolute",right:16,top:"50%",transform:"translateY(-50%)",fontSize:13,color:C.muted2,fontWeight:600}}>lbs</span>
         </div>
       </div>
@@ -3554,7 +3768,7 @@ function OnboardingScreen({onComplete}){
 
   return(
     <div style={{position:"fixed",inset:0,zIndex:999,background:C.bg,maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",overflowY:"auto",WebkitOverflowScrolling:"touch",paddingBottom:"env(safe-area-inset-bottom)"}}>
-      <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#3a4a60}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'DM Sans',sans-serif}`}</style>
+      <style>{`*{box-sizing:border-box;margin:0;padding:0}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}button,input{font-family:'Inter',sans-serif}`}</style>
       <div style={{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",padding:"40px 28px",minHeight:"100%"}}>
         {steps[step]}
       </div>
@@ -3586,6 +3800,20 @@ export default function App(){
   const [loaded,setLoaded]=useState(false);
 
   const muscles=profile?getMuscles(profile.experience,profile.sex):getMuscles("intermediate","male");
+
+  // Inject Inter font + global machined styles
+  useEffect(()=>{
+    if(!document.querySelector('link[href*="Inter"]')){
+      const l=document.createElement('link');
+      l.rel='stylesheet';
+      l.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap';
+      document.head.appendChild(l);
+    }
+    const s=document.createElement('style');
+    s.id='hyper-global';
+    s.textContent=`*{box-sizing:border-box}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
+    if(!document.getElementById('hyper-global')) document.head.appendChild(s);
+  },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
   const IDB_NAME="hyper_db", IDB_STORE="state", IDB_KEY="hyper_state";
@@ -3675,35 +3903,30 @@ export default function App(){
     const newEntries=extractLiftEntries(exs,mesoCount,meso.label,meso.week,isDeload);
     setLiftHistory(p=>[...p,...newEntries]);
 
-    // Persist SFR ratings on program exercises for next-meso rotation review
-    if(Object.keys(ratings).length>0){
-      setProgram(p=>p.map(day=>{
-        if(day.name!==dayName) return day;
-        return {...day,exercises:day.exercises.map(pex=>{
-          const loggedEx=exs.find(e=>e.name===pex.name);
-          if(!loggedEx||!ratings[loggedEx.id]) return pex;
-          const prev=pex.sfrHistory||[];
-          return {...pex,lastSFR:ratings[loggedEx.id],sfrHistory:[...prev,ratings[loggedEx.id]].slice(-6)};
-        })};
-      }));
-    }
-
-    // Update program with what was just logged so progression engine works next session
+    // Single setProgram call — merges SFR ratings + progression data atomically
+    // (two separate calls would cause the second to overwrite the first's changes)
     setProgram(p=>p.map(day=>{
       if(day.name!==dayName) return day;
       return {...day,exercises:day.exercises.map(pex=>{
-        const logged=exs.find(e=>e.name===pex.name);
-        if(!logged) return pex;
+        const loggedEx=exs.find(e=>e.name===pex.name);
+        // Apply SFR rating
+        const withSFR=(loggedEx&&ratings[loggedEx.id])?{
+          ...pex,
+          lastSFR:ratings[loggedEx.id],
+          sfrHistory:[...(pex.sfrHistory||[]),ratings[loggedEx.id]].slice(-6),
+        }:pex;
+        // Apply progression data
+        const logged=loggedEx;
+        if(!logged) return withSFR;
         const doneSets=logged.sets.filter(s=>s.done&&!s.incomplete&&s.weight&&s.reps);
         const normalSets=doneSets.filter(s=>s.type!=="drop");
-        if(!normalSets.length) return pex;
+        if(!normalSets.length) return withSFR;
         const topSet=normalSets.reduce((best,s)=>parseFloat(s.weight)>parseFloat(best.weight)?s:best,normalSets[0]);
         const scheme=buildScheme(logged.sets)||"";
-        // Reset sets for next session (fresh, same count, pre-fill suggested weight)
-        const nextSets=pex.sets.filter(s=>s.type!=="drop").map(()=>newSet(String(topSet.weight),"normal"));
-        const nextDrops=pex.sets.filter(s=>s.type==="drop").map(()=>newSet(String(snap(parseFloat(topSet.weight)*0.6)),"drop"));
+        const nextSets=withSFR.sets.filter(s=>s.type!=="drop").map(()=>newSet(String(topSet.weight),"normal"));
+        const nextDrops=withSFR.sets.filter(s=>s.type==="drop").map(()=>newSet(String(snap(parseFloat(topSet.weight)*0.6)),"drop"));
         return {
-          ...pex,
+          ...withSFR,
           lastWeight:String(topSet.weight),
           lastRIR:parseInt(topSet.rir)||0,
           lastReps:String(topSet.reps||""),
@@ -3713,7 +3936,7 @@ export default function App(){
       })};
     }));
 
-    // Compute allDone BEFORE any setProgram calls to avoid stale closure
+    // Compute allDone from updatedHistory (synchronous, not subject to setState batching)
     const thisWeekSessions=updatedHistory.filter(s=>s.week===meso.week&&s.mesoNum===mesoCount);
     const completedDays=new Set(thisWeekSessions.map(s=>s.day));
     const allDone=program.map(d=>d.name).every(n=>completedDays.has(n));
@@ -3730,7 +3953,6 @@ export default function App(){
   };
 
   const handleStartNextMeso=(goToPlanner,suggestedRepRange)=>{
-    const nextNum=mesoCount+1;
     const exp=profile?.experience||"intermediate";
     const newProgram=program.map(day=>({
       ...day,
@@ -3774,7 +3996,7 @@ export default function App(){
     // Build sibling list — exercises for same muscle on this day (after swap if applicable)
     const siblings=day.exercises.filter(e=>e.muscle===exMuscle&&(isSwap?e.name!==oldName:true)).map(e=>e.name);
     if(!siblings.includes(exName)) siblings.push(exName);
-    const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===exMuscle)||(d.id===dayId&&exMuscle===exMuscle)?1:0),0)||1;
+    const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===exMuscle)?1:0),0)||1;
     const muscleFreqActual=program.filter(d=>d.exercises.some(e=>e.muscle===exMuscle)).length||1;
     const totalExs=siblings.length;
     const pos=siblings.indexOf(exName);
@@ -3855,10 +4077,11 @@ export default function App(){
     }
   };
 
-  const [confirmStart,setConfirmStart]=useState(null); // stores the workout to start after confirmation
+  const [confirmStart,setConfirmStart]=useState(null);
   const [showProfile,setShowProfile]=useState(false);
   const [showResetConfirm,setShowResetConfirm]=useState(false);
-  const [toast,setToast]=useState(null); // {msg, ok}
+  const [toast,setToast]=useState(null);
+  const [pendingSpecOpen,setPendingSpecOpen]=useState(false);
   const showToast=(msg,ok=true)=>{setToast({msg,ok});setTimeout(()=>setToast(null),3000);};
   const [profileDraft,setProfileDraft]=useState(null); // local edits before save
   const [profileUpdatePrompt,setProfileUpdatePrompt]=useState(null); // {oldProfile, newProfile}
@@ -3880,11 +4103,10 @@ export default function App(){
       const sessionLabel="M"+sessionMesoNum+(s.isDeload?"DL":"W"+s.week);
       setLiftHistory(prev=>{
         const filtered=prev.filter(e=>!(e.mesoNum===sessionMesoNum&&e.week===s.week&&e.label===sessionLabel));
-        const newEntries=extractLiftEntries(cleanedExs,sessionMesoNum,s.mesoLabel||meso?.label||"",s.week,false);
+        const newEntries=extractLiftEntries(cleanedExs,sessionMesoNum,s.mesoLabel||meso?.label||"",s.week,s.isDeload||false);
         return [...filtered,...newEntries];
       });
       // Only sync progression engine if the edited session is the most recent for each exercise
-      const editedWeek=s.week;
       setProgram(p=>p.map(day=>{
         if(day.name!==s.day) return day;
         return {...day,exercises:day.exercises.map(pex=>{
@@ -3910,6 +4132,12 @@ export default function App(){
     setEditingSession(null);
   };
 
+  const handleSpecialize=()=>{
+    setMesoComplete(null);
+    setTab("plan");
+    setPendingSpecOpen(true);
+  };
+
   const handleExtendMeso=()=>{
     setMeso(m=>({...m,totalWeeks:m.totalWeeks+1}));
   };
@@ -3926,7 +4154,9 @@ export default function App(){
       const a=document.createElement("a");
       a.href=url;
       a.download=`hyper-backup-${new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"2-digit"}).replace(/[^a-z0-9]/gi,"-")}.json`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch(e){showToast("Export failed.",false);}
   };
@@ -3968,27 +4198,26 @@ export default function App(){
         if(!muscleExOrder[ex.muscle]) muscleExOrder[ex.muscle]=[];
         muscleExOrder[ex.muscle].push(ex.name);
       });
-      // Count how many times each muscle appears across all days
+      // Count how many days each muscle trains across the full program
       const muscleFreq={};
       p.forEach(d=>d.exercises.forEach(ex=>{
-        const ms=new Set(d.exercises.map(e=>e.muscle));
-        ms.forEach(m=>{muscleFreq[m]=(muscleFreq[m]||0)+(d===day?0:0);});
+        muscleFreq[ex.muscle]=(muscleFreq[ex.muscle]||0)+1;
       }));
-      // Use frequency of 1 per day (apply-to-program doesn't know full schedule context)
       return({
         ...day,
         exercises:day.exercises.map(ex=>{
           const lm=newMuscles[ex.muscle];
           if(!lm) return ex;
+          const freq=muscleFreq[ex.muscle]||1;
           const exsForMuscle=muscleExOrder[ex.muscle]||[ex.name];
           const posInMuscle=exsForMuscle.indexOf(ex.name);
           const totalExs=exsForMuscle.length;
           const taperWeights=totalExs===1?[1.0]:totalExs===2?[0.55,0.45]:[0.50,0.32,0.18];
           const weight=taperWeights[Math.min(posInMuscle,taperWeights.length-1)]||taperWeights[taperWeights.length-1];
           const minSets=ex.type==="compound"?3:2;
-          const mevSets=Math.min(expCap,Math.max(minSets,Math.round(lm.mev*weight)));
-          const mrvSets=Math.min(expCap+2,Math.max(mevSets+1,Math.round(lm.mav*weight)));
-          const mvSets=Math.max(1,Math.round(lm.mv*weight));
+          const mevSets=Math.min(expCap,Math.max(minSets,Math.round((lm.mev/freq)*weight)));
+          const mrvSets=Math.min(expCap+2,Math.max(mevSets+1,Math.round((lm.mav/freq)*weight)));
+          const mvSets=Math.max(1,Math.round((lm.mv/freq)*weight));
           const current=ex.sets.filter(s=>s.type!=="drop");
           let newSets;
           if(mevSets>current.length){
@@ -4051,7 +4280,7 @@ export default function App(){
     return(
       <ThemeCtx.Provider value={C}>
         <div style={{background:C.bg,minHeight:"100vh",maxWidth:480,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"center",paddingBottom:"env(safe-area-inset-bottom)"}}>
-          <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:28,fontWeight:900,letterSpacing:4,color:C.accent}}>HYPER</div>
+          <div style={{fontFamily:"'Inter',sans-serif",fontSize:22,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
         </div>
       </ThemeCtx.Provider>
     );
@@ -4066,17 +4295,17 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
       
-      <div style={{background:C.surf,borderBottom:"1px solid "+C.border,padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
-        <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:3,color:C.accent}}>HYPER</div>
+      <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
+        <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {meso?null:<div/>}
           <div onClick={()=>{setProfileDraft({...profile});setShowProfile(true);}} style={{width:28,height:28,borderRadius:"50%",background:C.accent+"22",border:"1px solid "+C.accent+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:700,color:C.accent,cursor:"pointer"}}>{initLetter}</div>
         </div>
       </div>
       {toast?(
-        <div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",left:"50%",transform:"translateX(-50%)",zIndex:900,background:toast.ok?C.green:C.red,color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px #0006",whiteSpace:"nowrap",pointerEvents:"none",transition:"opacity .3s"}}>
+        <div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",left:"50%",transform:"translateX(-50%)",zIndex:900,background:toast.ok?C.green:C.red,color:"#fff",borderRadius:6,padding:"10px 20px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px #0006",whiteSpace:"nowrap",pointerEvents:"none",transition:"opacity .3s"}}>
           {toast.msg}
         </div>
       ):null}
@@ -4084,73 +4313,71 @@ export default function App(){
         <div style={{position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>{setShowProfile(false);setShowResetConfirm(false);setProfileDraft(null);}}>
           <div style={{position:"absolute",inset:0,background:"#000a"}}/>
           <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:"16px 16px 0 0",width:"100%",maxWidth:480,maxHeight:"85vh",display:"flex",flexDirection:"column"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"20px 16px 16px",flexShrink:0}}>
-              <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:20,fontWeight:900,letterSpacing:1}}>PROFILE</div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>{setShowProfile(false);setShowResetConfirm(false);setProfileDraft(null);}} style={{background:"none",border:"1px solid "+C.border2,borderRadius:8,padding:"6px 12px",color:C.muted2,fontSize:12,cursor:"pointer"}}>Cancel</button>
-                <button onClick={handleProfileSave} style={{background:C.accent,border:"none",borderRadius:8,padding:"6px 14px",color:"#000",fontSize:12,fontWeight:700,cursor:"pointer"}}>Save</button>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"18px 16px 14px",flexShrink:0,borderBottom:"1px solid "+C.border+"60"}}>
+              <div style={{fontSize:14,fontWeight:900,letterSpacing:"0.15em",textTransform:"uppercase"}}>Profile</div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={()=>{setShowProfile(false);setShowResetConfirm(false);setProfileDraft(null);}} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"6px 12px",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",letterSpacing:"0.05em"}}>Cancel</button>
+                <button onClick={handleProfileSave} style={{background:C.accent,border:"none",borderRadius:4,padding:"6px 14px",color:"#000",fontSize:11,fontWeight:800,cursor:"pointer",letterSpacing:"0.05em"}}>Save</button>
               </div>
             </div>
             <div style={{flex:1,overflowY:"auto",padding:"0 16px 40px"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",marginBottom:8,borderBottom:"1px solid "+C.border}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 0",marginBottom:8,borderBottom:"1px solid "+C.border+"60"}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 {isDark?<IcoMoon sz={14} col={C.muted2}/>:<IcoSun sz={14} col={C.muted2}/>}
-                <span style={{fontSize:13,color:C.text,fontWeight:500}}>{isDark?"Dark mode":"Light mode"}</span>
+                <span style={{fontSize:13,color:C.text,fontWeight:600}}>{isDark?"Dark mode":"Light mode"}</span>
               </div>
               <button onClick={()=>setIsDark(p=>!p)} style={{width:44,height:24,borderRadius:12,background:isDark?C.accent:C.border2,border:"none",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
                 <span style={{position:"absolute",top:2,left:isDark?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 3px #0004"}}/>
               </button>
             </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Name</div>
-              <input value={profileDraft.name||""} onChange={e=>setProfileDraft(p=>({...p,name:e.target.value}))} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+              <div style={{fontSize:10,color:C.muted2,marginBottom:8,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>Name</div>
+              <input value={profileDraft.name||""} onChange={e=>setProfileDraft(p=>({...p,name:e.target.value}))} style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+C.border2,padding:"8px 0",color:C.text,fontSize:15,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Bodyweight (lbs)</div>
-              <input type="number" inputMode="decimal" value={profileDraft.bodyweight||""} onChange={e=>setProfileDraft(p=>({...p,bodyweight:parseFloat(e.target.value)||0}))} style={{width:"100%",background:C.card,border:"1px solid "+C.border,borderRadius:8,padding:"10px 12px",color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+              <div style={{fontSize:10,color:C.muted2,marginBottom:8,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>Bodyweight (lbs)</div>
+              <input type="number" inputMode="decimal" value={profileDraft.bodyweight||""} onChange={e=>setProfileDraft(p=>({...p,bodyweight:parseFloat(e.target.value)||0}))} style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+C.border2,padding:"8px 0",color:C.text,fontSize:15,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div style={{marginBottom:8}}>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Training Experience</div>
+              <div style={{fontSize:10,color:C.muted2,marginBottom:8,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase"}}>Training Experience</div>
               {[{id:"new",l:"Just getting started"},{id:"returning",l:"Getting back into it"},{id:"intermediate",l:"Lifting regularly"},{id:"advanced",l:"Long-term lifter"}].map(opt=>(
-                <button key={opt.id} onClick={()=>setProfileDraft(p=>({...p,experience:opt.id}))} style={{width:"100%",padding:"10px 12px",marginBottom:6,borderRadius:8,border:"1px solid "+(profileDraft.experience===opt.id?C.accent:C.border),background:profileDraft.experience===opt.id?C.accent+"15":C.card,color:profileDraft.experience===opt.id?C.accent:C.muted2,fontSize:13,fontWeight:profileDraft.experience===opt.id?700:400,cursor:"pointer",textAlign:"left",display:"block"}}>{opt.l}</button>
+                <button key={opt.id} onClick={()=>setProfileDraft(p=>({...p,experience:opt.id}))} style={{width:"100%",padding:"10px 12px",marginBottom:4,borderRadius:0,border:"none",borderLeft:"3px solid "+(profileDraft.experience===opt.id?C.accent:C.border2),background:profileDraft.experience===opt.id?C.accent+"15":C.card2,color:profileDraft.experience===opt.id?C.accent:C.muted2,fontSize:12,fontWeight:profileDraft.experience===opt.id?800:500,cursor:"pointer",textAlign:"left",display:"block",letterSpacing:"0.04em"}}>{opt.l}</button>
               ))}
-              {profileDraft.experience!==profile.experience&&program?.length>0?<div style={{fontSize:10,color:C.muted2,marginTop:2,display:"flex",alignItems:"center",gap:4}}><IcoWarn sz={10} col={C.muted2}/>Saving will prompt you to update your current program.</div>:null}
+              {profileDraft.experience!==profile.experience&&program?.length>0?<div style={{fontSize:10,color:C.muted2,marginTop:4,display:"flex",alignItems:"center",gap:4}}><IcoWarn sz={10} col={C.muted2}/>Saving will prompt you to update your current program.</div>:null}
             </div>
-            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Data</div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={handleExport} style={{flex:1,padding:"8px 10px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
+            <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid "+C.border+"60"}}>
+              <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data</div>
+              <div style={{display:"flex",gap:6}}>
+                <button onClick={handleExport} style={{flex:1,padding:"8px 10px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   Export
                 </button>
-                <label style={{flex:1,padding:"8px 10px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxSizing:"border-box"}}>
+                <label style={{flex:1,padding:"8px 10px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5,boxSizing:"border-box"}}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10" transform="rotate(180 12 12)"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Import
                   <input type="file" accept=".json" style={{display:"none"}} onChange={e=>handleImport(e.target.files[0])}/>
                 </label>
               </div>
             </div>
-            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
-              <div style={{fontSize:10,color:C.muted,letterSpacing:2,textTransform:"uppercase",marginBottom:6}}>Correct onboarding data</div>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:12,lineHeight:1.5}}>These were set during setup. Only change if you made a mistake.</div>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Biological Sex</div>
-              <div style={{display:"flex",gap:8,marginBottom:4}}>
+            <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid "+C.border+"60"}}>
+              <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6,fontWeight:700}}>Biological Sex</div>
+              <div style={{display:"flex",gap:5,marginBottom:16}}>
                 {["male","female"].map(s=>(
-                  <button key={s} onClick={()=>setProfileDraft(p=>({...p,sex:s}))} style={{flex:1,padding:"9px",borderRadius:8,border:"1px solid "+(profileDraft.sex===s?C.accent:C.border),background:profileDraft.sex===s?C.accent+"15":C.card,color:profileDraft.sex===s?C.accent:C.muted2,fontSize:13,fontWeight:profileDraft.sex===s?700:400,cursor:"pointer",textTransform:"capitalize"}}>{s}</button>
+                  <button key={s} onClick={()=>setProfileDraft(p=>({...p,sex:s}))} style={{flex:1,padding:"9px",borderRadius:0,border:"none",borderBottom:"2px solid "+(profileDraft.sex===s?C.accent:C.border2),background:profileDraft.sex===s?C.accent+"15":C.card2,color:profileDraft.sex===s?C.accent:C.muted2,fontSize:12,fontWeight:profileDraft.sex===s?800:500,cursor:"pointer",textTransform:"capitalize",letterSpacing:"0.06em"}}>{s}</button>
                 ))}
               </div>
             </div>
-            <div style={{marginTop:24,paddingTop:20,borderTop:"1px solid "+C.border}}>
+            <div style={{paddingTop:16,borderTop:"1px solid "+C.border+"60"}}>
               {showResetConfirm?(
-                <div style={{background:C.card,border:"1px solid "+C.border2,borderRadius:10,padding:"14px"}}>
+                <div style={{background:C.card2,borderLeft:"3px solid "+C.red,padding:"14px"}}>
                   <div style={{fontSize:12,color:C.muted2,marginBottom:12,lineHeight:1.6}}>All training data, history, and records will be permanently deleted.</div>
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setShowResetConfirm(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,cursor:"pointer",fontSize:12}}>Cancel</button>
-                    <button onClick={handleReset} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.red+"55",borderRadius:8,color:C.red,cursor:"pointer",fontSize:12,fontWeight:600}}>Delete &amp; Reset</button>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>setShowResetConfirm(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:11,fontWeight:600}}>Cancel</button>
+                    <button onClick={handleReset} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.red+"55",borderRadius:4,color:C.red,cursor:"pointer",fontSize:11,fontWeight:700}}>Delete &amp; Reset</button>
                   </div>
                 </div>
               ):(
-                <button onClick={()=>setShowResetConfirm(true)} style={{background:"none",border:"none",padding:0,color:C.muted,fontSize:12,cursor:"pointer",textDecoration:"underline",textDecorationColor:C.muted+"66"}}>
+                <button onClick={()=>setShowResetConfirm(true)} style={{background:"none",border:"none",padding:0,color:C.muted,fontSize:11,cursor:"pointer",textDecoration:"underline",textDecorationColor:C.muted+"66"}}>
                   Start over &amp; clear all data
                 </button>
               )}
@@ -4162,16 +4389,16 @@ export default function App(){
       {profileUpdatePrompt?(
         <div style={{position:"fixed",inset:0,zIndex:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 24px"}}>
           <div style={{position:"absolute",inset:0,background:"#000a"}}/>
-          <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:14,padding:"22px 20px",width:"100%",maxWidth:340}}>
-            <div style={{fontSize:15,fontWeight:700,marginBottom:8}}>Update current program?</div>
+          <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:6,padding:"22px 20px",width:"100%",maxWidth:340}}>
+            <div style={{fontSize:13,fontWeight:800,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Update current program?</div>
             <div style={{fontSize:12,color:C.muted2,lineHeight:1.7,marginBottom:20}}>
               Your {profileUpdatePrompt.oldProfile.experience!==profileUpdatePrompt.newProfile.experience?"experience level":"profile"} changed. The app can recalculate your current program's set counts to match your updated {profileUpdatePrompt.oldProfile.experience!==profileUpdatePrompt.newProfile.experience?"training level":"profile"}.
             </div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              <button onClick={()=>{handleApplyProfileToProgram(profileUpdatePrompt.newProfile);setProfileUpdatePrompt(null);}} style={{width:"100%",padding:"12px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:14,fontWeight:900,letterSpacing:2,cursor:"pointer"}}>
-                UPDATE NOW
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <button onClick={()=>{handleApplyProfileToProgram(profileUpdatePrompt.newProfile);setProfileUpdatePrompt(null);}} style={{width:"100%",padding:"12px",background:C.accent,color:"#000",border:"none",borderRadius:4,fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:900,letterSpacing:"0.1em",cursor:"pointer",textTransform:"uppercase"}}>
+                Update Now
               </button>
-              <button onClick={()=>setProfileUpdatePrompt(null)} style={{width:"100%",padding:"11px",background:"none",border:"1px solid "+C.border2,borderRadius:10,color:C.muted2,fontSize:13,cursor:"pointer"}}>
+              <button onClick={()=>setProfileUpdatePrompt(null)} style={{width:"100%",padding:"11px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,fontSize:12,cursor:"pointer",letterSpacing:"0.04em"}}>
                 Apply from next meso only
               </button>
             </div>
@@ -4182,17 +4409,17 @@ export default function App(){
       {confirmStart?(
         <div style={{position:"fixed",inset:0,zIndex:700,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 24px"}} onClick={()=>setConfirmStart(null)}>
           <div style={{position:"absolute",inset:0,background:"#000a"}}/>
-          <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:14,padding:"20px",width:"100%",maxWidth:340}}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Replace current session?</div>
+          <div onClick={e=>e.stopPropagation()} style={{position:"relative",background:C.surf,borderRadius:6,padding:"20px",width:"100%",maxWidth:340}}>
+            <div style={{fontSize:13,fontWeight:800,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>Replace current session?</div>
             <div style={{fontSize:12,color:C.muted2,lineHeight:1.6,marginBottom:16}}>You have <strong style={{color:C.text}}>{activeLog?.name}</strong> in progress. Starting a new session will discard it.</div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setConfirmStart(null)} style={{flex:1,padding:"10px",background:"none",border:"1px solid "+C.border2,borderRadius:8,color:C.muted2,cursor:"pointer",fontSize:13}}>Keep Current</button>
-              <button onClick={()=>{setActiveLog(confirmStart);setLoggerOpen(true);setConfirmStart(null);}} style={{flex:1,padding:"10px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:8,color:C.red,cursor:"pointer",fontSize:13,fontWeight:700}}>Start New</button>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>setConfirmStart(null)} style={{flex:1,padding:"10px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:12,fontWeight:600}}>Keep Current</button>
+              <button onClick={()=>{setActiveLog(confirmStart);setLoggerOpen(true);setConfirmStart(null);}} style={{flex:1,padding:"10px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:4,color:C.red,cursor:"pointer",fontSize:12,fontWeight:800}}>Start New</button>
             </div>
           </div>
         </div>
       ):null}
-      {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)}/>:null}
+      {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)} onSpecialize={handleSpecialize}/>:null}
       {activeLog?(()=>{const _lastNote=(history.find(h=>h.day===activeLog.name&&h.note)||{}).note||null;return(<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs} exUpdateKey={exUpdateKey} lastSessionNote={_lastNote}/>);})():null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
       <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
@@ -4206,12 +4433,12 @@ export default function App(){
           }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso} onSetDeloadStyle={handleSetDeloadStyle}/>
         ):(
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",textAlign:"center"}}>
-            <div style={{width:64,height:64,borderRadius:16,background:C.card,border:"1px solid "+C.border2,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
+            <div style={{width:56,height:56,borderRadius:0,background:C.card2,border:"none",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
               <IcoPlan active={false}/>
             </div>
-            <div style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:26,fontWeight:900,letterSpacing:-0.5,marginBottom:8}}>NO ACTIVE MESO</div>
+            <div style={{fontFamily:"'Inter',sans-serif",fontSize:26,fontWeight:900,letterSpacing:-0.5,marginBottom:8}}>NO ACTIVE MESO</div>
             <div style={{fontSize:13,color:C.muted2,lineHeight:1.7,marginBottom:28,maxWidth:280}}>Go to the Plan tab and use Quick Build — pick your split, available days, and the app fills in the rest.</div>
-            <button onClick={()=>setTab("plan")} style={{padding:"14px 32px",background:C.accent,color:"#000",border:"none",borderRadius:10,fontFamily:"'Barlow Condensed',sans-serif",fontSize:15,fontWeight:900,letterSpacing:3,cursor:"pointer"}}>BUILD PROGRAM</button>
+            <button onClick={()=>setTab("plan")} style={{padding:"14px 32px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer"}}>BUILD PROGRAM</button>
           </div>
         )}
       </div>
@@ -4219,19 +4446,21 @@ export default function App(){
         <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)}/>
+        <PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
       </div>
       <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
       </div>
-      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border,display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
         {TABS.map(t=>{
           const Icon=TICONS[t.id];
           const active=tab===t.id;
           return(
             <button key={t.id} onClick={()=>setTab(t.id)} style={{flex:1,padding:"10px 0 8px",background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:4,color:active?C.accent:C.muted,transition:"color .15s"}}>
-              <Icon active={active}/>
-              <span style={{fontSize:9,letterSpacing:1.5,textTransform:"uppercase",fontWeight:active?700:400}}>{t.label}</span>
+              <div style={{padding:"4px 12px",borderRadius:4,background:active?C.accent+"15":"transparent",transition:"background .15s"}}>
+                <Icon active={active}/>
+              </div>
+              <span style={{fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",fontWeight:active?800:500}}>{t.label}</span>
             </button>
           );
         })}
