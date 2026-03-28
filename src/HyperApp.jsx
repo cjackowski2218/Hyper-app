@@ -858,6 +858,35 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
       return {...found,...repOverride,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,mvSets,sets};
     }).filter(Boolean);
 
+    // ── Post-build weekly volume cap ────────────────────────────────────────
+    // The minimum-set floor can cause weekly totals to exceed MAV when a muscle
+    // appears 2+ times per day at high frequency. Trim proportionally if needed.
+    const perMuscleSets={};
+    exercises.forEach(ex=>{
+      perMuscleSets[ex.muscle]=(perMuscleSets[ex.muscle]||0)+ex.mevSets;
+    });
+    Object.entries(perMuscleSets).forEach(([m,dayTotal])=>{
+      const lm=muscles&&muscles[m];
+      if(!lm||!lm.mav) return;
+      const freq=muscleFreq[m]||1;
+      const weeklyProjected=dayTotal*freq;
+      if(weeklyProjected<=lm.mav) return;
+      // Scale down sets for this muscle proportionally, minimum 1 set per exercise
+      const scale=lm.mav/(weeklyProjected);
+      let remaining=Math.round(lm.mav/freq); // target per-day total
+      const exsForMuscle=exercises.filter(e=>e.muscle===m);
+      exsForMuscle.forEach((ex,i)=>{
+        const isLast=i===exsForMuscle.length-1;
+        const trimmed=isLast?Math.max(1,remaining):Math.max(1,Math.round(ex.mevSets*scale));
+        remaining-=trimmed;
+        ex.mevSets=trimmed;
+        ex.sets=Array(trimmed).fill(null).map(()=>newSet("","normal"));
+        // Keep mrvSets >= mevSets+1
+        ex.mrvSets=Math.max(ex.mevSets+1,ex.mrvSets);
+      });
+    });
+    // ────────────────────────────────────────────────────────────────────────
+
     return {id:uid("d"),day:days[i]||"Monday",name:t.name+suffix,exercises};
   });
 }
@@ -2930,9 +2959,30 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
 function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
+  const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
   const [expDay,setExpDay]=useState(null);
   const [confirmNew,setConfirmNew]=useState(false);
   const [picker,setPicker]=useState(null);
+
+  // Compute week-1 planned volume per muscle to surface pre-session warnings
+  const weeklyVol=useMemo(()=>{
+    const vol={};
+    program.forEach(d=>d.exercises.forEach(ex=>{
+      vol[ex.muscle]=(vol[ex.muscle]||0)+ex.mevSets;
+    }));
+    return vol;
+  },[program]);
+
+  const volWarnings=useMemo(()=>{
+    const w={};
+    Object.entries(weeklyVol).forEach(([m,total])=>{
+      const lm=muscles[m];
+      if(!lm) return;
+      if(total>lm.mrv) w[m]={level:"over",msg:`${total} sets — exceeds MRV (${lm.mrv}). Reduce volume.`};
+      else if(total>lm.mav) w[m]={level:"high",msg:`${total} sets — above MAV (${lm.mav}). Too high for week 1.`};
+    });
+    return w;
+  },[weeklyVol,muscles]);
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
       {picker?<ExPicker library={library} title={picker.swapName?"Swap Exercise":"Add Exercise"} excludeNames={picker.swapName?[]:(program.find(d=>d.id===picker.dayId)||{exercises:[]}).exercises.map(e=>e.name)} onAdd={ex=>{
@@ -3021,6 +3071,24 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
                       </div>
                     ))}
                   </div>
+                  {/* Volume warnings for muscles in this day */}
+                  {(()=>{
+                    const dayMuscles=[...new Set(day.exercises.map(e=>e.muscle))];
+                    const warnings=dayMuscles.filter(m=>volWarnings[m]);
+                    if(!warnings.length) return null;
+                    return(
+                      <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:4}}>
+                        {warnings.map(m=>(
+                          <div key={m} style={{display:"flex",alignItems:"flex-start",gap:6,padding:"7px 10px",background:volWarnings[m].level==="over"?C.red+"12":C.accent+"12",borderLeft:"3px solid "+(volWarnings[m].level==="over"?C.red:C.accent)}}>
+                            <IcoWarn sz={10} col={volWarnings[m].level==="over"?C.red:C.accent}/>
+                            <div style={{fontSize:10,color:C.muted2,lineHeight:1.4}}>
+                              <strong style={{color:volWarnings[m].level==="over"?C.red:C.accent}}>{m}:</strong> {volWarnings[m].msg}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <button onClick={()=>setPicker({dayId:day.id})} style={{width:"100%",marginTop:12,padding:"8px",background:C.card2,border:"none",borderLeft:"3px solid "+C.accent,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"left",letterSpacing:"0.06em",textTransform:"uppercase"}}>
                     + Add Exercise
                   </button>
@@ -3975,7 +4043,15 @@ export default function App(){
   };
 
   const handleLaunch=(newMeso,newProg)=>{
-    const startDate=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+    // Find the first upcoming training day from the program (today or next occurring weekday)
+    const todayIdx=WEEK_DAYS.indexOf(getTodayName());
+    const sorted=newProg.slice().sort((a,b)=>WEEK_DAYS.indexOf(a.day)-WEEK_DAYS.indexOf(b.day));
+    const upcoming=sorted.find(d=>WEEK_DAYS.indexOf(d.day)>=todayIdx)||sorted[0];
+    const startDate=upcoming
+      ? upcoming.day===getTodayName()
+        ? new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+        : upcoming.day+", "+new Date(Date.now()+(WEEK_DAYS.indexOf(upcoming.day)-todayIdx+7)%7*86400000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+      : new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
     setMeso({...newMeso,startDate});
     setProgram(newProg);
     setMesoCount(p=>p+1);
