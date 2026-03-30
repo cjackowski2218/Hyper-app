@@ -3981,7 +3981,7 @@ export default function App(){
     }
     const s=document.createElement('style');
     s.id='hyper-global';
-    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;padding-bottom:env(safe-area-inset-bottom);}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
+    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;height:100%;margin:0;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
     // Register Service Worker for offline support + auto-updates
@@ -4787,7 +4787,7 @@ export default function App(){
       <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
       </div>
-      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)"}}>
+      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)",marginBottom:0,boxShadow:"0 calc(env(safe-area-inset-bottom)) 0 0 "+C.surf}}>
         {TABS.map(t=>{
           const Icon=TICONS[t.id];
           const active=tab===t.id;
