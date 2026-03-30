@@ -1921,8 +1921,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
           <span style={{fontSize:10,color:C.muted,flexShrink:0,fontWeight:700,letterSpacing:"0.06em"}}>{don}/{tot}</span>
         </div>
       </div>
-      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}} onTouchStart={e=>{if(e.target.tagName!=="INPUT"&&e.target.tagName!=="TEXTAREA"&&document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA")){document.activeElement.blur();}}}>
-        <div ref={listRef} style={{padding:"8px 12px 120px",position:"relative"}}>
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}} onTouchStart={e=>{const tag=e.target.tagName;if(tag!=="INPUT"&&tag!=="TEXTAREA"&&tag!=="BUTTON"&&!e.target.closest("button")&&document.activeElement&&(document.activeElement.tagName==="INPUT"||document.activeElement.tagName==="TEXTAREA")){document.activeElement.blur();}}}>        <div ref={listRef} style={{padding:"8px 12px 120px",position:"relative"}}>
           {lastSessionNote&&!noteDismissed?(
             <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.surf,border:"1px solid "+C.border2,borderRadius:4,padding:"10px 12px",marginBottom:10}}>
               <div style={{flex:1}}>
