@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceL
 
 // ── Google Drive Sync ─────────────────────────────────────────────────────────
 // Replace GOOGLE_CLIENT_ID after setting up a project at console.cloud.google.com
-const GDRIVE_CLIENT_ID="YOUR_CLIENT_ID_HERE.apps.googleusercontent.com";
+const GDRIVE_CLIENT_ID="385473971299-01ottoohahiub46hqfp11rg7tl7o0s6q.apps.googleusercontent.com";
 const GDRIVE_BACKUP_FILE="hyper-backup.json";
 const GDRIVE_API="https://www.googleapis.com/drive/v3";
 const GDRIVE_UPLOAD="https://www.googleapis.com/upload/drive/v3";
