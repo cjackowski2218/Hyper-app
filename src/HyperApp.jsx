@@ -425,7 +425,7 @@ function buildChartData(liftHistory,exerciseName){
   entries.forEach(e=>{seen[e.label]=e;});
   const deduped=[];
   entries.forEach(e=>{if(seen[e.label]===e) deduped.push(e);});
-  return deduped.map(e=>({label:e.label,v:e.topSetWeight,meso:e.mesoNum,deload:e.isDeload,date:e.date}));
+  return deduped.map(e=>({label:e.label,v:Math.round(e1rm(e.topSetWeight,e.topSetReps||1)),meso:e.mesoNum,deload:e.isDeload,date:e.date,rawWeight:e.topSetWeight,reps:e.topSetReps}));
 }
 
 const INIT_LIBRARY=[
@@ -935,9 +935,12 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
 
       const rrScale=getRRScale(repRange);
       const isCompound=found.type==="compound";
+      const exProf=getProfile(found.name);
+      // Rep range scale sets the target range, but EX_PROFILE minimums act as a floor
+      // e.g. a lateral raise (iso) won't go below its natural 15-rep minimum even in Power mode
       const repOverride=isCompound
-        ?{minReps:rrScale.compoundMin, maxReps:rrScale.compoundMax}
-        :{minReps:rrScale.isoMin, maxReps:rrScale.isoMax};
+        ?{minReps:Math.max(rrScale.compoundMin, exProf.minReps), maxReps:Math.max(rrScale.compoundMax, exProf.minReps+2)}
+        :{minReps:Math.max(rrScale.isoMin, exProf.minReps), maxReps:Math.max(rrScale.isoMax, exProf.minReps+4)};
       const sets=Array(mevSets).fill(null).map(()=>newSet("","normal"));
       return {...found,...repOverride,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,mvSets,sets};
     }).filter(Boolean);
@@ -1579,12 +1582,26 @@ function ProgBanner({ex,wk,totalWeeks,isDeload,deloadStyle}){
   );
 }
 
-function ExPicker({library,onAdd,onClose,title,excludeNames,defaultMuscle}){
+function ExPicker({library,onAdd,onClose,title,excludeNames,defaultMuscle,setLibrary}){
   const C=useContext(ThemeCtx);
   const [q,setQ]=useState("");
   const [filt,setFilt]=useState(defaultMuscle||"All");
+  const [showCreate,setShowCreate]=useState(false);
+  const [newEx,setNewEx]=useState({name:"",muscle:defaultMuscle&&defaultMuscle!=="All"?defaultMuscle:"Chest",type:"compound"});
+  const [createError,setCreateError]=useState("");
   const muscles=["All",...Object.keys(MC)];
   const list=library.filter(e=>e.name.toLowerCase().includes(q.toLowerCase())&&(filt==="All"||e.muscle===filt)&&!(excludeNames&&excludeNames.includes(e.name)));
+
+  const handleCreate=()=>{
+    if(!newEx.name.trim()){setCreateError("Name required.");return;}
+    if(library.some(e=>e.name.toLowerCase()===newEx.name.trim().toLowerCase())){setCreateError("Already exists.");return;}
+    const ex={...newEx,name:newEx.name.trim(),fav:false};
+    const isIso=ex.type==="isolation";
+    EX_PROFILE[ex.name]={type:ex.type,pct:isIso?0.015:0.025,preferReps:isIso,minReps:isIso?10:5,maxReps:isIso?20:15};
+    setLibrary&&setLibrary(p=>[...p,ex]);
+    onAdd(ex);
+    onClose();
+  };
   return(
     <div style={{position:"fixed",inset:0,zIndex:400,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
       <div style={{position:"absolute",inset:0,background:"#000b"}} onClick={onClose}/>
@@ -1618,6 +1635,29 @@ function ExPicker({library,onAdd,onClose,title,excludeNames,defaultMuscle}){
             </div>
           ))}
           {list.length===0?<div style={{padding:"20px 0",textAlign:"center",color:C.muted,fontSize:12}}>No exercises found</div>:null}
+          {/* Create custom exercise inline */}
+          {showCreate?(
+            <div style={{marginTop:12,borderTop:"1px solid "+C.border,paddingTop:12}}>
+              <SLbl>New Custom Exercise</SLbl>
+              <input value={newEx.name} onChange={e=>{setNewEx(p=>({...p,name:e.target.value}));setCreateError("");}} placeholder="Exercise name" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(createError?C.red:C.border2),padding:"10px 0",color:C.text,fontSize:13,outline:"none",marginBottom:createError?4:8,boxSizing:"border-box"}}/>
+              {createError?<div style={{fontSize:10,color:C.red,marginBottom:8,fontWeight:600}}>{createError}</div>:null}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+                <select value={newEx.muscle} onChange={e=>setNewEx(p=>({...p,muscle:e.target.value}))} style={{background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
+                  {Object.keys(MC).map(m=><option key={m}>{m}</option>)}
+                </select>
+                <select value={newEx.type} onChange={e=>setNewEx(p=>({...p,type:e.target.value}))} style={{background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
+                  <option value="compound">Compound</option>
+                  <option value="isolation">Isolation</option>
+                </select>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setShowCreate(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border,borderRadius:4,color:C.muted,cursor:"pointer",fontSize:12}}>Cancel</button>
+                <button onClick={handleCreate} style={{flex:2,padding:"9px",background:C.accent,border:"none",borderRadius:4,color:"#000",cursor:"pointer",fontSize:12,fontWeight:700}}>Add & Select</button>
+              </div>
+            </div>
+          ):(
+            <button onClick={()=>setShowCreate(true)} style={{width:"100%",marginTop:12,padding:"10px",background:"none",border:"1px solid "+C.border2,borderLeft:"3px solid "+C.accent,borderRadius:0,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"left",letterSpacing:"0.06em",textTransform:"uppercase"}}>+ Create Custom Exercise</button>
+          )}
         </div>
       </div>
     </div>
@@ -1698,7 +1738,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
             </div>
           );
         })}
-        <button onClick={()=>onComplete(exs,ratings,sessionNote)} style={{width:"100%",marginTop:8,padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",transition:"all .2s"}} onPointerDown={e=>e.currentTarget.style.pointerEvents="none"} onPointerUp={e=>{setTimeout(()=>e.currentTarget&&(e.currentTarget.style.pointerEvents=""),1500);}}>
+        <button onClick={()=>onComplete(exs,ratings,sessionNote)} style={{width:"100%",marginTop:8,padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",transition:"all .2s"}}>
           SAVE SESSION
         </button>
       </div>
@@ -2258,7 +2298,7 @@ function SessionEditModal({session,onSave,onClose}){
           }):<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No detailed set data for this session</div>}
         </div>
         <div style={{padding:"12px 16px",borderTop:"1px solid "+C.border,flexShrink:0}}>
-          <button onClick={()=>onSave(note,exs)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer"}} onPointerDown={e=>e.currentTarget.style.pointerEvents="none"} onPointerUp={e=>{setTimeout(()=>e.currentTarget&&(e.currentTarget.style.pointerEvents=""),1500);}}>SAVE CHANGES</button>
+          <button onClick={()=>onSave(note,exs)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer"}}>SAVE CHANGES</button>
         </div>
       </div>
     </div>
@@ -2379,7 +2419,7 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,onSpe
               <div style={{fontSize:9,color:C.accent,marginTop:3,letterSpacing:"0.06em",textTransform:"uppercase",fontWeight:700}}>Suggested next</div>
             </div>
           </div>
-          <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>RP recommends rotating rep ranges across mesos to prevent accommodation and protect joints.</div>
+          <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>It is recommended to rotate rep ranges across mesos to prevent accommodation and protect joints.</div>
         </Card>
         {meso.mode==="specialization"?(
           <div style={{background:C.blue+"12",border:"1px solid "+C.blue+"33",borderRadius:6,padding:"12px 14px",marginBottom:16}}>
@@ -2398,7 +2438,7 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,onSpe
   );
 }
 
-function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit,onExtendMeso,onSetDeloadStyle}){
+function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit,onExtendMeso,onSetDeloadStyle,driveConnected,driveNudgeDismissed,onDriveNudgeDismiss,onOpenProfile}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
@@ -2615,8 +2655,8 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
                 <div style={{fontSize:11,fontWeight:800,color:C.blue,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:4}}>Back up your data</div>
                 <div style={{fontSize:11,color:C.muted2,lineHeight:1.6,marginBottom:10}}>Connect Google Drive so your training history is never lost — even if the app is reinstalled.</div>
                 <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>{setShowProfile(true);setProfileDraft(profile?{...profile}:{name:"",sex:"male",experience:"intermediate",bodyweight:""});}} style={{padding:"7px 14px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer",letterSpacing:"0.06em"}}>Connect</button>
-                  <button onClick={()=>{setDriveNudgeDismissed(true);try{localStorage.setItem("hyper_drive_nudge_dismissed","1");}catch(_){}}} style={{padding:"7px 12px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted,fontSize:11,cursor:"pointer"}}>Maybe later</button>
+                  <button onClick={onOpenProfile} style={{padding:"7px 14px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer",letterSpacing:"0.06em"}}>Connect</button>
+                  <button onClick={onDriveNudgeDismiss} style={{padding:"7px 12px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted,fontSize:11,cursor:"pointer"}}>Maybe later</button>
                 </div>
               </div>
             </div>
@@ -2828,7 +2868,7 @@ function ChartDot(props){
   return <circle cx={cx} cy={cy} r={4} fill={C.accent}/>;
 }
 
-function HistoryTab({onGlossary,liftHistory}){
+function HistoryTab({liftHistory}){
   const C=useContext(ThemeCtx);
   if(!liftHistory||liftHistory.length===0){
     return(
@@ -2844,6 +2884,7 @@ function HistoryTab({onGlossary,liftHistory}){
   const [aMuscle,setAMuscle]=useState(allMuscles[0]||"");
   const [aEx,setAEx]=useState(allExercises[0]||"");
   const [zoom,setZoom]=useState("alltime");
+  const [chartInfoOpen,setChartInfoOpen]=useState(false);
   // Reset selections when history grows (e.g. after a session is completed)
   useEffect(()=>{
     if(allMuscles.length>0&&!allMuscles.includes(aMuscle)){
@@ -2870,8 +2911,9 @@ function HistoryTab({onGlossary,liftHistory}){
     const entries=liftHistory.filter(e=>e.exercise===aEx&&!e.isDeload);
     const byMeso={};
     entries.forEach(e=>{
-      if(!byMeso[e.mesoNum]||e.topSetWeight>byMeso[e.mesoNum].weight){
-        byMeso[e.mesoNum]={mesoNum:e.mesoNum,label:e.mesoLabel||("Meso "+e.mesoNum),weight:e.topSetWeight};
+      const est=e1rm(e.topSetWeight,e.topSetReps||1);
+      if(!byMeso[e.mesoNum]||est>byMeso[e.mesoNum].e1rmVal){
+        byMeso[e.mesoNum]={mesoNum:e.mesoNum,label:e.mesoLabel||("Meso "+e.mesoNum),weight:Math.round(est),e1rmVal:est,rawWeight:e.topSetWeight,reps:e.topSetReps};
       }
     });
     return Object.values(byMeso).sort((a,b)=>a.mesoNum-b.mesoNum);
@@ -2891,10 +2933,18 @@ function HistoryTab({onGlossary,liftHistory}){
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
       {/* Lift chart */}
       <Section>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
-          <SLbl>Lift Progress</SLbl>
-          <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"3px 9px",color:C.muted2,fontSize:10,cursor:"pointer",fontWeight:600,letterSpacing:"0.05em"}}>Glossary</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <SLbl style={{marginBottom:0}}>Lift Progress</SLbl>
+          <button onClick={()=>setChartInfoOpen(p=>!p)} style={{background:"none",border:"1px solid "+(chartInfoOpen?C.blue:C.border2),borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:chartInfoOpen?C.blue:C.muted,fontSize:11,fontWeight:800,padding:0,flexShrink:0}}>i</button>
         </div>
+        {chartInfoOpen?(
+          <div style={{background:C.card2,borderLeft:"3px solid "+C.blue,padding:"11px 13px",marginBottom:14,fontSize:11,color:C.muted2,lineHeight:1.7}}>
+            <div style={{fontWeight:700,color:C.text,marginBottom:5,fontSize:11,letterSpacing:"0.02em"}}>What you're looking at</div>
+            Each point is your <strong style={{color:C.muted2}}>estimated one-rep max (e1RM)</strong> — calculated from your top set using the Epley formula: <em>weight × (1 + reps ÷ 30)</em>. You never need to test a real 1RM. The formula converts any set — 185×10 or 225×4 — into one comparable number.<br/><br/>
+            This matters when you rotate rep ranges across mesos. Without e1RM, switching to a strength meso looks like a huge weight jump on the chart when it's really just fewer reps at heavier load. e1RM strips that noise so the trend reflects <strong style={{color:C.muted2}}>actual strength change</strong>, not rep range change.<br/><br/>
+            {zoom==="alltime"?<span>The <strong style={{color:C.muted2}}>dashed lines</strong> mark meso boundaries. A dip after each deload is normal — deload weight is intentionally lighter. What matters is that each meso's peak climbs higher than the last.</span>:<span>Switch to <strong style={{color:C.muted2}}>All Mesos</strong> to see your full long-term trend across every training block.</span>}
+          </div>
+        ):null}
         {liftHistory.length===0?(
           <div style={{padding:"32px 0",textAlign:"center",color:C.muted,fontSize:12}}>Complete your first session to start tracking lift progress</div>
         ):(
@@ -2914,21 +2964,19 @@ function HistoryTab({onGlossary,liftHistory}){
             </div>
             {chartData.length>0?(
               <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div style={{fontSize:9,color:C.muted,letterSpacing:"0.08em",textTransform:"uppercase",fontWeight:600}}>Estimated 1RM (lbs)</div>
+                  <div style={{fontSize:9,color:C.muted,letterSpacing:"0.04em"}}>Tap point to see actual lift</div>
+                </div>
                 <ResponsiveContainer width="100%" height={180}>
                   <LineChart data={chartData} margin={{top:4,right:4,left:-20,bottom:0}}>
                     <XAxis dataKey="label" tick={{fontSize:9,fill:C.muted}} axisLine={false} tickLine={false} interval={zoom==="alltime"?2:0}/>
                     <YAxis tick={{fontSize:10,fill:C.muted}} axisLine={false} tickLine={false} domain={["auto","auto"]}/>
-                    <Tooltip contentStyle={{background:C.card2,border:"none",borderRadius:4,fontSize:11}} itemStyle={{color:C.accent}} labelStyle={{color:C.muted2}} formatter={(v,_,entry)=>[v+" lbs"+(entry.payload&&entry.payload.deload?" (deload)":""),entry.payload?.date||""]} labelFormatter={l=>l}/>
+                    <Tooltip contentStyle={{background:C.card2,border:"none",borderRadius:4,fontSize:11}} itemStyle={{color:C.accent}} labelStyle={{color:C.muted2}} formatter={(v,_,entry)=>{const p=entry.payload;const detail=p&&p.rawWeight&&p.reps?` (${p.rawWeight}×${p.reps})`:""+(p&&p.deload?" · deload":"");return[v+" lbs e1RM"+detail, p?.date||""];}} labelFormatter={l=>l}/>
                     {zoom==="alltime"?bounds.map(b=><ReferenceLine key={b} x={b} stroke={C.border2} strokeDasharray="3 3"/>):null}
                     <Line type="monotone" dataKey="v" stroke={C.accent} strokeWidth={2} dot={<ChartDot/>} activeDot={{r:6,fill:C.accent}} connectNulls/>
                   </LineChart>
                 </ResponsiveContainer>
-                {zoom==="alltime"?(
-                  <div style={{marginTop:10,padding:"9px 12px",background:C.card2,borderLeft:"3px solid "+C.blue,fontSize:11,color:C.muted2,lineHeight:1.5,display:"flex",alignItems:"flex-start",gap:7}}>
-                    <IcoUp sz={12} col={C.blue}/>
-                    <span>The dip after each deload is intentional. You come back lighter and build to a new peak.</span>
-                  </div>
-                ):null}
               </div>
             ):<div style={{padding:"24px 0",textAlign:"center",color:C.muted,fontSize:12}}>No history yet for this exercise</div>}
           </div>
@@ -2958,7 +3006,7 @@ function HistoryTab({onGlossary,liftHistory}){
                       <div style={{flex:1,height:5,background:C.card2,overflow:"hidden"}}>
                         <div style={{height:"100%",width:barW+"%",background:barColor,transition:"width .5s"}}/>
                       </div>
-                      <div style={{fontSize:13,fontWeight:800,color:C.text,minWidth:52,textAlign:"right"}}>{p.weight} lbs</div>
+                      <div style={{fontSize:13,fontWeight:800,color:C.text,minWidth:52,textAlign:"right"}}>{p.weight} <span style={{fontSize:9,fontWeight:500,color:C.muted}}>e1RM</span></div>
                       <div style={{minWidth:44,textAlign:"right"}}>
                         {trending==="up"?<span style={{fontSize:11,fontWeight:700,color:C.green}}>+{diff}</span>:
                          trending==="down"?<span style={{fontSize:11,fontWeight:700,color:C.red}}>{diff}</span>:
@@ -3008,8 +3056,8 @@ function HistoryTab({onGlossary,liftHistory}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <div style={{textAlign:"right"}}>
-                    <span style={{fontSize:14,fontWeight:900,color:C.accent}}>{p.weight}<span style={{fontSize:10,fontWeight:400,color:C.muted,marginLeft:2}}>lbs</span></span>
-                    {p.reps>1?<div style={{fontSize:9,color:C.muted,letterSpacing:"0.06em"}}>×{p.reps} REPS</div>:null}
+                    <span style={{fontSize:14,fontWeight:900,color:C.accent}}>{Math.round(e1rm(p.weight,p.reps||1))}<span style={{fontSize:9,fontWeight:400,color:C.muted,marginLeft:2}}>e1RM</span></span>
+                    <div style={{fontSize:9,color:C.muted,letterSpacing:"0.06em"}}>{p.weight} lbs ×{p.reps}</div>
                   </div>
                 </div>
               </div>
@@ -3045,7 +3093,7 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
         <div style={{padding:"6px 14px 100px"}}>
           {sub==="meso"&&hasMeso?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles}/>:null}
           {sub==="meso"&&!hasMeso?<div style={{padding:"40px 0",textAlign:"center",color:C.muted,fontSize:13,lineHeight:1.7}}>No active mesocycle. Your lift history is in the History tab.</div>:null}
-          {sub==="history"?<HistoryTab onGlossary={onGlossary} liftHistory={liftHistory}/>:null}
+          {sub==="history"?<HistoryTab liftHistory={liftHistory}/>:null}
         </div>
       </div>
     </div>
@@ -3081,7 +3129,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
   },[weeklyVol,muscles]);
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-      {picker?<ExPicker library={library} title={picker.swapName?"Swap Exercise":"Add Exercise"} excludeNames={picker.swapName?[]:(program.find(d=>d.id===picker.dayId)||{exercises:[]}).exercises.map(e=>e.name)} defaultMuscle={picker.swapMuscle||"All"} onAdd={ex=>{
+      {picker?<ExPicker library={library} setLibrary={setLibrary} title={picker.swapName?"Swap Exercise":"Add Exercise"} excludeNames={picker.swapName?[]:(program.find(d=>d.id===picker.dayId)||{exercises:[]}).exercises.map(e=>e.name)} defaultMuscle={picker.swapMuscle||"All"} onAdd={ex=>{
         if(picker.swapName) onSwapExercise(picker.dayId,picker.swapName,ex);
         else onAddExercise(picker.dayId,ex);
         setPicker(null);
@@ -3203,7 +3251,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
   );
 }
 
-function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
+function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
@@ -3212,11 +3260,12 @@ function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
   const [bName,setBName]=useState("");
   const [bWeeks,setBWeeks]=useState(5);
   const [bDays,setBDays]=useState([]);
-  const [qSplit,setQSplit]=useState("Push/Pull/Legs");
+  const [qSplit,setQSplit]=useState(null);
   const [qPriority,setQPriority]=useState(null);
-  const [availDays,setAvailDays]=useState(["Monday","Tuesday","Wednesday","Thursday","Friday"]);
+  const [availDays,setAvailDays]=useState([]);
   const [repRange,setRepRange]=useState(meso?.repRange||"hypertrophy");
   const [picker,setPicker]=useState(null);
+  const [splitInfoOpen,setSplitInfoOpen]=useState(null);
 
   const needsPriority=splitNeedsPriority(qSplit,availDays.length);
 
@@ -3256,7 +3305,7 @@ function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {picker?(
-        <ExPicker library={library} title={picker&&picker.includes("__swap__")?"Swap Exercise":"Add Exercise"} onAdd={ex=>{
+        <ExPicker library={library} setLibrary={setLibrary} title={picker&&picker.includes("__swap__")?"Swap Exercise":"Add Exercise"} onAdd={ex=>{
           if(picker.includes("__swap__")){
             const parts=picker.split("__swap__");
             const dayId=parts[0];
@@ -3356,11 +3405,12 @@ function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
                       {[3,4,5,6].map(w=>(
                         <button key={w} onClick={()=>setBWeeks(w)} style={{flex:1,padding:"14px 0",borderRadius:0,border:"none",background:bWeeks===w?C.accent:C.card2,color:bWeeks===w?"#000":C.muted2,fontWeight:800,fontSize:18,cursor:"pointer",transition:"all .12s",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
                           {w}
-                          <span style={{fontSize:8,fontWeight:700,letterSpacing:"0.08em",opacity:0.7}}>{w===5?"REC":"WKS"}</span>
+                          <span style={{fontSize:9,fontWeight:700,letterSpacing:"0.06em",color:bWeeks===w?"#000":w===5?C.accent:C.muted,opacity:bWeeks===w?0.8:1}}>{w===5?"★":"wks"}</span>
                         </button>
                       ))}
                     </div>
                     {bWeeks===3?<div style={{fontSize:10,color:C.muted2,marginTop:6}}>2 working weeks + 1 deload. Good for specialization or returning lifters.</div>:null}
+                    {bWeeks===5?<div style={{fontSize:10,color:C.muted2,marginTop:6}}>4 working weeks + 1 deload. The most effective meso length for most lifters.</div>:null}
                   </div>
 
                   {/* 04 — Training split */}
@@ -3369,24 +3419,48 @@ function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
                       <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>04</span>
                       <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Program Architecture</span>
                     </div>
-                    {[
-                      {id:"Upper/Lower",     sub:"Advanced periodization focus"},
-                      {id:"Push/Pull/Legs",  sub:"High volume hypertrophy"},
-                      {id:"Full Body",       sub:"Efficiency & frequency base"},
-                      {id:"Hybrid Split",    sub:"Push+Legs / Pull+Legs combos"},
-                      {id:"Bro Split",       sub:"One muscle group per day"},
-                    ].map(s=>(
-                      <button key={s.id} onClick={()=>{setQSplit(s.id);setQPriority(null);}} style={{width:"100%",padding:"13px 14px",marginBottom:5,borderRadius:0,border:"1px solid "+(qSplit===s.id?C.accent:C.border2+"66"),background:qSplit===s.id?C.card2:C.card,cursor:"pointer",textAlign:"left",transition:"all .12s",display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative",overflow:"hidden"}}>
-                        {qSplit===s.id?<div style={{position:"absolute",left:0,top:0,bottom:0,width:2,background:C.accent}}/>:null}
-                        <div>
-                          <div style={{fontSize:13,fontWeight:800,color:qSplit===s.id?C.accent:C.text,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>{s.id}</div>
-                          <div style={{fontSize:10,color:C.muted2,letterSpacing:"0.04em",textTransform:"uppercase",fontWeight:600}}>{s.sub}</div>
-                        </div>
-                        <div style={{width:16,height:16,borderRadius:"50%",border:"2px solid "+(qSplit===s.id?C.accent:C.muted),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                          {qSplit===s.id?<div style={{width:8,height:8,borderRadius:"50%",background:C.accent}}/>:null}
-                        </div>
-                      </button>
-                    ))}
+                    {(()=>{
+                      const n=availDays.length;
+                      const rec=n<=0?null:n<=3?"Full Body":n===4?"Upper/Lower":"Push/Pull/Legs";
+                      const splits=[
+                        {id:"Full Body",sub:"All muscles every session",best:"2–3 days",info:"Trains every major muscle group each session. Best for 2-3 days/week — maximizes how often each muscle gets stimulated when total sessions are limited. Research consistently supports higher frequency for muscle growth, making this ideal when training fewer days per week."},
+                        {id:"Upper/Lower",sub:"Alternating upper & lower days",best:"4 days",info:"Splits the body into upper and lower sessions, hitting each muscle twice per week. Ideal for 4 days — enough volume per session without excessive fatigue, and twice-weekly frequency is well supported for hypertrophy. The most balanced option for intermediate lifters."},
+                        {id:"Push/Pull/Legs",sub:"Movement-pattern grouping",best:"5–6 days",info:"Groups muscles by movement pattern across three day types. At 6 days each muscle trains twice per week with more volume per session than Upper/Lower. Best for 5-6 days — any fewer and muscle frequency drops. The most popular split among intermediate and advanced lifters."},
+                        {id:"Hybrid Split",sub:"Push+Legs / Pull+Legs combos",best:"4–5 days",info:"Combines push and leg work on some days, pull and leg work on others. A flexible middle ground for 4-5 days when Upper/Lower feels too rigid. Slightly less structured but gives more variety across the week."},
+                        {id:"Bro Split",sub:"One muscle group per day",best:"5–6 days",info:"Dedicates each session to one muscle group. Each muscle only trains once per week — suboptimal frequency for hypertrophy per most research. Best suited for advanced lifters who can generate enough volume in a single session to justify the low frequency."},
+                      ];
+                      return splits.map(s=>{
+                        const isRec=s.id===rec;
+                        const isSelected=qSplit===s.id;
+                        const isInfoOpen=splitInfoOpen===s.id;
+                        return(
+                          <div key={s.id} style={{marginBottom:5}}>
+                            <button onClick={()=>{setQSplit(s.id);setQPriority(null);}} style={{width:"100%",padding:"13px 14px",borderRadius:0,border:"1px solid "+(isSelected?C.accent:C.border2+"66"),background:isSelected?C.card2:C.card,cursor:"pointer",textAlign:"left",transition:"all .12s",display:"flex",justifyContent:"space-between",alignItems:"center",position:"relative",overflow:"hidden",boxSizing:"border-box"}}>
+                              {isSelected?<div style={{position:"absolute",left:0,top:0,bottom:0,width:2,background:C.accent}}/>:null}
+                              <div style={{flex:1}}>
+                                <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:2}}>
+                                  <span style={{fontSize:12,fontWeight:800,color:isSelected?C.accent:C.text,textTransform:"uppercase",letterSpacing:"0.04em"}}>{s.id}</span>
+                                  {isRec&&n>=2?<span style={{fontSize:8,fontWeight:800,color:C.accent,background:C.accent+"18",padding:"1px 6px",letterSpacing:"0.06em",textTransform:"uppercase"}}>For You</span>:null}
+                                </div>
+                                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.04em",fontWeight:600}}>{s.sub} · {s.best}</div>
+                              </div>
+                              <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0,marginLeft:8}}>
+                                <button onClick={e=>{e.stopPropagation();setSplitInfoOpen(isInfoOpen?null:s.id);}} style={{background:"none",border:"1px solid "+(isInfoOpen?C.blue:C.border2),borderRadius:"50%",width:20,height:20,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:isInfoOpen?C.blue:C.muted,fontSize:10,fontWeight:800,flexShrink:0,padding:0}}>i</button>
+                                <div style={{width:16,height:16,borderRadius:"50%",border:"2px solid "+(isSelected?C.accent:C.muted),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                                  {isSelected?<div style={{width:8,height:8,borderRadius:"50%",background:C.accent}}/>:null}
+                                </div>
+                              </div>
+                            </button>
+                            {isInfoOpen?(
+                              <div style={{background:C.card2,borderLeft:"2px solid "+C.blue,padding:"10px 14px",fontSize:11,color:C.muted2,lineHeight:1.6}}>
+                                {s.info}
+                              </div>
+                            ):null}
+                          </div>
+                        );
+                      });
+                    })()}
+                    {!qSplit?<div style={{fontSize:10,color:C.muted,marginTop:4,fontStyle:"italic"}}>Select an architecture to continue.</div>:null}
                   </div>
 
                   {(()=>{
@@ -3460,10 +3534,10 @@ function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
                         </button>
                       ))}
                     </div>
-                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>RP recommends rotating rep ranges across mesos for long-term development.</div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>It is recommended to rotate rep ranges across mesos for long-term development.</div>
                   </div>
 
-                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"15px",background:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card2,color:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:0,fontSize:13,fontWeight:900,letterSpacing:"0.15em",cursor:(bName.trim()&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>GENERATE PROGRAM</button>
+                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||!qSplit||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"15px",background:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card2,color:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:0,fontSize:13,fontWeight:900,letterSpacing:"0.15em",cursor:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
@@ -3599,7 +3673,7 @@ function PlanBuilder({meso,library,onLaunch,onBack,onCancel}){
   );
 }
 
-function PlannerScreen({meso,program,library,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,autoOpenSpec,onAutoOpenConsumed}){
+function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,autoOpenSpec,onAutoOpenConsumed}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
@@ -3620,7 +3694,7 @@ function PlannerScreen({meso,program,library,onLaunch,onUpdateDay,onSwapExercise
       return(<SpecBuilder library={library} muscles={muscles} experience={P.experience||"intermediate"} existingMeso={meso} onLaunch={doLaunch} onBack={doBack} onCancel={doClose}/>);
     }
     if(builderMode==="standard"){
-      return(<PlanBuilder meso={meso} library={library} onLaunch={doLaunch} onBack={doBack} onCancel={doClose}/>);
+      return(<PlanBuilder meso={meso} library={library} setLibrary={setLibrary} onLaunch={doLaunch} onBack={doBack} onCancel={doClose}/>);
     }
     // Mode chooser
     return(
@@ -3706,6 +3780,31 @@ function LibraryScreen({library,setLibrary}){
           <SLbl>Exercise Library</SLbl>
           <div style={{fontFamily:"'Inter',sans-serif",fontSize:26,fontWeight:900,letterSpacing:"0.02em"}}>{library.length} EXERCISES</div>
         </div>
+
+        {/* Create custom — pinned at top */}
+        {showAdd?(
+          <div style={{background:C.card2,borderLeft:"3px solid "+C.accent,padding:"14px",marginBottom:12}}>
+            <SLbl>New Custom Exercise</SLbl>
+            <input value={nEx.name} onChange={e=>{setNEx(p=>({...p,name:e.target.value}));setAddError("");}} placeholder="Exercise name" style={{width:"100%",background:C.surf,border:"none",borderBottom:"2px solid "+(addError?C.red:C.border2),padding:"10px 0",color:C.text,fontSize:13,outline:"none",marginBottom:addError?4:8,boxSizing:"border-box"}}/>
+            {addError?<div style={{fontSize:10,color:C.red,marginBottom:8,fontWeight:600}}>{addError}</div>:null}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+              <select value={nEx.muscle} onChange={e=>setNEx(p=>({...p,muscle:e.target.value}))} style={{background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
+                {Object.keys(MC).map(m=><option key={m}>{m}</option>)}
+              </select>
+              <select value={nEx.type} onChange={e=>setNEx(p=>({...p,type:e.target.value}))} style={{background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
+                <option value="compound">Compound</option>
+                <option value="isolation">Isolation</option>
+              </select>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:"10px",background:"none",border:"1px solid "+C.border,borderRadius:4,color:C.muted,cursor:"pointer",fontSize:13}}>Cancel</button>
+              <button onClick={addEx} style={{flex:2,padding:"10px",background:C.accent,border:"none",borderRadius:4,color:"#000",cursor:"pointer",fontSize:13,fontWeight:700}}>Add Exercise</button>
+            </div>
+          </div>
+        ):(
+          <button onClick={()=>setShowAdd(true)} style={{width:"100%",padding:"11px",background:"none",border:"1px solid "+C.border2,borderLeft:"3px solid "+C.accent,borderRadius:0,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:12,textAlign:"left",letterSpacing:"0.06em",textTransform:"uppercase"}}>+ Create Custom Exercise</button>
+        )}
+
         <div style={{position:"relative",marginBottom:10}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search exercises..." style={{width:"100%",background:C.card2,border:"none",borderBottom:"1px solid "+C.border2,padding:"10px 14px 10px 38px",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
           <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",color:C.muted,display:"flex",alignItems:"center",pointerEvents:"none"}}>
@@ -3725,26 +3824,6 @@ function LibraryScreen({library,setLibrary}){
             {rest.map(ex=><ExRow key={ex.name} ex={ex} onToggleFav={togFav}/>)}
           </div>
         ):filtered.map(ex=><ExRow key={ex.name} ex={ex} onToggleFav={togFav}/>)}
-        {showAdd?(
-          <div style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:6,padding:"14px",marginTop:10}}>
-            <SLbl>New Custom Exercise</SLbl>
-            <input value={nEx.name} onChange={e=>{setNEx(p=>({...p,name:e.target.value}));setAddError("");}} placeholder="Exercise name" style={{width:"100%",background:C.surf,border:"none",borderBottom:"2px solid "+(addError?C.red:C.border2),padding:"10px 0",color:C.text,fontSize:13,outline:"none",marginBottom:addError?4:8,boxSizing:"border-box"}}/>
-            {addError?<div style={{fontSize:10,color:C.red,marginBottom:8,fontWeight:600}}>{addError}</div>:null}
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
-              <select value={nEx.muscle} onChange={e=>setNEx(p=>({...p,muscle:e.target.value}))} style={{background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
-                {Object.keys(MC).map(m=><option key={m}>{m}</option>)}
-              </select>
-              <select value={nEx.type} onChange={e=>setNEx(p=>({...p,type:e.target.value}))} style={{background:C.surf,border:"1px solid "+C.border,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13,outline:"none"}}>
-                <option value="compound">Compound</option>
-                <option value="isolation">Isolation</option>
-              </select>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowAdd(false)} style={{flex:1,padding:"10px",background:"none",border:"1px solid "+C.border,borderRadius:4,color:C.muted,cursor:"pointer",fontSize:13}}>Cancel</button>
-              <button onClick={addEx} style={{flex:2,padding:"10px",background:C.accent,border:"none",borderRadius:4,color:"#000",cursor:"pointer",fontSize:13,fontWeight:700}}>Add Exercise</button>
-            </div>
-          </div>
-        ):<button onClick={()=>setShowAdd(true)} style={{width:"100%",padding:"12px",background:"none",border:"1px dashed "+C.border2,borderRadius:6,color:C.muted,fontSize:12,cursor:"pointer",marginTop:8}}>+ Create Custom Exercise</button>}
       </div>
     </div>
   );
@@ -4766,7 +4845,7 @@ export default function App(){
               return;
             }
             setActiveLog({...(d||todayWorkout),startedAt:Date.now()});setLoggerOpen(true);
-          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso} onSetDeloadStyle={handleSetDeloadStyle}/>
+          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso} onSetDeloadStyle={handleSetDeloadStyle} driveConnected={driveConnected} driveNudgeDismissed={driveNudgeDismissed} onDriveNudgeDismiss={()=>{setDriveNudgeDismissed(true);try{localStorage.setItem("hyper_drive_nudge_dismissed","1");}catch(_){}}} onOpenProfile={()=>{setShowProfile(true);setProfileDraft(profile?{...profile}:{name:"",sex:"male",experience:"intermediate",bodyweight:""});}}/>
         ):(
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",textAlign:"center"}}>
             <div style={{width:56,height:56,borderRadius:0,background:C.card2,border:"none",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
@@ -4782,7 +4861,7 @@ export default function App(){
         <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <PlannerScreen meso={meso} program={program} library={library} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
+        <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
       </div>
       <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
