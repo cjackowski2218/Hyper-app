@@ -1,6 +1,77 @@
 import { useState, useRef, useEffect, useMemo, createContext, useContext } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
+// ── Google Drive Sync ─────────────────────────────────────────────────────────
+// Replace GOOGLE_CLIENT_ID after setting up a project at console.cloud.google.com
+const GDRIVE_CLIENT_ID="YOUR_CLIENT_ID_HERE.apps.googleusercontent.com";
+const GDRIVE_BACKUP_FILE="hyper-backup.json";
+const GDRIVE_API="https://www.googleapis.com/drive/v3";
+const GDRIVE_UPLOAD="https://www.googleapis.com/upload/drive/v3";
+const GDRIVE_SCOPE="https://www.googleapis.com/auth/drive.appdata";
+const GDRIVE_TOKEN_KEY="hyper_drive_token";
+const GDRIVE_EXP_KEY="hyper_drive_exp";
+const gdriveGetToken=()=>{try{const t=localStorage.getItem(GDRIVE_TOKEN_KEY),e=parseInt(localStorage.getItem(GDRIVE_EXP_KEY)||"0");return t&&Date.now()<e?t:null;}catch(_){return null;}};
+const gdriveSaveToken=(t,s)=>{try{localStorage.setItem(GDRIVE_TOKEN_KEY,t);localStorage.setItem(GDRIVE_EXP_KEY,String(Date.now()+(s-60)*1000));}catch(_){}};
+const gdriveClearToken=()=>{try{localStorage.removeItem(GDRIVE_TOKEN_KEY);localStorage.removeItem(GDRIVE_EXP_KEY);}catch(_){}};
+const gdriveIsConnected=()=>!!gdriveGetToken();
+const gdriveSignIn=()=>new Promise((res,rej)=>{
+  const redirect=window.location.origin+"/oauth-callback.html";
+  const state=Math.random().toString(36).slice(2);
+  const url=new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id",GDRIVE_CLIENT_ID);
+  url.searchParams.set("redirect_uri",redirect);
+  url.searchParams.set("response_type","token");
+  url.searchParams.set("scope",GDRIVE_SCOPE);
+  url.searchParams.set("state",state);
+  const popup=window.open(url.toString(),"google-auth","width=500,height=600,scrollbars=yes");
+  if(!popup){rej(new Error("Popup blocked"));return;}
+  const handler=e=>{
+    if(e.origin!==window.location.origin||!e.data||e.data.type!=="HYPER_OAUTH") return;
+    window.removeEventListener("message",handler);clearInterval(poll);
+    if(e.data.error){rej(new Error(e.data.error));return;}
+    if(e.data.state!==state){rej(new Error("State mismatch"));return;}
+    gdriveSaveToken(e.data.access_token,parseInt(e.data.expires_in||"3600"));
+    res(e.data.access_token);
+  };
+  window.addEventListener("message",handler);
+  const poll=setInterval(()=>{if(popup.closed){clearInterval(poll);window.removeEventListener("message",handler);rej(new Error("Popup closed"));}},500);
+});
+const gdriveFindFile=async(token)=>{
+  const r=await fetch(`${GDRIVE_API}/files?spaces=appDataFolder&q=name='${GDRIVE_BACKUP_FILE}'&fields=files(id,modifiedTime)`,{headers:{Authorization:`Bearer ${token}`}});
+  if(!r.ok) throw new Error("list:"+r.status);
+  const d=await r.json();return d.files?.[0]||null;
+};
+const gdriveReadFile=async(token,id)=>{
+  const r=await fetch(`${GDRIVE_API}/files/${id}?alt=media`,{headers:{Authorization:`Bearer ${token}`}});
+  if(!r.ok) throw new Error("read:"+r.status);return r.json();
+};
+const gdriveWriteFile=async(token,data,existingId)=>{
+  const body=JSON.stringify(data);
+  const meta=JSON.stringify({name:GDRIVE_BACKUP_FILE,parents:["appDataFolder"]});
+  const form=new FormData();
+  form.append("metadata",new Blob([meta],{type:"application/json"}));
+  form.append("file",new Blob([body],{type:"application/json"}));
+  const url=existingId?`${GDRIVE_UPLOAD}/files/${existingId}?uploadType=multipart`:`${GDRIVE_UPLOAD}/files?uploadType=multipart`;
+  const r=await fetch(url,{method:existingId?"PATCH":"POST",headers:{Authorization:`Bearer ${token}`},body:form});
+  if(!r.ok) throw new Error("write:"+r.status);return r.json();
+};
+const gdriveBackup=async(state)=>{
+  const token=gdriveGetToken();if(!token) return;
+  try{const f=await gdriveFindFile(token);await gdriveWriteFile(token,{...state,backedUpAt:new Date().toISOString()},f?.id);}
+  catch(e){console.warn("[Drive backup]",e.message);}
+};
+const gdriveCheckBackup=async()=>{
+  const token=gdriveGetToken();if(!token) return null;
+  try{const f=await gdriveFindFile(token);return f?{fileId:f.id,modifiedTime:f.modifiedTime}:null;}
+  catch(_){return null;}
+};
+const gdriveRestore=async()=>{
+  const token=gdriveGetToken();if(!token) return null;
+  try{const f=await gdriveFindFile(token);if(!f) return null;return gdriveReadFile(token,f.id);}
+  catch(_){return null;}
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const DARK={
   bg:"#131313",surf:"#1c1b1b",card:"#201f1f",card2:"#2a2a2a",
   border:"#353534",border2:"#404040",text:"#e5e2e1",
@@ -3907,6 +3978,29 @@ export default function App(){
     s.id='hyper-global';
     s.textContent=`*{box-sizing:border-box}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
+
+    // Register Service Worker for offline support + auto-updates
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.register('/sw.js').then(reg=>{
+        // Check for updates every time the app gains focus
+        document.addEventListener('visibilitychange',()=>{
+          if(document.visibilityState==='visible') reg.update();
+        });
+        // When a new SW is waiting, set update flag
+        const checkWaiting=()=>{
+          if(reg.waiting) setSwUpdateReady(true);
+        };
+        checkWaiting();
+        reg.addEventListener('updatefound',()=>{
+          const newWorker=reg.installing;
+          if(newWorker) newWorker.addEventListener('statechange',()=>{
+            if(newWorker.state==='installed'&&navigator.serviceWorker.controller){
+              setSwUpdateReady(true);
+            }
+          });
+        });
+      }).catch(()=>{});
+    }
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
@@ -3972,8 +4066,16 @@ export default function App(){
         if(s.library&&s.library.length>0) setLibrary(s.library);
         if(s.activeLog) setActiveLog(s.activeLog);
         if(s.activeLogExs) setActiveLogExs(s.activeLogExs);
+        setLoaded(true);
+      } else {
+        // No local data — check Drive for a backup to restore
+        setLoaded(true);
+        if(gdriveIsConnected()){
+          gdriveCheckBackup().then(info=>{
+            if(info) setDriveRestorePrompt({backedUpAt:info.modifiedTime});
+          }).catch(()=>{});
+        }
       }
-      setLoaded(true);
     }).catch(()=>setLoaded(true));
   },[]);
 
@@ -4037,6 +4139,11 @@ export default function App(){
     setActiveLog(null);
     setActiveLogExs(null);
     setLoggerOpen(false);
+    // Silently back up to Google Drive after every session
+    if(gdriveIsConnected()){
+      const snapshot={profile,meso,program,history:updatedHistory,liftHistory:[...liftHistory,...newEntries],mesoCount,library,isDark};
+      gdriveBackup(snapshot).catch(()=>{});
+    }
     if(isDeload){
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
       else setTab("home");
@@ -4195,6 +4302,10 @@ export default function App(){
   const [profileDraft,setProfileDraft]=useState(null); // local edits before save
   const [profileUpdatePrompt,setProfileUpdatePrompt]=useState(null); // {oldProfile, newProfile}
   const [editingSession,setEditingSession]=useState(null);
+  const [swUpdateReady,setSwUpdateReady]=useState(false);
+  const [driveConnected,setDriveConnected]=useState(()=>gdriveIsConnected());
+  const [driveRestorePrompt,setDriveRestorePrompt]=useState(null);
+  const [driveConnecting,setDriveConnecting]=useState(false);
 
   const handleEditSession=(note,exs)=>{
     // Mark any previously-incomplete sets that now have weight+reps as done
@@ -4245,6 +4356,46 @@ export default function App(){
     setMesoComplete(null);
     setTab("plan");
     setPendingSpecOpen(true);
+  };
+
+  const handleDriveConnect=async()=>{
+    setDriveConnecting(true);
+    try{
+      await gdriveSignIn();
+      setDriveConnected(true);
+      const hasLocal=!!profile;
+      if(!hasLocal){
+        const info=await gdriveCheckBackup();
+        if(info) setDriveRestorePrompt({backedUpAt:info.modifiedTime});
+        else showToast("Connected to Google Drive. Your data will be backed up after each session.");
+      } else {
+        showToast("Connected to Google Drive. Your data will be backed up after each session.");
+      }
+    } catch(e){
+      if(e.message!=="Popup closed") showToast("Couldn't connect to Google Drive.",false);
+    }
+    setDriveConnecting(false);
+  };
+
+  const handleDriveDisconnect=()=>{
+    gdriveClearToken();
+    setDriveConnected(false);
+    showToast("Google Drive disconnected.");
+  };
+
+  const handleDriveRestore=async()=>{
+    const data=await gdriveRestore();
+    if(!data){showToast("Restore failed — couldn't read backup.",false);return;}
+    if(data.profile) setProfile(data.profile);
+    if(data.meso) setMeso(data.meso);
+    if(data.program&&data.program.length>0) setProgram(data.program);
+    if(data.history) setHistory(data.history);
+    if(data.liftHistory&&data.liftHistory.length>0) setLiftHistory(data.liftHistory);
+    if(data.mesoCount) setMesoCount(data.mesoCount);
+    if(data.isDark!==undefined) setIsDark(data.isDark);
+    if(data.library&&data.library.length>0) setLibrary(data.library);
+    setDriveRestorePrompt(null);
+    showToast("Data restored from Google Drive.");
   };
 
   const handleExtendMeso=()=>{
@@ -4431,6 +4582,35 @@ export default function App(){
           {toast.msg}
         </div>
       ):null}
+
+      {/* SW update banner — appears when a new version is ready */}
+      {swUpdateReady?(
+        <div style={{position:"fixed",top:0,left:0,right:0,zIndex:1000,maxWidth:480,margin:"0 auto",background:C.accent,padding:"12px 16px",paddingTop:"calc(12px + env(safe-area-inset-top))",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+          <span style={{fontSize:12,fontWeight:700,color:"#000",letterSpacing:"0.02em"}}>A new version of HYPER is ready.</span>
+          <button onClick={()=>{
+            navigator.serviceWorker.getRegistration().then(reg=>{
+              if(reg&&reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+            });
+            window.location.reload();
+          }} style={{background:"#000",border:"none",borderRadius:4,padding:"6px 14px",color:C.accent,fontSize:11,fontWeight:900,cursor:"pointer",letterSpacing:"0.08em",flexShrink:0,textTransform:"uppercase"}}>Update</button>
+        </div>
+      ):null}
+
+      {/* Drive restore prompt — shown when no local data but backup found */}
+      {driveRestorePrompt&&!profile?(
+        <div style={{position:"fixed",inset:0,zIndex:800,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 24px",background:"#000a"}}>
+          <div style={{background:C.surf,borderRadius:6,padding:"24px 20px",width:"100%",maxWidth:340}}>
+            <div style={{fontSize:14,fontWeight:900,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.06em"}}>Restore your data?</div>
+            <div style={{fontSize:12,color:C.muted2,lineHeight:1.7,marginBottom:20}}>
+              We found a backup in your Google Drive from {new Date(driveRestorePrompt.backedUpAt).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}. Restore it to pick up where you left off.
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              <button onClick={handleDriveRestore} style={{width:"100%",padding:"13px",background:C.accent,color:"#000",border:"none",borderRadius:4,fontSize:13,fontWeight:900,letterSpacing:"0.1em",cursor:"pointer",textTransform:"uppercase"}}>Restore Data</button>
+              <button onClick={()=>setDriveRestorePrompt(null)} style={{width:"100%",padding:"11px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,fontSize:12,cursor:"pointer"}}>Start fresh</button>
+            </div>
+          </div>
+        </div>
+      ):null}
       {showProfile&&profileDraft?(
         <div style={{position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={()=>{setShowProfile(false);setShowResetConfirm(false);setProfileDraft(null);}}>
           <div style={{position:"absolute",inset:0,background:"#000a"}}/>
@@ -4469,6 +4649,24 @@ export default function App(){
             </div>
             <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid "+C.border+"60"}}>
               <div style={{fontSize:10,color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10,fontWeight:700}}>Data</div>
+              {/* Google Drive backup */}
+              <div style={{background:C.card2,borderLeft:"3px solid "+(driveConnected?C.green:C.border2),padding:"12px 14px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:800,color:driveConnected?C.green:C.text,letterSpacing:"0.04em"}}>
+                      {driveConnected?"Google Drive — Connected":"Google Drive Backup"}
+                    </div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:2,lineHeight:1.5}}>
+                      {driveConnected?"Your data backs up automatically after each session.":"Back up your data so it's never lost."}
+                    </div>
+                  </div>
+                  {driveConnected?(
+                    <button onClick={handleDriveDisconnect} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 10px",color:C.muted,fontSize:10,fontWeight:600,cursor:"pointer",flexShrink:0,marginLeft:10}}>Disconnect</button>
+                  ):(
+                    <button onClick={handleDriveConnect} disabled={driveConnecting} style={{background:C.accent,border:"none",borderRadius:4,padding:"6px 12px",color:"#000",fontSize:11,fontWeight:800,cursor:driveConnecting?"default":"pointer",flexShrink:0,marginLeft:10,letterSpacing:"0.04em",opacity:driveConnecting?0.6:1}}>{driveConnecting?"Connecting…":"Connect"}</button>
+                  )}
+                </div>
+              </div>
               <div style={{display:"flex",gap:6}}>
                 <button onClick={handleExport} style={{flex:1,padding:"8px 10px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
