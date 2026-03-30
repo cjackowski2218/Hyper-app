@@ -1579,10 +1579,10 @@ function ProgBanner({ex,wk,totalWeeks,isDeload,deloadStyle}){
   );
 }
 
-function ExPicker({library,onAdd,onClose,title,excludeNames}){
+function ExPicker({library,onAdd,onClose,title,excludeNames,defaultMuscle}){
   const C=useContext(ThemeCtx);
   const [q,setQ]=useState("");
-  const [filt,setFilt]=useState("All");
+  const [filt,setFilt]=useState(defaultMuscle||"All");
   const muscles=["All",...Object.keys(MC)];
   const list=library.filter(e=>e.name.toLowerCase().includes(q.toLowerCase())&&(filt==="All"||e.muscle===filt)&&!(excludeNames&&excludeNames.includes(e.name)));
   return(
@@ -1638,7 +1638,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
       </div>
       <div style={{flex:1,overflowY:"auto",padding:"16px 14px 24px"}}>
         <div style={{fontSize:28,fontWeight:900,marginBottom:16,display:"flex",alignItems:"center",gap:10,letterSpacing:"0.04em",textTransform:"uppercase"}}>
-          {(()=>{const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);return don===0?"Session Logged":don<tot?"Session Done":"Great Work";})()}{don===exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0)&&don>0?<IcoFlame sz={26} col={C.accent}/>:null}
+          {(()=>{const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);return don===0?"Session Logged":don<tot?"Session Done":"Great Work";})()}{don===exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0)&&don>0?<span style={{display:"flex",alignItems:"center"}}><IcoFlame sz={26} col={C.accent}/></span>:null}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,marginBottom:16}}>
           {(()=>{
@@ -1698,7 +1698,7 @@ function SessionSummary({workout,exs,ratings,setRatings,don,totalVol,elapsed,ses
             </div>
           );
         })}
-        <button onClick={()=>onComplete(exs,ratings,sessionNote)} style={{width:"100%",marginTop:8,padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",transition:"all .2s"}}>
+        <button onClick={()=>onComplete(exs,ratings,sessionNote)} style={{width:"100%",marginTop:8,padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",transition:"all .2s"}} onPointerDown={e=>e.currentTarget.style.pointerEvents="none"} onPointerUp={e=>{setTimeout(()=>e.currentTarget&&(e.currentTarget.style.pointerEvents=""),1500);}}>
           SAVE SESSION
         </button>
       </div>
@@ -1891,6 +1891,8 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
         <div style={{marginBottom:8}}>
           <div style={{display:"flex",alignItems:"baseline",gap:6,marginBottom:3}}>
             <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.12em",color:C.muted,textTransform:"uppercase"}}>{workout.day}</span>
+            <span style={{color:C.border2}}>·</span>
+            <span style={{fontSize:11,fontWeight:600,color:C.muted,letterSpacing:"0.04em"}}>{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"})}</span>
             <span style={{color:C.border2}}>·</span>
             <span style={{fontSize:13,fontWeight:800,letterSpacing:"0.06em",color:C.text,textTransform:"uppercase"}}>{workout.name}</span>
           </div>
@@ -2190,6 +2192,11 @@ function SessionEditModal({session,onSave,onClose}){
     const newS={id:uid("es"),weight:"",reps:"",rir:"",type:"normal",done:true,incomplete:false};
     return {...e,sets:[...e.sets,newS]};
   }));
+  const delSet=(eid,sid)=>setExs(p=>p.map(e=>{
+    if(e.id!==eid) return e;
+    if(e.sets.length<=1) return e; // always keep at least 1 set
+    return {...e,sets:e.sets.filter(s=>s.id!==sid)};
+  }));
   return(
     <div style={{position:"fixed",inset:0,zIndex:600,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
       <div style={{position:"absolute",inset:0,background:"#000a"}}/>
@@ -2223,16 +2230,22 @@ function SessionEditModal({session,onSave,onClose}){
                 </div>
                 {isOpen?(
                   <div style={{borderTop:"1px solid "+C.border,padding:"10px 13px 12px"}}>
-                    <div style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr",gap:8,marginBottom:6}}>
+                    <div style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr 28px",gap:8,marginBottom:6}}>
                       <span style={{fontSize:9,color:C.muted,textAlign:"center"}}>#</span>
                       <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:"0.06em",textTransform:"uppercase"}}>Weight</span>
                       <span style={{fontSize:9,color:C.muted,textAlign:"center",letterSpacing:"0.06em",textTransform:"uppercase"}}>Reps</span>
+                      <span/>
                     </div>
                     {ex.sets.filter(s=>s.type!=="drop"||s.done).map((set,si)=>(
-                      <div key={set.id} style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr",gap:8,alignItems:"center",marginBottom:6}}>
+                      <div key={set.id} style={{display:"grid",gridTemplateColumns:"20px 1fr 1fr 28px",gap:8,alignItems:"center",marginBottom:6}}>
                         <span style={{fontSize:10,color:C.muted,textAlign:"center"}}>{set.type==="drop"?"D":si+1}</span>
                         <input type="number" inputMode="decimal" value={set.weight} onChange={e=>updW(ex.id,set.id,e.target.value)} placeholder="lbs" style={{background:C.surf,border:"1px solid "+C.border2,borderRadius:7,padding:"8px 10px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                         <input type="number" inputMode="numeric" value={set.reps} onChange={e=>updR(ex.id,set.id,e.target.value)} placeholder="reps" style={{background:C.surf,border:"1px solid "+C.border2,borderRadius:7,padding:"8px 10px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                        {ex.sets.length>1?(
+                          <button onClick={()=>delSet(ex.id,set.id)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                            <IcoX sz={12} col={C.muted}/>
+                          </button>
+                        ):<span/>}
                       </div>
                     ))}
                     <button onClick={()=>addSet(ex.id)} style={{width:"100%",marginTop:4,padding:"7px 0",background:"none",border:"1px dashed "+C.border2,borderRadius:7,color:C.muted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>
@@ -2245,7 +2258,7 @@ function SessionEditModal({session,onSave,onClose}){
           }):<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"12px 0"}}>No detailed set data for this session</div>}
         </div>
         <div style={{padding:"12px 16px",borderTop:"1px solid "+C.border,flexShrink:0}}>
-          <button onClick={()=>onSave(note,exs)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer"}}>SAVE CHANGES</button>
+          <button onClick={()=>onSave(note,exs)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer"}} onPointerDown={e=>e.currentTarget.style.pointerEvents="none"} onPointerUp={e=>{setTimeout(()=>e.currentTarget&&(e.currentTarget.style.pointerEvents=""),1500);}}>SAVE CHANGES</button>
         </div>
       </div>
     </div>
@@ -2520,7 +2533,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
                 </div>
                 {nextSess?(
                   <div>
-                    <div style={{fontSize:9,color:C.muted,letterSpacing:"0.12em",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Next Session — {nextSess.day}</div>
+                    <div style={{fontSize:9,color:C.muted,letterSpacing:"0.12em",fontWeight:700,textTransform:"uppercase",marginBottom:8}}>Next Session — {nextSess.day} {(()=>{const todayDate=new Date();const dayDiff=(FULL.indexOf(nextSess.day)-FULL.indexOf(getTodayName())+7)%7||7;const d=new Date(todayDate);d.setDate(d.getDate()+dayDiff);return d.toLocaleDateString("en-US",{month:"numeric",day:"numeric"});})()}</div>
                     <div style={{fontSize:15,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:12}}>{nextSess.name}</div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",background:C.card2}}>
                       {[{v:nextSets,l:"Sets"},{v:nextSess.exercises.length,l:"Exercises"},{v:defaultRIR(meso.week,meso.totalWeeks,exp),l:"Target RIR"}].map((stat,i)=>(
@@ -2593,6 +2606,22 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
             </Section>
           );
         })()}
+
+        {/* Drive nudge — shown after first session if not connected, one-time */}
+        {history.length>0&&!driveConnected&&!driveNudgeDismissed?(
+          <Section accent={C.blue}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:800,color:C.blue,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:4}}>Back up your data</div>
+                <div style={{fontSize:11,color:C.muted2,lineHeight:1.6,marginBottom:10}}>Connect Google Drive so your training history is never lost — even if the app is reinstalled.</div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>{setShowProfile(true);setProfileDraft(profile?{...profile}:{name:"",sex:"male",experience:"intermediate",bodyweight:""});}} style={{padding:"7px 14px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer",letterSpacing:"0.06em"}}>Connect</button>
+                  <button onClick={()=>{setDriveNudgeDismissed(true);try{localStorage.setItem("hyper_drive_nudge_dismissed","1");}catch(_){}}} style={{padding:"7px 12px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted,fontSize:11,cursor:"pointer"}}>Maybe later</button>
+                </div>
+              </div>
+            </div>
+          </Section>
+        ):null}
 
         {/* Recent Sessions */}
         <Section>
@@ -3052,7 +3081,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
   },[weeklyVol,muscles]);
   return(
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-      {picker?<ExPicker library={library} title={picker.swapName?"Swap Exercise":"Add Exercise"} excludeNames={picker.swapName?[]:(program.find(d=>d.id===picker.dayId)||{exercises:[]}).exercises.map(e=>e.name)} onAdd={ex=>{
+      {picker?<ExPicker library={library} title={picker.swapName?"Swap Exercise":"Add Exercise"} excludeNames={picker.swapName?[]:(program.find(d=>d.id===picker.dayId)||{exercises:[]}).exercises.map(e=>e.name)} defaultMuscle={picker.swapMuscle||"All"} onAdd={ex=>{
         if(picker.swapName) onSwapExercise(picker.dayId,picker.swapName,ex);
         else onAddExercise(picker.dayId,ex);
         setPicker(null);
@@ -3129,7 +3158,7 @@ function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,
                           <div style={{fontSize:12,fontWeight:700}}>{ex.name}</div>
                           <div style={{fontSize:10,color:C.muted}}>{ex.muscle} · {ex.sets.filter(s=>s.type!=="drop").length} sets</div>
                         </div>
-                        <button onClick={()=>setPicker({dayId:day.id,swapName:ex.name})} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 8px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.04em"}}>Swap</button>
+                        <button onClick={()=>setPicker({dayId:day.id,swapName:ex.name,swapMuscle:ex.muscle})} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 8px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.04em"}}>Swap</button>
                         {day.exercises.length>1?(
                           <button onClick={()=>onRemoveExercise(day.id,ex.name)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",alignItems:"center"}}>
                             <IcoX sz={12} col={C.muted}/>
@@ -4283,6 +4312,7 @@ export default function App(){
   const [driveRestorePrompt,setDriveRestorePrompt]=useState(null);
   const [driveConnecting,setDriveConnecting]=useState(false);
   const [driveDisconnectConfirm,setDriveDisconnectConfirm]=useState(false);
+  const [driveNudgeDismissed,setDriveNudgeDismissed]=useState(()=>{try{return localStorage.getItem("hyper_drive_nudge_dismissed")==="1";}catch(_){return false;}});
 
   const handleEditSession=(note,exs)=>{
     // Mark any previously-incomplete sets that now have weight+reps as done
