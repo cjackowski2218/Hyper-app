@@ -1,10 +1,11 @@
 // HYPER Service Worker
 // Strategy: cache-first for assets, network-first for HTML
 // Update detection: version bump triggers cache refresh and notifies app
+// __BUILD_TIME__ is replaced by Vite at build time with the actual timestamp
 
-const CACHE_VERSION = 'hyper-v1';
-const STATIC_CACHE = `${CACHE_VERSION}-static`;
-const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
+const CACHE_VERSION = '__BUILD_TIME__';
+const STATIC_CACHE = `hyper-${CACHE_VERSION}-static`;
+const RUNTIME_CACHE = `hyper-${CACHE_VERSION}-runtime`;
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [
