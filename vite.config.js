@@ -2,10 +2,10 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
 
-// Plugin that stamps sw.js with the current build time on every deploy
-// This ensures the Service Worker cache version changes with each build
-// so the update banner fires correctly for all users
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
 const stampServiceWorker = () => ({
   name: 'stamp-sw',
   writeBundle() {
