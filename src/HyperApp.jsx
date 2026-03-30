@@ -1710,17 +1710,6 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
-  // Build all-time best e1RM per exercise from history (Epley formula — accounts for reps)
-  const allTimeBest=useMemo(()=>{
-    const best={};
-    (liftHistory||[]).forEach(e=>{
-      if(!e.isDeload){
-        const est=e1rm(e.topSetWeight,e.topSetReps||1);
-        if(!best[e.exercise]||est>best[e.exercise]) best[e.exercise]=est;
-      }
-    });
-    return best;
-  },[liftHistory]);
   const [swiped,setSwiped]=useState(new Set());
   const [noteDismissed,setNoteDismissed]=useState(false);
   const [dragFrom,setDragFrom]=useState(null);
@@ -2031,19 +2020,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                 <div style={{textAlign:"center"}}>
                                   {iDr?<span style={{fontSize:9,color:C.orange}}>D</span>:<span style={{fontSize:10,color:C.muted}}>{si+1}</span>}
                                 </div>
-                                <div style={{position:"relative"}}>
-                                  <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder="lbs" style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 4px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
-                                  {(()=>{
-                                    if(!set.done) return null;
-                                    const w=parseFloat(set.weight)||0;
-                                    const r=parseInt(set.reps)||1;
-                                    const est=e1rm(w,r);
-                                    const best=allTimeBest[ex.name]||0;
-                                    if(est>0&&est>best&&best>0) return(
-                                      <span style={{position:"absolute",top:-6,right:-4,fontSize:8,fontWeight:800,color:C.accent,letterSpacing:"0.03em",background:C.accent+"22",borderRadius:3,padding:"1px 4px",lineHeight:1.4}}>PR</span>
-                                    );
-                                    return null;
-                                  })()}
+                                <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder="lbs" style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 4px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                 </div>
                                 <input type="number" inputMode="numeric" pattern="[0-9]*" enterKeyHint="done" disabled={set.done} value={set.reps} onChange={e=>updS(ex.id,set.id,"reps",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!set.done) logSet(ex.id,set.id);}} placeholder="reps" style={{background:C.surf,border:"1px solid "+C.border,borderRadius:6,padding:"8px 4px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                 <button disabled={set.done} onClick={()=>cycleRIR(ex.id,set.id,set.rir)} style={{background:rbg,border:"1px solid "+rfg+"55",borderRadius:6,padding:"8px 0",cursor:set.done?"default":"pointer",color:rfg,fontSize:13,fontWeight:800,textAlign:"center",transition:"all .1s",width:"100%"}}>{set.rir}</button>
@@ -2564,7 +2541,8 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
 
           return(
             <Section accent={accentColor}>
-              <SLbl>Today — {TODAY}</SLbl>
+              <SLbl>Today</SLbl>
+              <div style={{fontSize:18,fontWeight:900,letterSpacing:"0.03em",textTransform:"uppercase",marginBottom:14}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
               {todayWorkout?(
                 <div>
                   <div style={{fontSize:15,fontWeight:900,marginBottom:14,textTransform:"uppercase",letterSpacing:"0.04em"}}>{todayWorkout.name}</div>
