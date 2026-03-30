@@ -4306,6 +4306,7 @@ export default function App(){
   const [driveConnected,setDriveConnected]=useState(()=>gdriveIsConnected());
   const [driveRestorePrompt,setDriveRestorePrompt]=useState(null);
   const [driveConnecting,setDriveConnecting]=useState(false);
+  const [driveDisconnectConfirm,setDriveDisconnectConfirm]=useState(false);
 
   const handleEditSession=(note,exs)=>{
     // Mark any previously-incomplete sets that now have weight+reps as done
@@ -4661,7 +4662,14 @@ export default function App(){
                     </div>
                   </div>
                   {driveConnected?(
-                    <button onClick={handleDriveDisconnect} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 10px",color:C.muted,fontSize:10,fontWeight:600,cursor:"pointer",flexShrink:0,marginLeft:10}}>Disconnect</button>
+                    driveDisconnectConfirm?(
+                      <div style={{display:"flex",gap:5,flexShrink:0,marginLeft:10}}>
+                        <button onClick={()=>setDriveDisconnectConfirm(false)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 8px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer"}}>Cancel</button>
+                        <button onClick={()=>{handleDriveDisconnect();setDriveDisconnectConfirm(false);}} style={{background:C.red+"18",border:"1px solid "+C.red+"44",borderRadius:4,padding:"5px 8px",color:C.red,fontSize:10,fontWeight:700,cursor:"pointer"}}>Yes, disconnect</button>
+                      </div>
+                    ):(
+                      <button onClick={()=>setDriveDisconnectConfirm(true)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"5px 10px",color:C.muted,fontSize:10,fontWeight:600,cursor:"pointer",flexShrink:0,marginLeft:10}}>Disconnect</button>
+                    )
                   ):(
                     <button onClick={handleDriveConnect} disabled={driveConnecting} style={{background:C.accent,border:"none",borderRadius:4,padding:"6px 12px",color:"#000",fontSize:11,fontWeight:800,cursor:driveConnecting?"default":"pointer",flexShrink:0,marginLeft:10,letterSpacing:"0.04em",opacity:driveConnecting?0.6:1}}>{driveConnecting?"Connecting…":"Connect"}</button>
                   )}
