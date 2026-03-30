@@ -1240,7 +1240,7 @@ function genSpecializationProgram(targetMuscle, lib, muscles, experience, availD
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const Tag=({label,color})=>{const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:3,padding:"2px 6px",letterSpacing:"0.12em",fontWeight:700,textTransform:"uppercase",whiteSpace:"nowrap"}}>{label}</span>);};
+const Tag=({label,color})=>{const C=useContext(ThemeCtx);return(<span style={{fontSize:9,background:color+"1a",color,borderRadius:3,padding:"2px 6px",letterSpacing:"0.12em",fontWeight:700,textTransform:"uppercase",maxWidth:"calc(100vw - 40px)",textAlign:"center"}}>{label}</span>);};
 const SLbl=({children,style})=>{const C=useContext(ThemeCtx);return(<div style={{fontSize:9,color:C.muted2,letterSpacing:"0.15em",textTransform:"uppercase",fontWeight:800,marginBottom:10,...(style||{})}}>{children}</div>);};
 // Section — the core layout primitive. Replaces Card. Tonal depth + optional left accent.
 const Section=({children,style,accent,marginBottom})=>{
@@ -1602,7 +1602,7 @@ function ExPicker({library,onAdd,onClose,title,excludeNames}){
           </div>
           <div style={{display:"flex",gap:5,overflowX:"auto",paddingBottom:2,scrollbarWidth:"none"}}>
             {muscles.map(m=>(
-              <button key={m} onClick={()=>setFilt(m)} style={{padding:"4px 10px",borderRadius:20,border:"1px solid "+(filt===m?(MC[m]||C.accent):C.border),background:filt===m?(MC[m]||C.accent)+"20":"none",color:filt===m?(MC[m]||C.accent):C.muted,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>{m}</button>
+              <button key={m} onClick={()=>setFilt(m)} style={{padding:"4px 10px",borderRadius:20,border:"1px solid "+(filt===m?(MC[m]||C.accent):C.border),background:filt===m?(MC[m]||C.accent)+"20":"none",color:filt===m?(MC[m]||C.accent):C.muted,fontSize:11,cursor:"pointer",maxWidth:"calc(100vw - 40px)",textAlign:"center",flexShrink:0}}>{m}</button>
             ))}
           </div>
         </div>
@@ -2801,9 +2801,9 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
                 <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:-5,bottom:-5,width:1.5,background:C.border2,zIndex:3}}/>
                 {hasActual?<div style={{position:"absolute",top:0,left:0,height:"100%",width:(plannedPv*100)+"%",background:C.border2,zIndex:1}}/>:null}
                 <div style={{position:"absolute",top:0,left:0,height:"100%",width:(pv*100)+"%",background:hasActual?fc:C.border2,zIndex:2,transition:"width .4s"}}/>
-                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:10,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MEV {lm.mev}</div>
-                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:10,transform:"translateX(-50%)",fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MAV {lm.mav}</div>
-                <div style={{position:"absolute",right:0,top:10,fontSize:8,color:C.muted,whiteSpace:"nowrap"}}>MRV {lm.mrv}</div>
+                <div style={{position:"absolute",left:(lm.mev/lm.mrv*100)+"%",top:10,transform:"translateX(-50%)",fontSize:8,color:C.muted,maxWidth:"calc(100vw - 40px)",textAlign:"center"}}>MEV {lm.mev}</div>
+                <div style={{position:"absolute",left:(lm.mav/lm.mrv*100)+"%",top:10,transform:"translateX(-50%)",fontSize:8,color:C.muted,maxWidth:"calc(100vw - 40px)",textAlign:"center"}}>MAV {lm.mav}</div>
+                <div style={{position:"absolute",right:0,top:10,fontSize:8,color:C.muted,maxWidth:"calc(100vw - 40px)",textAlign:"center"}}>MRV {lm.mrv}</div>
               </div>
               {hasActual&&actual<planned&&!muscleSessionsDone?<div style={{fontSize:10,color:C.muted2,display:"flex",alignItems:"center",gap:4}}><IcoWarn sz={9} col={C.muted2}/> {planned-actual} sets still to go this week</div>:null}
               {INDIRECT_VOLUME_MUSCLES.has(m)?<div style={{fontSize:10,color:C.muted2,display:"flex",alignItems:"center",gap:4}}><IcoInfo/> <span>Squats, RDLs &amp; lunges provide indirect stimulus — direct sets are a bonus</span></div>:null}
@@ -3709,7 +3709,7 @@ function LibraryScreen({library,setLibrary}){
         </div>
         <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,marginBottom:12,scrollbarWidth:"none"}}>
           {mf.map(m=>(
-            <button key={m} onClick={()=>setFilt(m)} style={{padding:"5px 12px",borderRadius:20,border:"1px solid "+(filt===m?(MC[m]||C.accent):C.border),background:filt===m?(MC[m]||C.accent)+"20":C.surf,color:filt===m?(MC[m]||C.accent):C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",transition:"all .15s"}}>{m}</button>
+            <button key={m} onClick={()=>setFilt(m)} style={{padding:"5px 12px",borderRadius:20,border:"1px solid "+(filt===m?(MC[m]||C.accent):C.border),background:filt===m?(MC[m]||C.accent)+"20":C.surf,color:filt===m?(MC[m]||C.accent):C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",maxWidth:"calc(100vw - 40px)",textAlign:"center",transition:"all .15s"}}>{m}</button>
           ))}
         </div>
         {filt==="All"&&!search&&favs.length>0?(
@@ -4367,9 +4367,9 @@ export default function App(){
       if(!hasLocal){
         const info=await gdriveCheckBackup();
         if(info) setDriveRestorePrompt({backedUpAt:info.modifiedTime});
-        else showToast("Connected to Google Drive. Your data will be backed up after each session.");
+        else showToast("Google Drive connected.");
       } else {
-        showToast("Connected to Google Drive. Your data will be backed up after each session.");
+        showToast("Google Drive connected.");
       }
     } catch(e){
       if(e.message!=="Popup closed") showToast("Couldn't connect to Google Drive.",false);
@@ -4578,7 +4578,7 @@ export default function App(){
         </div>
       </div>
       {toast?(
-        <div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",left:"50%",transform:"translateX(-50%)",zIndex:900,background:toast.ok?C.green:C.red,color:"#fff",borderRadius:6,padding:"10px 20px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px #0006",whiteSpace:"nowrap",pointerEvents:"none",transition:"opacity .3s"}}>
+        <div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom) + 72px)",left:"50%",transform:"translateX(-50%)",zIndex:900,background:toast.ok?C.green:C.red,color:"#fff",borderRadius:6,padding:"10px 20px",fontSize:13,fontWeight:600,boxShadow:"0 4px 20px #0006",maxWidth:"calc(100vw - 40px)",textAlign:"center",pointerEvents:"none",transition:"opacity .3s"}}>
           {toast.msg}
         </div>
       ):null}
