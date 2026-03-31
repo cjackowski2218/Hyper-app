@@ -4088,12 +4088,15 @@ export default function App(){
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
     // Fix iOS PWA 100dvh miscalculation on first paint
-    // iOS sometimes miscalculates dvh on initial render — use JS-measured height instead
+    // iOS PWA splash screen causes incorrect innerHeight on mount
+    // pageshow fires after iOS fully presents the app
     const setVH=()=>document.documentElement.style.setProperty('--vh',window.innerHeight*0.01+'px');
     setVH();
     setTimeout(setVH,100);
-    setTimeout(setVH,300);
+    setTimeout(setVH,500);
+    setTimeout(setVH,1000);
     window.addEventListener('resize',setVH);
+    window.addEventListener('pageshow',setVH);
 
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('/sw.js').then(reg=>{
@@ -4118,7 +4121,10 @@ export default function App(){
         });
       }).catch(()=>{});
     }
-    return()=>window.removeEventListener('resize',setVH);
+    return()=>{
+      window.removeEventListener('resize',setVH);
+      window.removeEventListener('pageshow',setVH);
+    };
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
