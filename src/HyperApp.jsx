@@ -3392,7 +3392,10 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                       <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Meso Name</span>
                     </div>
                     <div style={{background:C.card2,padding:"4px 14px"}}>
-                      <input value={bName} onChange={e=>setBName(e.target.value)} onBlur={()=>setTimeout(()=>{window.scrollTo(0,0);document.body.scrollTop=0;},50)} placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
+                      <input value={bName} onChange={e=>setBName(e.target.value)}
+                        onFocus={()=>{document.body.style.position='fixed';document.body.style.width='100%';}}
+                        onBlur={()=>{document.body.style.position='';document.body.style.width='';window.scrollTo(0,0);}}
+                        placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
                     </div>
                   </div>
 
@@ -3567,7 +3570,10 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                   <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
                   <div style={{marginBottom:14}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Meso name</div>
-                    <input value={bName} onChange={e=>setBName(e.target.value)} onBlur={()=>setTimeout(()=>{window.scrollTo(0,0);document.body.scrollTop=0;},50)} placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
+                    <input value={bName} onChange={e=>setBName(e.target.value)}
+                      onFocus={()=>{document.body.style.position='fixed';document.body.style.width='100%';}}
+                      onBlur={()=>{document.body.style.position='';document.body.style.width='';window.scrollTo(0,0);}}
+                      placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                   <div style={{marginBottom:24}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:10,fontWeight:600}}>Total weeks (including deload)</div>
@@ -4089,6 +4095,8 @@ export default function App(){
     // iOS sometimes scrolls the body when keyboard opens and doesn't restore it
     const resetScroll=()=>setTimeout(()=>{
       if(document.activeElement?.tagName!=="INPUT"&&document.activeElement?.tagName!=="TEXTAREA"){
+        document.body.style.position='';
+        document.body.style.width='';
         window.scrollTo(0,0);
         document.documentElement.scrollTop=0;
         document.body.scrollTop=0;
