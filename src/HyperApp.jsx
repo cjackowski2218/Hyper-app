@@ -3393,7 +3393,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                     </div>
                     <div style={{background:C.card2,padding:"4px 14px"}}>
                       <input value={bName} onChange={e=>setBName(e.target.value)}
-                        onFocus={e=>{const y=window.scrollY;setTimeout(()=>window.scrollTo(0,y),0);}}
+                        onFocus={()=>{window.scrollTo(0,0);setTimeout(()=>window.scrollTo(0,0),50);setTimeout(()=>window.scrollTo(0,0),150);}}
                         placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
                     </div>
                   </div>
@@ -3570,7 +3570,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                   <div style={{marginBottom:14}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Meso name</div>
                     <input value={bName} onChange={e=>setBName(e.target.value)}
-                      onFocus={e=>{const y=window.scrollY;setTimeout(()=>window.scrollTo(0,y),0);}}
+                      onFocus={()=>{window.scrollTo(0,0);setTimeout(()=>window.scrollTo(0,0),50);setTimeout(()=>window.scrollTo(0,0),150);}}
                       placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                   <div style={{marginBottom:24}}>
