@@ -320,13 +320,14 @@ const mesoStartLabel=(startDate)=>{
   } catch(_){ return "Started"; }
 };
 
-function rpProg(name, lw, lrir, lreps, trir, isDrop, theme=DARK, experience="intermediate") {
+function rpProg(name, lw, lrir, lreps, trir, isDrop, theme=DARK, experience="intermediate", currentReps=null) {
   if (isDrop) return {action:"add_reps",ws:lw,note:"Chase reps",reason:"Drop sets: hold weight, add reps",color:theme.blue};
   const p=getProfile(name);
   const w=parseFloat(lw)||0;
   const expScale={new:1.5, returning:1.25, intermediate:1.0, advanced:0.6}[experience]||1.0;
   const inc=snap(w*p.pct*expScale);
   const lrepsN=parseInt(lreps)||0;
+  const curRepsN=parseInt(currentReps)||0;
 
   // Bodyweight / zero-load exercises — rep guidance without needing a weight
   if(!w && p.preferReps){
@@ -345,6 +346,13 @@ function rpProg(name, lw, lrir, lreps, trir, isDrop, theme=DARK, experience="int
   if(lrir===null||lrir===undefined) return {action:"baseline",ws:w,note:null,reason:"No prior session. Hold this weight and log RIR to enable progression.",color:theme.muted2};
   const diff=lrir-trir;
   const ctx="Last: RIR "+lrir+"  /  Target: RIR "+trir;
+
+  // Rep drop signal: if current reps are fewer than last session at same or worse RIR,
+  // suppress any weight increase and hold weight instead
+  const repDropped=curRepsN>0&&lrepsN>0&&curRepsN<lrepsN;
+  if(repDropped&&diff>=0){
+    return {action:"hold",ws:w,note:"Match last reps ("+lrepsN+")",reason:ctx+". Reps dropped vs last session — hold weight until reps recover.",color:theme.orange};
+  }
 
   if(diff>=2){
     if(p.preferReps && lrepsN){
@@ -1561,7 +1569,10 @@ function ProgBanner({ex,wk,totalWeeks,isDeload,deloadStyle}){
     );
   }
   if (!ex.lastWeight) return null;
-  const p=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks,exp),false,C,exp);
+  // Get current session's top logged reps to detect rep drop
+  const doneSets=ex.sets.filter(s=>s.done&&!s.incomplete&&parseFloat(s.weight)>0&&parseFloat(s.reps)>0&&s.type!=="drop");
+  const currentTopReps=doneSets.length>0?doneSets.reduce((best,s)=>parseFloat(s.weight)>parseFloat(best.weight)?s:best,doneSets[0]).reps:null;
+  const p=rpProg(ex.name,ex.lastWeight,ex.lastRIR,ex.lastReps,defaultRIR(wk,totalWeeks,exp),false,C,exp,currentTopReps);
   if (!p) return null;
   const lbls={
     add_weight:"Suggested: "+p.ws+" lbs",
@@ -1756,7 +1767,15 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const [insertAt,setInsertAt]=useState(null);
   const [ghostPos,setGhostPos]=useState({x:0,y:0});
   const [ghostLbl,setGhostLbl]=useState("");
+  // restTimers stores {endTime: timestamp} instead of countdown seconds
+  // so the timer is correct even after the app is backgrounded
   const [restTimers,setRestTimers]=useState({});
+  const restDisplays={}; // computed remaining seconds from timestamps
+  const now=Date.now();
+  Object.keys(restTimers).forEach(k=>{
+    const rem=Math.max(0,Math.ceil((restTimers[k]-now)/1000));
+    restDisplays[k]=rem;
+  });
   const listRef=useRef(null);
   const txStart=useRef({});
   const dragRef=useRef({active:false,fromIdx:null});
@@ -1792,20 +1811,23 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
     } catch(e){}
   };
 
-  // Tick rest timers down
+  // Tick rest timers — recalculates from endTime so backgrounding doesn't affect accuracy
   useEffect(()=>{
-    const active=Object.values(restTimers).some(v=>v>0);
+    const active=Object.values(restTimers).some(v=>v>Date.now());
     if(!active) return;
     const t=setInterval(()=>{
+      const n=Date.now();
       setRestTimers(prev=>{
         const next={...prev};
         let justFinished=false;
         Object.keys(next).forEach(k=>{
-          if(next[k]===1) justFinished=true;
-          if(next[k]>0) next[k]--;
+          const rem=Math.ceil((next[k]-n)/1000);
+          if(rem<=0&&Math.ceil((next[k]-(n-1000))/1000)>0) justFinished=true;
         });
         if(justFinished) playDone();
-        return next;
+        // Clean up expired timers
+        Object.keys(next).forEach(k=>{if(next[k]<=n) delete next[k];});
+        return {...next};
       });
     },1000);
     return ()=>clearInterval(t);
@@ -1873,7 +1895,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
     const prof=getProfile(ex.name);
     const isHeavyCompound=prof.type==="compound"&&prof.pct>=0.025;
     const restSecs=isHeavyCompound?180:prof.type==="compound"?120:90;
-    setRestTimers({[sid]:restSecs});
+    setRestTimers({[sid]:Date.now()+restSecs*1000});
   };
   const undoSet=(eid,sid)=>{
     setExs(p=>p.map(e=>e.id!==eid?e:{...e,sets:e.sets.map(s=>s.id!==sid?s:{...s,done:false})}));
@@ -2062,11 +2084,11 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                 <div style={{textAlign:"center"}}>
                                   {iDr?<span style={{fontSize:9,color:C.orange}}>D</span>:<span style={{fontSize:10,color:C.muted}}>{si+1}</span>}
                                 </div>
-                                <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder="lbs" style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 4px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                                <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder={getProfile(ex.name).pct===0?"BW":"lbs"} style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 4px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                 <input type="number" inputMode="numeric" pattern="[0-9]*" enterKeyHint="done" disabled={set.done} value={set.reps} onChange={e=>updS(ex.id,set.id,"reps",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!set.done) logSet(ex.id,set.id);}} placeholder="reps" style={{background:C.surf,border:"1px solid "+C.border,borderRadius:6,padding:"8px 4px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                 <button disabled={set.done} onClick={()=>cycleRIR(ex.id,set.id,set.rir)} style={{background:rbg,border:"1px solid "+rfg+"55",borderRadius:6,padding:"8px 0",cursor:set.done?"default":"pointer",color:rfg,fontSize:13,fontWeight:800,textAlign:"center",transition:"all .1s",width:"100%"}}>{set.rir}</button>
-                                {set.done&&restTimers[set.id]>0?(
-                                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",background:C.border2,border:"1px solid "+C.border2,borderRadius:6,padding:"8px 0",fontSize:11,fontWeight:700,color:C.muted2}}>{fmt(restTimers[set.id])}</div>
+                                {set.done&&(restDisplays[set.id]||0)>0?(
+                                  <div style={{display:"flex",alignItems:"center",justifyContent:"center",background:C.border2,border:"1px solid "+C.border2,borderRadius:6,padding:"8px 0",fontSize:11,fontWeight:700,color:C.muted2}}>{fmt(restDisplays[set.id]||0)}</div>
                                 ):(()=>{
                                   return(
                                     <button onClick={()=>{if(set.done)return;logSet(ex.id,set.id);}} style={{padding:"8px 0",borderRadius:6,fontWeight:800,fontSize:11,letterSpacing:"0.06em",cursor:set.done?"default":"pointer",transition:"all .15s",background:set.done?C.green+"22":(!set.weight||!set.reps)?C.card:C.accent,border:"1px solid "+(set.done?C.green+"44":(!set.weight||!set.reps)?C.border2:C.accent),color:set.done?C.green:(!set.weight||!set.reps)?C.muted:"#000",display:"flex",alignItems:"center",justifyContent:"center",WebkitTapHighlightColor:"transparent"}}>
@@ -4087,6 +4109,25 @@ export default function App(){
         });
       }).catch(()=>{});
     }
+
+    // Pin nav bar to visual viewport so keyboard doesn't push it up on iOS
+    const pinNav=()=>{
+      const nav=document.querySelector('.hyper-nav');
+      if(!nav||!window.visualViewport) return;
+      const vv=window.visualViewport;
+      const offset=window.innerHeight-vv.height-vv.offsetTop;
+      nav.style.transform=offset>50?`translateY(-${offset}px)`:"";
+    };
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize',pinNav);
+      window.visualViewport.addEventListener('scroll',pinNav);
+    }
+    return()=>{
+      if(window.visualViewport){
+        window.visualViewport.removeEventListener('resize',pinNav);
+        window.visualViewport.removeEventListener('scroll',pinNav);
+      }
+    };
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
