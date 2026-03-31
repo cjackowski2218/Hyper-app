@@ -4087,16 +4087,19 @@ export default function App(){
     s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
-    // Fix iOS PWA 100dvh miscalculation on first paint
-    // iOS PWA splash screen causes incorrect innerHeight on mount
-    // pageshow fires after iOS fully presents the app
-    const setVH=()=>document.documentElement.style.setProperty('--vh',window.innerHeight*0.01+'px');
+    // Fix iOS PWA height miscalculation
+    // visualViewport.height is more accurate than innerHeight on iOS PWA
+    const setVH=()=>{
+      const h=window.visualViewport?window.visualViewport.height:window.innerHeight;
+      document.documentElement.style.setProperty('--vh',h*0.01+'px');
+    };
     setVH();
     setTimeout(setVH,100);
     setTimeout(setVH,500);
     setTimeout(setVH,1000);
     window.addEventListener('resize',setVH);
     window.addEventListener('pageshow',setVH);
+    if(window.visualViewport) window.visualViewport.addEventListener('resize',setVH);
 
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('/sw.js').then(reg=>{
@@ -4124,6 +4127,7 @@ export default function App(){
     return()=>{
       window.removeEventListener('resize',setVH);
       window.removeEventListener('pageshow',setVH);
+      if(window.visualViewport) window.visualViewport.removeEventListener('resize',setVH);
     };
   },[]);
 
