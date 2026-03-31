@@ -4082,7 +4082,7 @@ export default function App(){
     }
     const s=document.createElement('style');
     s.id='hyper-global';
-    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;height:100%;margin:0;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
+    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;height:100%;margin:0;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}.hyper-tab-content{padding-bottom:calc(60px + env(safe-area-inset-bottom))}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
     // Register Service Worker for offline support + auto-updates
@@ -4109,25 +4109,6 @@ export default function App(){
         });
       }).catch(()=>{});
     }
-
-    // Pin nav bar to visual viewport so keyboard doesn't push it up on iOS
-    const pinNav=()=>{
-      const nav=document.querySelector('.hyper-nav');
-      if(!nav||!window.visualViewport) return;
-      const vv=window.visualViewport;
-      const offset=window.innerHeight-vv.height-vv.offsetTop;
-      nav.style.transform=offset>50?`translateY(-${offset}px)`:"";
-    };
-    if(window.visualViewport){
-      window.visualViewport.addEventListener('resize',pinNav);
-      window.visualViewport.addEventListener('scroll',pinNav);
-    }
-    return()=>{
-      if(window.visualViewport){
-        window.visualViewport.removeEventListener('resize',pinNav);
-        window.visualViewport.removeEventListener('scroll',pinNav);
-      }
-    };
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
@@ -4697,7 +4678,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
       
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
@@ -4825,7 +4806,7 @@ export default function App(){
             </div>
             <div style={{paddingTop:16,borderTop:"1px solid "+C.border+"60"}}>
               {showResetConfirm?(
-                <div style={{background:C.card2,borderLeft:"3px solid "+C.red,padding:"14px"}}>
+                <div ref={el=>el&&el.scrollIntoView({behavior:"smooth",block:"nearest"})} style={{background:C.card2,borderLeft:"3px solid "+C.red,padding:"14px"}}>
                   <div style={{fontSize:12,color:C.muted2,marginBottom:12,lineHeight:1.6}}>All training data, history, and records will be permanently deleted.</div>
                   <div style={{display:"flex",gap:6}}>
                     <button onClick={()=>setShowResetConfirm(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:11,fontWeight:600}}>Cancel</button>
@@ -4907,7 +4888,7 @@ export default function App(){
       <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
       </div>
-      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)",marginBottom:0,boxShadow:"0 calc(env(safe-area-inset-bottom)) 0 0 "+C.surf}}>
+      <div className="hyper-nav" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)",zIndex:200,boxShadow:"0 calc(env(safe-area-inset-bottom)) 0 0 "+C.surf}}>
         {TABS.map(t=>{
           const Icon=TICONS[t.id];
           const active=tab===t.id;
