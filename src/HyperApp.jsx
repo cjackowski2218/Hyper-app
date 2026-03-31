@@ -3393,8 +3393,6 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                     </div>
                     <div style={{background:C.card2,padding:"4px 14px"}}>
                       <input value={bName} onChange={e=>setBName(e.target.value)}
-                        onFocus={()=>{document.body.style.position='fixed';document.body.style.width='100%';}}
-                        onBlur={()=>{document.body.style.position='';document.body.style.width='';window.scrollTo(0,0);}}
                         placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
                     </div>
                   </div>
@@ -3571,8 +3569,6 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                   <div style={{marginBottom:14}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Meso name</div>
                     <input value={bName} onChange={e=>setBName(e.target.value)}
-                      onFocus={()=>{document.body.style.position='fixed';document.body.style.width='100%';}}
-                      onBlur={()=>{document.body.style.position='';document.body.style.width='';window.scrollTo(0,0);}}
                       placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                   <div style={{marginBottom:24}}>
@@ -4091,18 +4087,6 @@ export default function App(){
     s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
-    // Reset body scroll position when any input loses focus
-    // iOS sometimes scrolls the body when keyboard opens and doesn't restore it
-    const resetScroll=()=>setTimeout(()=>{
-      if(document.activeElement?.tagName!=="INPUT"&&document.activeElement?.tagName!=="TEXTAREA"){
-        document.body.style.position='';
-        document.body.style.width='';
-        window.scrollTo(0,0);
-        document.documentElement.scrollTop=0;
-        document.body.scrollTop=0;
-      }
-    },50);
-    document.addEventListener('focusout',resetScroll);
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('/sw.js').then(reg=>{
         // Check immediately for a waiting SW (e.g. user reopens after a deploy)
@@ -4126,7 +4110,6 @@ export default function App(){
         });
       }).catch(()=>{});
     }
-    return()=>document.removeEventListener('focusout',resetScroll);
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
