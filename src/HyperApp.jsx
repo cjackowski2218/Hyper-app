@@ -4087,6 +4087,12 @@ export default function App(){
     s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
+    // Fix iOS PWA 100dvh miscalculation on first paint
+    // iOS sometimes miscalculates dvh on initial render — use JS-measured height instead
+    const setVH=()=>document.documentElement.style.setProperty('--vh',window.innerHeight*0.01+'px');
+    setVH();
+    window.addEventListener('resize',setVH);
+
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('/sw.js').then(reg=>{
         // Check immediately for a waiting SW (e.g. user reopens after a deploy)
@@ -4110,6 +4116,7 @@ export default function App(){
         });
       }).catch(()=>{});
     }
+    return()=>window.removeEventListener('resize',setVH);
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
@@ -4679,7 +4686,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"calc(var(--vh, 1vh) * 100)",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
       
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
