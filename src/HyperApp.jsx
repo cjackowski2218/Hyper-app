@@ -4684,7 +4684,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxHeight:"-webkit-fill-available",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}} ref={el=>{if(el) el.style.height='-webkit-fill-available';}}>
       
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
