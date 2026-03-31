@@ -4678,7 +4678,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
+    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
       
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
@@ -4859,7 +4859,7 @@ export default function App(){
       {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)} onSpecialize={handleSpecialize} onDismiss={()=>setMesoComplete(null)}/>:null}
       {activeLog?(()=>{const _lastNote=(history.find(h=>h.day===activeLog.name&&h.note)||{}).note||null;return(<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs} exUpdateKey={exUpdateKey} lastSessionNote={_lastNote}/>);})():null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
-      <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+      <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
         {(meso&&program&&program.length>0)?(
           <HomeScreen meso={meso} mesoCount={mesoCount} program={program} history={history} onStart={d=>{
             if(activeLog&&loggerOpen===false){
@@ -4879,13 +4879,13 @@ export default function App(){
           </div>
         )}
       </div>
-      <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+      <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
         <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>
       </div>
-      <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+      <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
         <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
       </div>
-      <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
+      <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
       </div>
       <div className="hyper-nav" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)",zIndex:200,boxShadow:"0 calc(env(safe-area-inset-bottom)) 0 0 "+C.surf}}>
