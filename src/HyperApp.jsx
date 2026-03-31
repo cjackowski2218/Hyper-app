@@ -3393,6 +3393,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                     </div>
                     <div style={{background:C.card2,padding:"4px 14px"}}>
                       <input value={bName} onChange={e=>setBName(e.target.value)}
+                        onFocus={e=>{const y=window.scrollY;setTimeout(()=>window.scrollTo(0,y),0);}}
                         placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
                     </div>
                   </div>
@@ -3569,6 +3570,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                   <div style={{marginBottom:14}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Meso name</div>
                     <input value={bName} onChange={e=>setBName(e.target.value)}
+                      onFocus={e=>{const y=window.scrollY;setTimeout(()=>window.scrollTo(0,y),0);}}
                       placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                   <div style={{marginBottom:24}}>
@@ -4087,19 +4089,7 @@ export default function App(){
     s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
-    // Fix iOS PWA height miscalculation
-    // visualViewport.height is more accurate than innerHeight on iOS PWA
-    const setVH=()=>{
-      const h=window.visualViewport?window.visualViewport.height:window.innerHeight;
-      document.documentElement.style.setProperty('--vh',h*0.01+'px');
-    };
-    setVH();
-    setTimeout(setVH,100);
-    setTimeout(setVH,500);
-    setTimeout(setVH,1000);
-    window.addEventListener('resize',setVH);
-    window.addEventListener('pageshow',setVH);
-    if(window.visualViewport) window.visualViewport.addEventListener('resize',setVH);
+
 
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('/sw.js').then(reg=>{
@@ -4124,11 +4114,7 @@ export default function App(){
         });
       }).catch(()=>{});
     }
-    return()=>{
-      window.removeEventListener('resize',setVH);
-      window.removeEventListener('pageshow',setVH);
-      if(window.visualViewport) window.visualViewport.removeEventListener('resize',setVH);
-    };
+
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
@@ -4698,7 +4684,7 @@ export default function App(){
   return(
     <ThemeCtx.Provider value={C}>
     <ProfileCtx.Provider value={profile||{experience:"intermediate",sex:"male",bodyweight:185}}>
-    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"calc(var(--vh, 1vh) * 100)",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
+    <div style={{fontFamily:"'Inter',sans-serif",background:C.bg,color:C.text,height:"100dvh",maxWidth:480,margin:"0 auto",display:"flex",flexDirection:"column",position:"relative",transition:"background .25s,color .25s",overflow:"hidden"}}>
       
       <div style={{background:C.surf,borderBottom:"1px solid "+C.border+"60",padding:"13px 16px",paddingTop:"calc(13px + env(safe-area-inset-top))",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"space-between",transition:"background .25s,border-color .25s"}}>
         <div style={{fontFamily:"'Inter',sans-serif",fontSize:18,fontWeight:900,letterSpacing:"0.2em",color:C.accent}}>HYPER</div>
