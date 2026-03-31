@@ -3392,7 +3392,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                       <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Meso Name</span>
                     </div>
                     <div style={{background:C.card2,padding:"4px 14px"}}>
-                      <input value={bName} onChange={e=>setBName(e.target.value)} placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
+                      <input value={bName} onChange={e=>setBName(e.target.value)} onBlur={()=>setTimeout(()=>{window.scrollTo(0,0);document.body.scrollTop=0;},50)} placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
                     </div>
                   </div>
 
@@ -3567,7 +3567,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                   <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
                   <div style={{marginBottom:14}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Meso name</div>
-                    <input value={bName} onChange={e=>setBName(e.target.value)} placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
+                    <input value={bName} onChange={e=>setBName(e.target.value)} onBlur={()=>setTimeout(()=>{window.scrollTo(0,0);document.body.scrollTop=0;},50)} placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                   <div style={{marginBottom:24}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:10,fontWeight:600}}>Total weeks (including deload)</div>
@@ -4082,10 +4082,19 @@ export default function App(){
     }
     const s=document.createElement('style');
     s.id='hyper-global';
-    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;height:100%;margin:0;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}.hyper-tab-content{padding-bottom:calc(60px + env(safe-area-inset-bottom))}`;
+    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;height:100%;margin:0;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
-    // Register Service Worker for offline support + auto-updates
+    // Reset body scroll position when any input loses focus
+    // iOS sometimes scrolls the body when keyboard opens and doesn't restore it
+    const resetScroll=()=>setTimeout(()=>{
+      if(document.activeElement?.tagName!=="INPUT"&&document.activeElement?.tagName!=="TEXTAREA"){
+        window.scrollTo(0,0);
+        document.documentElement.scrollTop=0;
+        document.body.scrollTop=0;
+      }
+    },50);
+    document.addEventListener('focusout',resetScroll);
     if('serviceWorker' in navigator){
       navigator.serviceWorker.register('/sw.js').then(reg=>{
         // Check immediately for a waiting SW (e.g. user reopens after a deploy)
@@ -4109,6 +4118,7 @@ export default function App(){
         });
       }).catch(()=>{});
     }
+    return()=>document.removeEventListener('focusout',resetScroll);
   },[]);
 
   // ── IndexedDB storage (survives Safari's localStorage purge for installed PWAs) ──
@@ -4859,7 +4869,7 @@ export default function App(){
       {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)} onSpecialize={handleSpecialize} onDismiss={()=>setMesoComplete(null)}/>:null}
       {activeLog?(()=>{const _lastNote=(history.find(h=>h.day===activeLog.name&&h.note)||{}).note||null;return(<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs} exUpdateKey={exUpdateKey} lastSessionNote={_lastNote}/>);})():null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
-      <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
+      <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         {(meso&&program&&program.length>0)?(
           <HomeScreen meso={meso} mesoCount={mesoCount} program={program} history={history} onStart={d=>{
             if(activeLog&&loggerOpen===false){
@@ -4879,16 +4889,16 @@ export default function App(){
           </div>
         )}
       </div>
-      <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
+      <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>
       </div>
-      <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
+      <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
       </div>
-      <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden",paddingBottom:"calc(60px + env(safe-area-inset-bottom))"}}>
+      <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
       </div>
-      <div className="hyper-nav" style={{position:"fixed",bottom:0,left:0,right:0,maxWidth:480,margin:"0 auto",background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)",zIndex:200,boxShadow:"0 calc(env(safe-area-inset-bottom)) 0 0 "+C.surf}}>
+      <div className="hyper-nav" style={{background:C.surf,borderTop:"1px solid "+C.border+"60",display:"flex",flexShrink:0,paddingBottom:"env(safe-area-inset-bottom)",boxShadow:"0 calc(env(safe-area-inset-bottom)) 0 0 "+C.surf}}>
         {TABS.map(t=>{
           const Icon=TICONS[t.id];
           const active=tab===t.id;
