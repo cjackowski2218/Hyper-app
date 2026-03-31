@@ -13,8 +13,18 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>HYPER</title>
     <style>
-      html, body { background: #0d1117; margin: 0; padding: 0; }
+      html, body { background: #131313; margin: 0; padding: 0; }
     </style>
+    <script>
+      // Set --vh before first paint so React uses correct height immediately
+      (function() {
+        function setVH() {
+          document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+        }
+        setVH();
+        window.addEventListener('resize', setVH);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
