@@ -4091,6 +4091,8 @@ export default function App(){
     // iOS sometimes miscalculates dvh on initial render — use JS-measured height instead
     const setVH=()=>document.documentElement.style.setProperty('--vh',window.innerHeight*0.01+'px');
     setVH();
+    setTimeout(setVH,100);
+    setTimeout(setVH,300);
     window.addEventListener('resize',setVH);
 
     if('serviceWorker' in navigator){
