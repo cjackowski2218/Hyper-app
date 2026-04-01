@@ -308,6 +308,23 @@ const defaultRIR = (w, total, experience="intermediate") => {
 };
 const fmt = s => String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");
 const getTodayName = () => new Date().toLocaleDateString("en-US",{weekday:"long"});
+
+// Calculate which week of a meso we're in based on calendar date
+// rawStartDate is ISO string e.g. "2026-03-23"
+// Returns week number clamped between 1 and totalWeeks
+function getMesoWeekFromDate(rawStartDate, totalWeeks) {
+  if(!rawStartDate) return null;
+  try {
+    const start=new Date(rawStartDate+'T00:00:00');
+    const now=new Date();
+    now.setHours(0,0,0,0);
+    start.setHours(0,0,0,0);
+    const daysDiff=Math.floor((now-start)/(1000*60*60*24));
+    if(daysDiff<0) return 1; // start date is in the future
+    const week=Math.floor(daysDiff/7)+1;
+    return Math.min(Math.max(1,week),totalWeeks);
+  } catch(_){ return null; }
+}
 // Returns "Starts" or "Started" depending on whether the meso's first training day has arrived
 const mesoStartLabel=(startDate)=>{
   if(!startDate) return "Started";
@@ -2460,14 +2477,13 @@ function MesoCompleteScreen({meso,liftHistory,mesoNum,onStartNext,onReview,onSpe
   );
 }
 
-function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onEdit,onExtendMeso,onSetDeloadStyle,driveConnected,driveNudgeDismissed,onDriveNudgeDismiss,onOpenProfile}){
+function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,onResume,onAbandon,onExtendMeso,onSetDeloadStyle,driveConnected,driveNudgeDismissed,onDriveNudgeDismiss,onOpenProfile}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
   const isDeloadWeek=meso.week===meso.totalWeeks;
   const needsDeloadChoice=isDeloadWeek&&!meso.deloadStyle;
   const [confirmAbandon,setConfirmAbandon]=useState(false);
-  const [showExtraPicker,setShowExtraPicker]=useState(false);
   useEffect(()=>{if(!activeLog) setConfirmAbandon(false);},[activeLog]);
   const TODAY=getTodayName();
   const todayWorkout=program.find(d=>d.day===TODAY)||null;
@@ -2685,74 +2701,18 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
           </Section>
         ):null}
 
-        {/* Recent Sessions */}
-        <Section>
-          <SLbl>Recent Sessions</SLbl>
-          {history.length===0?(
-            <div style={{fontSize:12,color:C.muted,padding:"16px 0",textAlign:"center"}}>No sessions logged yet</div>
-          ):(
-            <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {history.slice(0,6).map((s,i)=>(
-                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div>
-                    <div style={{display:"flex",alignItems:"baseline",gap:7}}>
-                      <div style={{fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.04em"}}>{s.day}</div>
-                      <div style={{fontSize:10,color:C.muted}}>Week {s.week}</div>
-                    </div>
-                    <div style={{fontSize:10,color:C.muted2,marginTop:1}}>{s.date}{s.note?<span style={{fontStyle:"italic",marginLeft:6}}>"{s.note.slice(0,40)}{s.note.length>40?"…":""}"</span>:null}</div>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:12,fontWeight:700,color:s.sets===s.planned?C.green:C.accent}}>{s.sets}/{s.planned}</div>
-                      <div style={{fontSize:9,color:C.muted,letterSpacing:"0.06em"}}>SETS</div>
-                    </div>
-                    <button onClick={()=>onEdit(s,i)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 9px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer"}}>Edit</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {/* Additional session — tucked away, for the rare case */}
-          {program.length>0?(
-            <div style={{marginTop:16,paddingTop:12,borderTop:"1px solid "+C.border+"60"}}>
-              {showExtraPicker?(
-                <div>
-                  <div style={{fontSize:10,color:C.muted2,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Choose session</div>
-                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                    {program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day)).map(d=>(
-                      <button key={d.id} onClick={()=>{setShowExtraPicker(false);onStart(d);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 12px",background:C.card2,border:"none",borderLeft:"3px solid "+C.border2,color:C.text,fontSize:11,fontWeight:700,cursor:"pointer",textAlign:"left",textTransform:"uppercase",letterSpacing:"0.04em"}}>
-                        <span>{d.name}</span>
-                        <span style={{fontSize:10,color:C.muted,fontWeight:400,textTransform:"none",letterSpacing:0}}>{d.day}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button onClick={()=>setShowExtraPicker(false)} style={{background:"none",border:"none",padding:"8px 0 0",color:C.muted,fontSize:10,cursor:"pointer",letterSpacing:"0.06em"}}>Cancel</button>
-                </div>
-              ):(
-                <button onClick={()=>setShowExtraPicker(true)} style={{background:"none",border:"none",padding:0,color:C.muted,fontSize:10,cursor:"pointer",letterSpacing:"0.06em",fontWeight:600,textDecoration:"underline",textDecorationColor:C.border2}}>+ Log additional session</button>
-              )}
-            </div>
-          ):null}
-        </Section>
-
       </div>
     </div>
   );
 }
 
-function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
+function MesoTab({meso,mesoCount,onGlossary,history,program,muscles,onEdit,onStart}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
+  const [expandedWeek,setExpandedWeek]=useState(null);
   const thisWeekSessions=history.filter(s=>s.week===meso.week&&(s.mesoNum==null||s.mesoNum===mesoCount));
   const completedDayNames=new Set(thisWeekSessions.map(s=>s.day));
-  const sessions=program.map(d=>({
-    day:d.name,weekday:d.day,
-    done:completedDayNames.has(d.name),
-    sets:thisWeekSessions.find(s=>s.day===d.name)?thisWeekSessions.find(s=>s.day===d.name).sets:0,
-    planned:d.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0),
-  }));
-  const completed=sessions.filter(s=>s.done).length;
   const weeklyVol={};
   program.forEach(d=>{d.exercises.forEach(ex=>{
     if(!weeklyVol[ex.muscle]) weeklyVol[ex.muscle]=0;
@@ -2774,58 +2734,108 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles}){
   });
 
   const programMuscles=Object.keys(weeklyVol).filter(m=>muscles[m]);
+
+  // Build week-by-week session data for all weeks up to current
+  const workingWeeks=Array(meso.week).fill(null).map((_,i)=>{
+    const weekNum=i+1;
+    const isDeload=weekNum===meso.totalWeeks;
+    const weekSessions=history.filter(s=>s.week===weekNum&&(s.mesoNum==null||s.mesoNum===mesoCount));
+    const days=program.map(d=>{
+      const logged=weekSessions.find(s=>s.day===d.name);
+      const planned=d.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);
+      // Calculate the actual calendar date this training day falls on
+      let calDate=null;
+      if(meso.rawStartDate){
+        try{
+          const start=new Date(meso.rawStartDate+'T12:00:00');
+          const weekOffset=(weekNum-1)*7;
+          const startDayIdx=WEEK_DAYS.indexOf(start.toLocaleDateString("en-US",{weekday:"long"}));
+          const targetDayIdx=WEEK_DAYS.indexOf(d.day);
+          let dayOffset=(targetDayIdx-startDayIdx+7)%7;
+          const d2=new Date(start);
+          d2.setDate(d2.getDate()+weekOffset+dayOffset);
+          calDate=d2.toLocaleDateString("en-US",{month:"numeric",day:"numeric"});
+        }catch(_){}
+      }
+      return {name:d.name,weekday:d.day,calDate,logged:!!logged,sets:logged?logged.sets:0,planned:logged?logged.planned:planned,session:logged,sessionIdx:logged?history.findIndex(s=>s===logged):-1};
+    });
+    return {weekNum,isDeload,days,complete:days.every(d=>d.logged)};
+  });
+
   return(
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
-      {/* Meso header */}
-      <Section accent={C.accent}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-          <div>
-            <SLbl>Current Meso</SLbl>
-            <div style={{display:"flex",alignItems:"center",gap:7}}>
-              <div style={{fontSize:15,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em"}}>{meso.label}</div>
-              {meso.mode==="specialization"?<Tag label="Spec" color={C.blue}/>:null}
+      {/* Weekly session log */}
+      <Section accent={C.border2}>
+        <SLbl style={{marginBottom:4}}>Sessions</SLbl>
+        {(()=>{
+          const dateRange=meso.rawStartDate?(()=>{
+            const s=new Date(meso.rawStartDate+'T12:00:00');
+            const e=new Date(s);e.setDate(e.getDate()+(meso.totalWeeks*7)-1);
+            const fmt=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+            return fmt(s)+" – "+fmt(e);
+          })():null;
+          const isCustomLabel=meso.label&&dateRange&&!meso.label.startsWith(dateRange.split(' ')[0]);
+          return(
+            <div style={{marginBottom:10}}>
+              {isCustomLabel?<div style={{fontSize:13,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:2}}>{meso.label}</div>:null}
+              {dateRange?<div style={{fontSize:11,color:C.muted}}>{dateRange}</div>:null}
             </div>
-            {meso.startDate?<div style={{fontSize:10,color:C.muted,marginTop:2}}>{mesoStartLabel(meso.startDate)} {meso.startDate}</div>:null}
-          </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:26,fontWeight:900,color:C.accent,lineHeight:1}}>W{meso.week}</div>
-            <div style={{fontSize:9,color:C.muted,letterSpacing:"0.1em",fontWeight:700}}>OF {meso.totalWeeks}</div>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:4,marginBottom:0}}>
-          {Array(meso.totalWeeks).fill(null).map((_,i)=>(
-            <div key={i} style={{flex:1,background:i===meso.week-1?C.accent:i<meso.week-1?C.accent+"33":C.card2,padding:"10px 4px",textAlign:"center"}}>
-              <div style={{fontSize:11,fontWeight:900,color:i===meso.week-1?"#000":i<meso.week-1?C.accent:C.muted2}}>{i===meso.totalWeeks-1?"DL":"W"+(i+1)}</div>
-              <div style={{fontSize:8,color:i===meso.week-1?"#000":C.muted,marginTop:2,letterSpacing:"0.06em"}}>RIR {defaultRIR(i+1,meso.totalWeeks,exp)}</div>
+          );
+        })()}
+        {workingWeeks.slice().reverse().map(({weekNum,isDeload,days,complete})=>{
+          const isOpen=expandedWeek===weekNum;
+          const isCurrent=weekNum===meso.week;
+          return(
+            <div key={weekNum} style={{marginBottom:4}}>
+              <button onClick={()=>setExpandedWeek(isOpen?null:weekNum)} style={{width:"100%",display:"flex",justifyContent:"space-between",alignItems:"center",background:isCurrent?C.accent+"12":C.card2,border:"none",borderLeft:"3px solid "+(isCurrent?C.accent:complete?C.green:C.border2),padding:"10px 12px",cursor:"pointer",textAlign:"left"}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:12,fontWeight:800,color:isCurrent?C.accent:C.text,letterSpacing:"0.04em"}}>{isDeload?"Deload":"Week "+weekNum}</span>
+                  {isCurrent?<span style={{fontSize:9,fontWeight:700,color:C.accent,background:C.accent+"18",padding:"1px 6px",letterSpacing:"0.06em"}}>CURRENT</span>:null}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  {complete?(
+                    <IcoCheck sz={12} col={C.green}/>
+                  ):(
+                    <span style={{fontSize:10,color:C.muted}}>{days.filter(d=>d.logged).length}/{days.length}</span>
+                  )}
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">{isOpen?<polyline points="18 15 12 9 6 15"/>:<polyline points="6 9 12 15 18 9"/>}</svg>
+                </div>
+              </button>
+              {isOpen?(
+                <div style={{background:C.card,borderLeft:"3px solid "+(isCurrent?C.accent:complete?C.green:C.border2),padding:"8px 12px"}}>
+                  {days.map((d,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,paddingTop:i>0?8:0,marginTop:i>0?8:0,borderTop:i>0?"1px solid "+C.border+"60":"none"}}>
+                      <div style={{width:3,height:32,background:d.logged?C.green:C.border2,flexShrink:0}}/>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.04em"}}>{d.name}</div>
+                        <div style={{fontSize:10,color:C.muted,marginTop:1}}>{d.weekday}{d.calDate?" · "+d.calDate:""}</div>
+                      </div>
+                      {d.logged?(
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{textAlign:"right"}}>
+                            <div style={{fontSize:12,fontWeight:700,color:d.sets===d.planned?C.green:C.accent}}>{d.sets}/{d.planned}</div>
+                            <div style={{fontSize:9,color:C.muted,letterSpacing:"0.06em"}}>SETS</div>
+                          </div>
+                          {onEdit&&d.session?<button onClick={()=>onEdit(d.session,d.sessionIdx)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 9px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer"}}>Edit</button>:null}
+                        </div>
+                      ):(
+                        <button onClick={()=>onStart&&onStart(program.find(p=>p.name===d.name))} style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:4,padding:"4px 10px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.04em"}}>Log</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ):null}
             </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* Session consistency */}
-      <Section>
-        <SLbl>Session Consistency — Week {meso.week}</SLbl>
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {sessions.map((s,i)=>(
-            <div key={i} style={{display:"flex",alignItems:"center",gap:10,opacity:s.done?1:0.45}}>
-              <div style={{width:3,height:32,background:s.done?C.green:C.border2,flexShrink:0}}/>
-              <div style={{flex:1}}>
-                <div style={{fontSize:12,fontWeight:700,color:s.done?C.text:C.muted,textTransform:"uppercase",letterSpacing:"0.04em"}}>{s.day}</div>
-                <div style={{fontSize:10,color:C.muted}}>{s.weekday}</div>
-              </div>
-              <div style={{fontSize:11,color:C.muted}}>{s.done?s.sets+"/"+s.planned+" sets":"Upcoming"}</div>
-              {s.done&&s.sets<s.planned?<Tag label={s.planned-s.sets+" skipped"} color={C.accent}/>:null}
-            </div>
-          ))}
-        </div>
+          );
+        })}
       </Section>
 
       {/* Volume landmarks */}
-      <Section>
+      <Section accent={C.border2}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
           <div>
             <SLbl>Volume vs Landmarks</SLbl>
-            <div style={{fontSize:10,color:C.muted}}>Week {meso.week} — actual vs planned sets per muscle</div>
+            <div style={{fontSize:12,color:C.muted}}>Week {meso.week} — actual vs planned sets per muscle</div>
           </div>
           <button onClick={onGlossary} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"3px 9px",color:C.muted2,fontSize:10,cursor:"pointer",fontWeight:600,letterSpacing:"0.05em"}}>Glossary</button>
         </div>
@@ -3091,7 +3101,7 @@ function HistoryTab({liftHistory}){
   );
 }
 
-function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,muscles}){
+function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,muscles,onEdit,onStart}){
   const C=useContext(ThemeCtx);
   const hasData=liftHistory&&liftHistory.length>0;
   const hasMeso=meso&&program&&program.length>0;
@@ -3113,7 +3123,7 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{padding:"6px 14px 100px"}}>
-          {sub==="meso"&&hasMeso?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles}/>:null}
+          {sub==="meso"&&hasMeso?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles} onEdit={onEdit} onStart={onStart}/>:null}
           {sub==="meso"&&!hasMeso?<div style={{padding:"40px 0",textAlign:"center",color:C.muted,fontSize:13,lineHeight:1.7}}>No active mesocycle. Your lift history is in the History tab.</div>:null}
           {sub==="history"?<HistoryTab liftHistory={liftHistory}/>:null}
         </div>
@@ -3122,7 +3132,7 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
   );
 }
 
-function PlanCurrent({meso,program,library,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary}){
+function PlanCurrent({meso,program,library,setLibrary,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
@@ -3288,6 +3298,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
   const [repRange,setRepRange]=useState(meso?.repRange||"hypertrophy");
   const [picker,setPicker]=useState(null);
   const [splitInfoOpen,setSplitInfoOpen]=useState(null);
+  const [startDate,setStartDate]=useState("");
 
   const needsPriority=splitNeedsPriority(qSplit,availDays.length);
 
@@ -3321,21 +3332,29 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
     })};
   }));
 
-  const canLaunch=bName.trim()&&bDays.length>0&&bDays.every(d=>d.name.trim()&&d.exercises.length>0);
-  const doLaunch=()=>onLaunch({label:bName.trim(),week:1,totalWeeks:bWeeks,repRange:repRange||"hypertrophy"},bDays.map(d=>({...d,name:d.name.trim()})));
+  const canLaunch=bDays.length>0&&bDays.every(d=>d.name.trim()&&d.exercises.length>0);
+  const autoLabel=(()=>{
+    const rrLabel={"hypertrophy":"Hypertrophy","strength-hyp":"Strength","power-hyp":"Power"}[repRange]||"Hypertrophy";
+    if(startDate){
+      const s=new Date(startDate+'T12:00:00');
+      const e=new Date(s);e.setDate(e.getDate()+(bWeeks*7)-1);
+      const fmt=d=>d.toLocaleDateString("en-US",{month:"short",day:"numeric"});
+      return `${fmt(s)} – ${fmt(e)} · ${rrLabel}`;
+    }
+    return `Meso · ${bWeeks}wks · ${rrLabel}`;
+  })();
+  const finalLabel=bName.trim()||autoLabel;
+  const doLaunch=()=>onLaunch({label:finalLabel,week:1,totalWeeks:bWeeks,repRange:repRange||"hypertrophy",customStartDate:startDate||null},bDays.map(d=>({...d,name:d.name.trim()})));
 
   return(
     <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
       {picker?(
-        <ExPicker library={library} setLibrary={setLibrary} title={picker&&picker.includes("__swap__")?"Swap Exercise":"Add Exercise"} onAdd={ex=>{
-          if(picker.includes("__swap__")){
-            const parts=picker.split("__swap__");
-            const dayId=parts[0];
-            const oldName=parts[1];
+        <ExPicker library={library} setLibrary={setLibrary} title={picker.swapName?"Swap Exercise":"Add Exercise"} defaultMuscle={picker.swapMuscle||"All"} onAdd={ex=>{
+          if(picker.swapName){
             setBDays(p=>p.map(d=>{
-              if(d.id!==dayId) return d;
+              if(d.id!==picker.dayId) return d;
               return {...d,exercises:d.exercises.map(e=>{
-                if(e.name!==oldName) return e;
+                if(e.name!==picker.swapName) return e;
                 return (()=>{
                   const lm=muscles[ex.muscle];
                   const mevS=lm?Math.max(2,Math.min(5,Math.round(lm.mev/2))):3;
@@ -3346,7 +3365,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
               })};
             }));
           } else {
-            addEx(picker,ex);
+            addEx(picker.dayId,ex);
           }
           setPicker(null);
         }} onClose={()=>setPicker(null)}/>
@@ -3385,23 +3404,12 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                 <div>
                   <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted2,fontSize:11,fontWeight:600,cursor:"pointer",marginBottom:20,padding:0,letterSpacing:"0.05em"}}>← Back</button>
 
-                  {/* 01 — Meso Name */}
-                  <div style={{marginBottom:24}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>01</span>
-                      <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Meso Name</span>
-                    </div>
-                    <div style={{background:C.card2,padding:"4px 14px"}}>
-                      <input value={bName} onChange={e=>setBName(e.target.value)}
-                        onFocus={()=>{window.scrollTo(0,0);setTimeout(()=>window.scrollTo(0,0),50);setTimeout(()=>window.scrollTo(0,0),150);}}
-                        placeholder="E.G., HYPERTROPHY BLOCK A" style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 0",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",textTransform:"uppercase",letterSpacing:"0.05em"}}/>
-                    </div>
-                  </div>
+                  {/* 01 — Training days */}
 
                   {/* 02 — Training days */}
                   <div style={{marginBottom:24}}>
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>02</span>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>01</span>
                       <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Frequency</span>
                     </div>
                     <div style={{display:"flex",gap:4}}>
@@ -3422,7 +3430,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                   {/* 03 — Duration */}
                   <div style={{marginBottom:24}}>
                     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>03</span>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>02</span>
                       <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Duration (Weeks)</span>
                     </div>
                     <div style={{display:"flex",gap:6}}>
@@ -3435,6 +3443,18 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                     </div>
                     {bWeeks===3?<div style={{fontSize:10,color:C.muted2,marginTop:6}}>2 working weeks + 1 deload. Good for specialization or returning lifters.</div>:null}
                     {bWeeks===5?<div style={{fontSize:10,color:C.muted2,marginTop:6}}>4 working weeks + 1 deload. The most effective meso length for most lifters.</div>:null}
+                  </div>
+
+                  {/* 03 — Start Date */}
+                  <div style={{marginBottom:24}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                      <span style={{fontSize:10,fontWeight:800,background:C.accent,color:"#000",padding:"2px 7px",letterSpacing:"0.05em"}}>03</span>
+                      <span style={{fontSize:11,fontWeight:800,letterSpacing:"0.12em",textTransform:"uppercase",color:C.text}}>Start Date</span>
+                    </div>
+                    <div style={{background:C.card2,padding:"4px 14px"}}>
+                      <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)} style={{width:"100%",background:"transparent",border:"none",borderBottom:"2px solid "+(startDate?C.accent:C.border2),padding:"12px 0",color:startDate?C.text:C.muted,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box",colorScheme:"dark"}}/>
+                    </div>
+                    <div style={{fontSize:10,color:C.muted2,marginTop:6}}>Leave blank to start on your next scheduled training day.</div>
                   </div>
 
                   {/* 04 — Training split */}
@@ -3561,17 +3581,17 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                     <div style={{fontSize:10,color:C.muted2,marginTop:6}}>It is recommended to rotate rep ranges across mesos for long-term development.</div>
                   </div>
 
-                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!bName.trim()||!qSplit||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"15px",background:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card2,color:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:0,fontSize:13,fontWeight:900,letterSpacing:"0.15em",cursor:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>GENERATE PROGRAM</button>
+                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!qSplit||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"15px",background:(qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card2,color:(qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:0,fontSize:13,fontWeight:900,letterSpacing:"0.15em",cursor:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
                 <div>
                   <button onClick={()=>setMode(null)} style={{background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",marginBottom:16,padding:0}}>← Back</button>
                   <div style={{marginBottom:14}}>
-                    <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Meso name</div>
+                    <div style={{fontSize:11,color:C.muted2,marginBottom:6,fontWeight:600}}>Custom name <span style={{color:C.muted,fontWeight:400}}>(optional)</span></div>
                     <input value={bName} onChange={e=>setBName(e.target.value)}
                       onFocus={()=>{window.scrollTo(0,0);setTimeout(()=>window.scrollTo(0,0),50);setTimeout(()=>window.scrollTo(0,0),150);}}
-                      placeholder="e.g. Mar 10 - Apr 13" style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
+                      placeholder={autoLabel} style={{width:"100%",background:C.card2,border:"none",borderBottom:"2px solid "+(bName?C.accent:C.border2),padding:"12px 4px",color:C.text,fontSize:14,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                   <div style={{marginBottom:24}}>
                     <div style={{fontSize:11,color:C.muted2,marginBottom:10,fontWeight:600}}>Total weeks (including deload)</div>
@@ -3583,7 +3603,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                       ))}
                     </div>
                   </div>
-                  <button onClick={()=>setStep(1)} disabled={!bName.trim()} style={{width:"100%",padding:"14px",background:bName.trim()?C.accent:C.card,color:bName.trim()?"#000":C.muted,border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:bName.trim()?"pointer":"default",transition:"all .2s"}}>NEXT: TRAINING DAYS</button>
+                  <button onClick={()=>setStep(1)} style={{width:"100%",padding:"14px",background:C.accent,color:"#000",border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:bName.trim()?"pointer":"default",transition:"all .2s"}}>NEXT: TRAINING DAYS</button>
                 </div>
               ):null}
             </div>
@@ -3641,7 +3661,23 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
             <div>
               <div style={{fontSize:11,color:C.muted2,marginBottom:16,lineHeight:1.6}}>Review your program. Swap or remove any exercises before launching. Weights start blank — Week 1 is your baseline.</div>
               <Card>
-                <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{bName}</div>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  {bName?(
+                    <div style={{fontSize:16,fontWeight:800,flex:1}}>{bName}</div>
+                  ):(
+                    <div style={{fontSize:14,fontWeight:700,flex:1,color:C.muted2,fontStyle:"italic"}}>{autoLabel}</div>
+                  )}
+                  <button onClick={()=>setBName(bName||autoLabel)} style={{background:"none",border:"none",cursor:"pointer",padding:"2px",display:"flex",alignItems:"center",color:C.muted}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                </div>
+                {bName?(
+                  <div style={{marginBottom:8}}>
+                    <input value={bName} onChange={e=>setBName(e.target.value)} placeholder={autoLabel}
+                      style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid "+C.border2,padding:"4px 0",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+                    <button onClick={()=>setBName("")} style={{background:"none",border:"none",padding:0,color:C.muted,fontSize:10,cursor:"pointer",marginTop:4}}>Use auto-label</button>
+                  </div>
+                ):null}
                 <div style={{fontSize:11,color:C.muted2}}>{bWeeks} weeks · Week {bWeeks} deload · {repRange==="strength-hyp"?"Strength-Hyp":repRange==="power-hyp"?"Power-Hyp":"Hypertrophy"}</div>
                 <div style={{display:"flex",gap:6,marginTop:10}}>
                   {Array(bWeeks).fill(null).map((_,i)=>(
@@ -3670,7 +3706,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                         <span style={{fontSize:12,fontWeight:700,minWidth:20,textAlign:"center"}}>{ex.sets.filter(s=>s.type!=="drop").length}</span>
                         <button onClick={()=>chgSets(day.id,ex.name,1)} style={{width:22,height:22,borderRadius:5,background:C.surf,border:"1px solid "+C.border,color:C.muted2,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>+</button>
                       </div>
-                      <button onClick={()=>setPicker(day.id+"__swap__"+ex.name)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"4px 9px",color:C.muted2,fontSize:11,cursor:"pointer"}}>Swap</button>
+                      <button onClick={()=>setPicker({dayId:day.id,swapName:ex.name,swapMuscle:ex.muscle})} style={{background:"none",border:"1px solid "+C.border2,borderRadius:6,padding:"4px 9px",color:C.muted2,fontSize:11,cursor:"pointer"}}>Swap</button>
                       {day.exercises.length>1?(
                         <button onClick={()=>rmEx(day.id,ex.name)} style={{background:"none",border:"none",cursor:"pointer",padding:"4px",display:"flex",alignItems:"center"}}>
                           <IcoX sz={12} col={C.muted}/>
@@ -3743,7 +3779,7 @@ function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onS
       </div>
     );
   }
-  return(<PlanCurrent meso={meso} program={program} library={library} onNewMeso={()=>setShowBuilder(true)} onUpdateDay={onUpdateDay} onSwapExercise={onSwapExercise} onRemoveExercise={onRemoveExercise} onAddExercise={onAddExercise} onGlossary={onGlossary}/>);
+  return(<PlanCurrent meso={meso} program={program} library={library} setLibrary={setLibrary} onNewMeso={()=>setShowBuilder(true)} onUpdateDay={onUpdateDay} onSwapExercise={onSwapExercise} onRemoveExercise={onRemoveExercise} onAddExercise={onAddExercise} onGlossary={onGlossary}/>);
 }
 
 function ExRow({ex,onToggleFav}){
@@ -3803,11 +3839,10 @@ function LibraryScreen({library,setLibrary}){
     <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
       <div style={{padding:"16px 14px 100px"}}>
         <div style={{marginBottom:14}}>
-          <SLbl>Exercise Library</SLbl>
-          <div style={{fontFamily:"'Inter',sans-serif",fontSize:26,fontWeight:900,letterSpacing:"0.02em"}}>{library.length} EXERCISES</div>
+          <div style={{fontSize:18,fontWeight:900,letterSpacing:"0.03em",textTransform:"uppercase",color:C.text}}>Exercise Library</div>
         </div>
 
-        {/* Create custom — pinned at top */}
+        {/* Create custom form - shown when active */}
         {showAdd?(
           <div style={{background:C.card2,borderLeft:"3px solid "+C.accent,padding:"14px",marginBottom:12}}>
             <SLbl>New Custom Exercise</SLbl>
@@ -3827,9 +3862,7 @@ function LibraryScreen({library,setLibrary}){
               <button onClick={addEx} style={{flex:2,padding:"10px",background:C.accent,border:"none",borderRadius:4,color:"#000",cursor:"pointer",fontSize:13,fontWeight:700}}>Add Exercise</button>
             </div>
           </div>
-        ):(
-          <button onClick={()=>setShowAdd(true)} style={{width:"100%",padding:"11px",background:"none",border:"1px solid "+C.border2,borderLeft:"3px solid "+C.accent,borderRadius:0,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer",marginBottom:12,textAlign:"left",letterSpacing:"0.06em",textTransform:"uppercase"}}>+ Create Custom Exercise</button>
-        )}
+        ):null}
 
         <div style={{position:"relative",marginBottom:10}}>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search exercises..." style={{width:"100%",background:C.card2,border:"none",borderBottom:"1px solid "+C.border2,padding:"10px 14px 10px 38px",color:C.text,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
@@ -3844,12 +3877,22 @@ function LibraryScreen({library,setLibrary}){
         </div>
         {filt==="All"&&!search&&favs.length>0?(
           <div>
-            <SLbl>Favorites</SLbl>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <SLbl style={{marginBottom:0}}>Favorites</SLbl>
+              {!showAdd&&<button onClick={()=>setShowAdd(true)} style={{background:"none",border:"none",padding:0,color:C.accent,fontSize:10,fontWeight:700,cursor:"pointer",letterSpacing:"0.06em",textTransform:"uppercase"}}>+ Custom</button>}
+            </div>
             {favs.map(ex=><ExRow key={ex.name} ex={ex} onToggleFav={togFav}/>)}
             <div style={{marginTop:4,marginBottom:8}}><SLbl>All Exercises</SLbl></div>
             {rest.map(ex=><ExRow key={ex.name} ex={ex} onToggleFav={togFav}/>)}
           </div>
-        ):filtered.map(ex=><ExRow key={ex.name} ex={ex} onToggleFav={togFav}/>)}
+        ):(
+          <div>
+            {!showAdd&&filt==="All"&&search===""&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+              <button onClick={()=>setShowAdd(true)} style={{background:"none",border:"none",padding:0,color:C.accent,fontSize:10,fontWeight:700,cursor:"pointer",letterSpacing:"0.06em",textTransform:"uppercase"}}>+ Custom</button>
+            </div>}
+            {filtered.map(ex=><ExRow key={ex.name} ex={ex} onToggleFav={togFav}/>)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -4171,7 +4214,17 @@ export default function App(){
     idbGet().then(s=>{
       if(s){
         if(s.profile) setProfile(s.profile);
-        if(s.meso) setMeso(s.meso);
+        if(s.meso) {
+          // Auto-advance week based on calendar if rawStartDate exists
+          let loadedMeso=s.meso;
+          if(loadedMeso.rawStartDate&&loadedMeso.totalWeeks){
+            const calWeek=getMesoWeekFromDate(loadedMeso.rawStartDate,loadedMeso.totalWeeks);
+            if(calWeek&&calWeek>loadedMeso.week){
+              loadedMeso={...loadedMeso,week:calWeek};
+            }
+          }
+          setMeso(loadedMeso);
+        }
         if(s.program&&s.program.length>0) setProgram(s.program);
         if(s.history) setHistory(s.history);
         if(s.liftHistory&&s.liftHistory.length>0) setLiftHistory(s.liftHistory);
@@ -4206,11 +4259,14 @@ export default function App(){
     const planned=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);
     const dayName=activeLog.name;
     const dateStr=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
-    const isDeload=meso.week===meso.totalWeeks;
-    const newSession={day:dayName,date:dateStr,week:meso.week,mesoNum:mesoCount,sets,planned,note:sessionNote||"",exercises:exs,isDeload};
+    // Use calendar week if available, fall back to meso.week counter
+    const calWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
+    const effectiveWeek=calWeek?Math.max(meso.week,calWeek):meso.week;
+    const isDeload=effectiveWeek===meso.totalWeeks;
+    const newSession={day:dayName,date:dateStr,week:effectiveWeek,mesoNum:mesoCount,sets,planned,note:sessionNote||"",exercises:exs,isDeload};
     const updatedHistory=[newSession,...history];
     setHistory(updatedHistory);
-    const newEntries=extractLiftEntries(exs,mesoCount,meso.label,meso.week,isDeload);
+    const newEntries=extractLiftEntries(exs,mesoCount,meso.label,effectiveWeek,isDeload);
     setLiftHistory(p=>[...p,...newEntries]);
 
     // Single setProgram call — merges SFR ratings + progression data atomically
@@ -4247,7 +4303,7 @@ export default function App(){
     }));
 
     // Compute allDone from updatedHistory (synchronous, not subject to setState batching)
-    const thisWeekSessions=updatedHistory.filter(s=>s.week===meso.week&&s.mesoNum===mesoCount);
+    const thisWeekSessions=updatedHistory.filter(s=>s.week===effectiveWeek&&s.mesoNum===mesoCount);
     const completedDays=new Set(thisWeekSessions.map(s=>s.day));
     const allDone=program.map(d=>d.name).every(n=>completedDays.has(n));
     setActiveLog(null);
@@ -4262,7 +4318,11 @@ export default function App(){
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
       else setTab("home");
     } else {
-      if(allDone) setMeso(m=>({...m,week:Math.min(m.week+1,m.totalWeeks)}));
+      // Advance week: use whichever is higher — calendar or completion-based
+      const nextWeek=Math.min(effectiveWeek+(allDone?1:0),meso.totalWeeks);
+      const calNextWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
+      const advancedWeek=Math.max(nextWeek,calNextWeek||1);
+      if(advancedWeek!==meso.week) setMeso(m=>({...m,week:advancedWeek}));
       setTab("home");
     }
   };
@@ -4284,12 +4344,16 @@ export default function App(){
     const todayIdx=WEEK_DAYS.indexOf(getTodayName());
     const sortedDays=newProgram.slice().sort((a,b)=>WEEK_DAYS.indexOf(a.day)-WEEK_DAYS.indexOf(b.day));
     const upcomingDay=sortedDays.find(d=>WEEK_DAYS.indexOf(d.day)>=todayIdx)||sortedDays[0];
+    const startDateObj=upcomingDay&&upcomingDay.day!==getTodayName()
+      ? new Date(Date.now()+(WEEK_DAYS.indexOf(upcomingDay.day)-todayIdx+7)%7*86400000)
+      : new Date();
+    const rawStartDate=startDateObj.toISOString().split('T')[0];
     const _startDate=upcomingDay
       ? upcomingDay.day===getTodayName()
         ? new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
-        : upcomingDay.day+", "+new Date(Date.now()+(WEEK_DAYS.indexOf(upcomingDay.day)-todayIdx+7)%7*86400000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+        : upcomingDay.day+", "+startDateObj.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
       : new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-    setMeso(m=>({...m,label:"Meso "+(mesoCount+1),week:1,totalWeeks:m.totalWeeks,repRange:suggestedRepRange||nextRepRange(m.repRange),deloadStyle:null,startDate:_startDate}));
+    setMeso(m=>({...m,label:"Meso "+(mesoCount+1),week:1,totalWeeks:m.totalWeeks,repRange:suggestedRepRange||nextRepRange(m.repRange),deloadStyle:null,startDate:_startDate,rawStartDate}));
     setProgram(newProgram);
     setMesoCount(p=>p+1);
     setMesoComplete(null);
@@ -4297,16 +4361,29 @@ export default function App(){
   };
 
   const handleLaunch=(newMeso,newProg)=>{
-    // Find the first upcoming training day from the program (today or next occurring weekday)
-    const todayIdx=WEEK_DAYS.indexOf(getTodayName());
-    const sorted=newProg.slice().sort((a,b)=>WEEK_DAYS.indexOf(a.day)-WEEK_DAYS.indexOf(b.day));
-    const upcoming=sorted.find(d=>WEEK_DAYS.indexOf(d.day)>=todayIdx)||sorted[0];
-    const startDate=upcoming
-      ? upcoming.day===getTodayName()
-        ? new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
-        : upcoming.day+", "+new Date(Date.now()+(WEEK_DAYS.indexOf(upcoming.day)-todayIdx+7)%7*86400000).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
-      : new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
-    setMeso({...newMeso,startDate});
+    let startDate;
+    let rawStartDate=null;
+    if(newMeso.customStartDate){
+      rawStartDate=newMeso.customStartDate; // already ISO format from date input
+      const d=new Date(newMeso.customStartDate+'T12:00:00');
+      startDate=d.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric",year:"numeric"});
+    } else {
+      const todayIdx=WEEK_DAYS.indexOf(getTodayName());
+      const sorted=newProg.slice().sort((a,b)=>WEEK_DAYS.indexOf(a.day)-WEEK_DAYS.indexOf(b.day));
+      const upcoming=sorted.find(d=>WEEK_DAYS.indexOf(d.day)>=todayIdx)||sorted[0];
+      const startDateObj=upcoming&&upcoming.day!==getTodayName()
+        ? new Date(Date.now()+(WEEK_DAYS.indexOf(upcoming.day)-todayIdx+7)%7*86400000)
+        : new Date();
+      rawStartDate=startDateObj.toISOString().split('T')[0];
+      startDate=upcoming
+        ? upcoming.day===getTodayName()
+          ? new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+          : upcoming.day+", "+startDateObj.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+        : new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+    }
+    const {customStartDate,...mesoData}=newMeso;
+    const calWeek=getMesoWeekFromDate(rawStartDate,mesoData.totalWeeks)||1;
+    setMeso({...mesoData,week:calWeek,startDate,rawStartDate});
     setProgram(newProg);
     setMesoCount(p=>p+1);
     setTab("home");
@@ -4873,7 +4950,7 @@ export default function App(){
               return;
             }
             setActiveLog({...(d||todayWorkout),startedAt:Date.now()});setLoggerOpen(true);
-          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onEdit={(session,idx)=>setEditingSession({session,idx})} onExtendMeso={handleExtendMeso} onSetDeloadStyle={handleSetDeloadStyle} driveConnected={driveConnected} driveNudgeDismissed={driveNudgeDismissed} onDriveNudgeDismiss={()=>{setDriveNudgeDismissed(true);try{localStorage.setItem("hyper_drive_nudge_dismissed","1");}catch(_){}}} onOpenProfile={()=>{setShowProfile(true);setProfileDraft(profile?{...profile}:{name:"",sex:"male",experience:"intermediate",bodyweight:""});}}/>
+          }} profile={profile} activeLog={activeLog} onResume={()=>setLoggerOpen(true)} onAbandon={()=>{setActiveLog(null);setActiveLogExs(null);setLoggerOpen(false);}} onExtendMeso={handleExtendMeso} onSetDeloadStyle={handleSetDeloadStyle} driveConnected={driveConnected} driveNudgeDismissed={driveNudgeDismissed} onDriveNudgeDismiss={()=>{setDriveNudgeDismissed(true);try{localStorage.setItem("hyper_drive_nudge_dismissed","1");}catch(_){}}} onOpenProfile={()=>{setShowProfile(true);setProfileDraft(profile?{...profile}:{name:"",sex:"male",experience:"intermediate",bodyweight:""});}}/>
         ):(
           <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",textAlign:"center"}}>
             <div style={{width:56,height:56,borderRadius:0,background:C.card2,border:"none",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:20}}>
@@ -4886,7 +4963,7 @@ export default function App(){
         )}
       </div>
       <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles}/>
+        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={d=>{setActiveLog({...(d||program[0]),startedAt:Date.now()});setLoggerOpen(true);}}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
