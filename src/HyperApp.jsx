@@ -2488,7 +2488,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
   const TODAY=getTodayName();
   const todayWorkout=program.find(d=>d.day===TODAY)||null;
   const totalSets=todayWorkout?todayWorkout.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0):0;
-  const FULL=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  const FULL=WEEK_DAYS;
   const SHORT=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const todayIdx=FULL.indexOf(TODAY);
   const dmap={};
@@ -2592,6 +2592,26 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
 
         {/* Today */}
         {(()=>{
+          // Check if meso hasn't started yet
+          if(meso.rawStartDate){
+            const start=new Date(meso.rawStartDate+'T00:00:00');
+            const now=new Date();
+            now.setHours(0,0,0,0);
+            start.setHours(0,0,0,0);
+            const daysUntil=Math.ceil((start-now)/(1000*60*60*24));
+            if(daysUntil>0){
+              const startLabel=start.toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"});
+              return(
+                <Section accent={C.border2}>
+                  <SLbl>Upcoming Meso</SLbl>
+                  <div style={{fontSize:15,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em",marginBottom:6}}>{meso.label}</div>
+                  <div style={{fontSize:12,color:C.muted2,marginBottom:12}}>Starts {startLabel} — {daysUntil===1?"tomorrow":daysUntil+" days away"}</div>
+                  <div style={{fontSize:11,color:C.muted}}>Your program is ready. Come back on {start.toLocaleDateString("en-US",{weekday:"long"})} to begin.</div>
+                </Section>
+              );
+            }
+          }
+
           const todayDone=completedDayNames.has(todayWorkout?.name);
           const inProgress=activeLog&&todayWorkout&&activeLog.name===todayWorkout.name;
           const accentColor=inProgress?C.green:todayDone?C.green:C.accent;
@@ -2736,14 +2756,13 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles,onEdit,onSta
   const programMuscles=Object.keys(weeklyVol).filter(m=>muscles[m]);
 
   // Build week-by-week session data for all weeks up to current
-  const workingWeeks=Array(meso.week).fill(null).map((_,i)=>{
+  const workingWeeks=useMemo(()=>Array(meso.week).fill(null).map((_,i)=>{
     const weekNum=i+1;
     const isDeload=weekNum===meso.totalWeeks;
     const weekSessions=history.filter(s=>s.week===weekNum&&(s.mesoNum==null||s.mesoNum===mesoCount));
     const days=program.map(d=>{
       const logged=weekSessions.find(s=>s.day===d.name);
       const planned=d.exercises.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);
-      // Calculate the actual calendar date this training day falls on
       let calDate=null;
       if(meso.rawStartDate){
         try{
@@ -2754,13 +2773,14 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles,onEdit,onSta
           let dayOffset=(targetDayIdx-startDayIdx+7)%7;
           const d2=new Date(start);
           d2.setDate(d2.getDate()+weekOffset+dayOffset);
-          calDate=d2.toLocaleDateString("en-US",{month:"numeric",day:"numeric"});
+          calDate=d2.toLocaleDateString("en-US",{month:"short",day:"numeric"});
         }catch(_){}
       }
-      return {name:d.name,weekday:d.day,calDate,logged:!!logged,sets:logged?logged.sets:0,planned:logged?logged.planned:planned,session:logged,sessionIdx:logged?history.findIndex(s=>s===logged):-1};
+      const loggedIdx=logged?history.findIndex(h=>h.day===logged.day&&h.week===logged.week&&h.mesoNum===logged.mesoNum&&h.date===logged.date):-1;
+      return {name:d.name,weekday:d.day,calDate,logged:!!logged,sets:logged?logged.sets:0,planned:logged?logged.planned:planned,session:logged,sessionIdx:loggedIdx};
     });
     return {weekNum,isDeload,days,complete:days.every(d=>d.logged)};
-  });
+  }),[meso.week,meso.totalWeeks,meso.rawStartDate,history,program,mesoCount]);
 
   return(
     <div style={{display:"flex",flexDirection:"column",gap:6}}>
@@ -3581,7 +3601,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                     <div style={{fontSize:10,color:C.muted2,marginTop:6}}>It is recommended to rotate rep ranges across mesos for long-term development.</div>
                   </div>
 
-                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!qSplit||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"15px",background:(qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card2,color:(qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:0,fontSize:13,fontWeight:900,letterSpacing:"0.15em",cursor:(bName.trim()&&qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>GENERATE PROGRAM</button>
+                  <button onClick={()=>{setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}} disabled={!qSplit||(needsPriority&&!qPriority)||availDays.length<2} style={{width:"100%",padding:"15px",background:(qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?C.accent:C.card2,color:(qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"#000":C.muted,border:"none",borderRadius:0,fontSize:13,fontWeight:900,letterSpacing:"0.15em",cursor:(qSplit&&(!needsPriority||qPriority)&&availDays.length>=2)?"pointer":"default",transition:"all .2s",textTransform:"uppercase"}}>GENERATE PROGRAM</button>
                 </div>
               ):null}
               {mode==="manual"?(
@@ -4312,7 +4332,7 @@ export default function App(){
     // Silently back up to Google Drive after every session
     if(gdriveIsConnected()){
       const snapshot={profile,meso,program,history:updatedHistory,liftHistory:[...liftHistory,...newEntries],mesoCount,library,isDark};
-      gdriveBackup(snapshot).catch(()=>{});
+      gdriveBackup(snapshot).catch(()=>{showToast("Drive backup failed — data saved locally.",false);});
     }
     if(isDeload){
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
@@ -4501,47 +4521,50 @@ export default function App(){
   const [driveNudgeDismissed,setDriveNudgeDismissed]=useState(()=>{try{return localStorage.getItem("hyper_drive_nudge_dismissed")==="1";}catch(_){return false;}});
 
   const handleEditSession=(note,exs)=>{
-    // Mark any previously-incomplete sets that now have weight+reps as done
+    if(!editingSession) return;
+    // Capture idx and session synchronously before any setState calls
+    const {idx,session:s}=editingSession;
     const cleanedExs=exs?exs.map(ex=>({
       ...ex,
       sets:ex.sets.map(s=>s.incomplete&&s.weight&&s.reps?{...s,done:true,incomplete:false}:s)
     })):exs;
-    setHistory(prev=>prev.map((s,i)=>{
-      if(i!==editingSession.idx) return s;
-      return {...s,note,exercises:cleanedExs||s.exercises};
-    }));
-    if(cleanedExs&&editingSession){
-      const s=editingSession.session;
-      const sessionMesoNum=s.mesoNum||mesoCount;
-      const sessionLabel="M"+sessionMesoNum+(s.isDeload?"DL":"W"+s.week);
-      setLiftHistory(prev=>{
-        const filtered=prev.filter(e=>!(e.mesoNum===sessionMesoNum&&e.week===s.week&&e.label===sessionLabel));
-        const newEntries=extractLiftEntries(cleanedExs,sessionMesoNum,s.mesoLabel||meso?.label||"",s.week,s.isDeload||false);
-        return [...filtered,...newEntries];
+    setHistory(prev=>{
+      const updated=prev.map((h,i)=>{
+        if(i!==idx) return h;
+        return {...h,note,exercises:cleanedExs||h.exercises};
       });
-      // Only sync progression engine if the edited session is the most recent for each exercise
-      setProgram(p=>p.map(day=>{
-        if(day.name!==s.day) return day;
-        return {...day,exercises:day.exercises.map(pex=>{
-          const logged=cleanedExs.find(e=>e.name===pex.name);
-          if(!logged) return pex;
-          // Check if a more recent session exists for this exercise
-          const laterSession=history.find((h,hi)=>hi<editingSession.idx&&h.day===s.day&&h.exercises&&h.exercises.some(e=>e.name===pex.name));
-          if(laterSession) return pex; // Don't overwrite newer data
-          const doneSets=logged.sets.filter(s=>s.done&&!s.incomplete&&s.weight&&s.reps);
-          const normalSets=doneSets.filter(s=>s.type!=="drop");
-          if(!normalSets.length) return pex;
-          const topSet=normalSets.reduce((best,s)=>parseFloat(s.weight)>parseFloat(best.weight)?s:best,normalSets[0]);
-          return {
-            ...pex,
-            lastWeight:String(topSet.weight),
-            lastRIR:parseInt(topSet.rir)||0,
-            lastReps:String(topSet.reps||""),
-            lastScheme:buildScheme(logged.sets)||pex.lastScheme,
-          };
-        })};
-      }));
-    }
+      if(cleanedExs){
+        const sessionMesoNum=s.mesoNum||mesoCount;
+        const sessionLabel="M"+sessionMesoNum+(s.isDeload?"DL":"W"+s.week);
+        setLiftHistory(lh=>{
+          const filtered=lh.filter(e=>!(e.mesoNum===sessionMesoNum&&e.week===s.week&&e.label===sessionLabel));
+          const newEntries=extractLiftEntries(cleanedExs,sessionMesoNum,s.mesoLabel||meso?.label||"",s.week,s.isDeload||false);
+          return [...filtered,...newEntries];
+        });
+        setProgram(p=>p.map(day=>{
+          if(day.name!==s.day) return day;
+          return {...day,exercises:day.exercises.map(pex=>{
+            const logged=cleanedExs.find(e=>e.name===pex.name);
+            if(!logged) return pex;
+            // Use updated history (not stale closure) to check for later sessions
+            const laterSession=updated.find((h,hi)=>hi<idx&&h.day===s.day&&h.exercises&&h.exercises.some(e=>e.name===pex.name));
+            if(laterSession) return pex;
+            const doneSets=logged.sets.filter(s=>s.done&&!s.incomplete&&s.weight&&s.reps);
+            const normalSets=doneSets.filter(s=>s.type!=="drop");
+            if(!normalSets.length) return pex;
+            const topSet=normalSets.reduce((best,s)=>parseFloat(s.weight)>parseFloat(best.weight)?s:best,normalSets[0]);
+            return {
+              ...pex,
+              lastWeight:String(topSet.weight),
+              lastRIR:parseInt(topSet.rir)||0,
+              lastReps:String(topSet.reps||""),
+              lastScheme:buildScheme(logged.sets)||pex.lastScheme,
+            };
+          })};
+        }));
+      }
+      return updated;
+    });
     setEditingSession(null);
   };
 
@@ -4963,7 +4986,7 @@ export default function App(){
         )}
       </div>
       <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={d=>{setActiveLog({...(d||program[0]),startedAt:Date.now()});setLoggerOpen(true);}}/>
+        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={d=>{if(activeLog){setConfirmStart(d||program[0]);return;}setActiveLog({...(d||program[0]),startedAt:Date.now()});setLoggerOpen(true);}}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
