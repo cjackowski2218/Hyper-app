@@ -1820,7 +1820,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
-  const [swiped,setSwiped]=useState(new Set());
+  const [swiped,setSwiped]=useState(()=>new Set());
   const [noteDismissed,setNoteDismissed]=useState(false);
   const [dragFrom,setDragFrom]=useState(null);
   const [insertAt,setInsertAt]=useState(null);
@@ -2143,7 +2143,7 @@ function LoggerInner({workout,wk,totalWeeks,onMinimize,setPhase,exs,setExs,expId
                                 <div style={{textAlign:"center"}}>
                                   {iDr?<span style={{fontSize:9,color:C.orange}}>D</span>:<span style={{fontSize:10,color:C.muted}}>{si+1}</span>}
                                 </div>
-                                <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder={getProfile(ex.name).pct===0?"BW":"lbs"} style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 4px",color:iDr?C.orange:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                                <input type="number" inputMode="decimal" pattern="[0-9]*" enterKeyHint="next" disabled={set.done} value={set.weight} onChange={e=>updS(ex.id,set.id,"weight",e.target.value)} placeholder={getProfile(ex.name).pct===0?"BW":"lbs"} style={{background:iDr?C.orange+"15":C.surf,border:"1px solid "+(iDr?C.orange+"44":C.border),borderRadius:6,padding:"8px 4px",color:iDr?C.orange:C.text,fontSize:16,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                 <input type="number" inputMode="numeric" pattern="[0-9]*" enterKeyHint="done" disabled={set.done} value={set.reps} onChange={e=>updS(ex.id,set.id,"reps",e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!set.done) logSet(ex.id,set.id);}} placeholder="reps" style={{background:C.surf,border:"1px solid "+C.border,borderRadius:6,padding:"8px 4px",color:C.text,fontSize:14,fontWeight:700,textAlign:"center",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                                 <button disabled={set.done} onClick={()=>cycleRIR(ex.id,set.id,set.rir)} style={{background:rbg,border:"1px solid "+rfg+"55",borderRadius:6,padding:"8px 0",cursor:set.done?"default":"pointer",color:rfg,fontSize:13,fontWeight:800,textAlign:"center",transition:"all .1s",width:"100%"}}>{set.rir}</button>
                                 {set.done&&(restDisplays[set.id]||0)>0?(
@@ -2281,10 +2281,20 @@ function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimiz
     const t=setInterval(()=>setElapsed(Math.floor((Date.now()-t0.current)/1000)),1000);
     return ()=>clearInterval(t);
   },[]);
-  const tot=exs.reduce((a,e)=>a+e.sets.filter(s=>s.type!=="drop").length,0);
-  const don=exs.reduce((a,e)=>a+e.sets.filter(s=>s.done&&!s.incomplete&&s.type!=="drop").length,0);
+  // Combine into single pass for tot, don, and totalVol — avoids 3 separate array iterations
+  const {tot,don,totalVol}=useMemo(()=>{
+    let tot=0,don=0,totalVol=0;
+    exs.forEach(e=>e.sets.forEach(s=>{
+      if(s.type==="drop") return;
+      tot++;
+      if(s.done&&!s.incomplete){
+        don++;
+        if(s.weight&&s.reps) totalVol+=(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0);
+      }
+    }));
+    return {tot,don,totalVol};
+  },[exs]);
   const pct=tot>0?(don/tot)*100:0;
-  const totalVol=exs.reduce((a,e)=>a+e.sets.filter(s=>s.done&&s.type!=="drop"&&s.weight&&s.reps).reduce((b,s)=>b+(parseFloat(s.weight)||0)*(parseFloat(s.reps)||0),0),0);
   return(
     <div style={{display:visible?"flex":"none",position:"fixed",inset:0,zIndex:300,flexDirection:"column",background:C.bg,maxWidth:480,margin:"0 auto"}}>
       {phase==="summary"?(
@@ -2694,7 +2704,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:0}}>
                 <SLbl>Today</SLbl>
                 {activeLog?(
-                  <button onClick={()=>setConfirmAbandon(true)} style={{background:"none",border:"none",padding:"2px 4px",color:C.muted,cursor:"pointer",fontSize:16,lineHeight:1,marginTop:-2}}>✕</button>
+                  <button aria-label="Abandon session" onClick={()=>setConfirmAbandon(true)} style={{background:"none",border:"none",padding:"2px 4px",color:C.muted,cursor:"pointer",fontSize:16,lineHeight:1,marginTop:-2}}>✕</button>
                 ):null}
               </div>
               {confirmAbandon?(
@@ -2762,7 +2772,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
           <div style={{display:"flex",alignItems:"center",gap:10,background:C.card,borderLeft:"3px solid "+C.blue,padding:"10px 14px"}}>
             <div style={{flex:1,fontSize:11,color:C.muted2}}>Back up your data to <strong style={{color:C.text}}>Google Drive</strong></div>
             <button onClick={onOpenProfile} style={{padding:"5px 12px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>Connect</button>
-            <button onClick={onDriveNudgeDismiss} style={{background:"none",border:"none",padding:"4px",color:C.muted,fontSize:14,cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</button>
+            <button aria-label="Dismiss" onClick={onDriveNudgeDismiss} style={{background:"none",border:"none",padding:"4px",color:C.muted,fontSize:14,cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</button>
           </div>
         ):null}
 
@@ -2976,8 +2986,14 @@ function HistoryTab({liftHistory}){
       </div>
     );
   }
-  const allExercises=[...new Set(liftHistory.map(e=>e.exercise))].sort();
-  const allMuscles=[...new Set(liftHistory.map(e=>e.muscle))].sort((a,b)=>Object.keys(MC).indexOf(a)-Object.keys(MC).indexOf(b));
+  // Build exercise→muscle Map once for O(1) lookups — avoids repeated liftHistory.find() calls
+  const exMuscleMap=useMemo(()=>{
+    const m=new Map();
+    liftHistory.forEach(e=>{if(!m.has(e.exercise))m.set(e.exercise,e.muscle);});
+    return m;
+  },[liftHistory.length]);
+  const allExercises=useMemo(()=>[...new Set(liftHistory.map(e=>e.exercise))].sort(),[liftHistory.length]);
+  const allMuscles=useMemo(()=>[...new Set(liftHistory.map(e=>e.muscle))].sort((a,b)=>Object.keys(MC).indexOf(a)-Object.keys(MC).indexOf(b)),[liftHistory.length]);
   const [aMuscle,setAMuscle]=useState(allMuscles[0]||"");
   const [aEx,setAEx]=useState(allExercises[0]||"");
   const [zoom,setZoom]=useState("alltime");
@@ -2986,14 +3002,14 @@ function HistoryTab({liftHistory}){
   useEffect(()=>{
     if(allMuscles.length>0&&!allMuscles.includes(aMuscle)){
       setAMuscle(allMuscles[0]);
-      const exs=allExercises.filter(n=>{const f=liftHistory.find(e=>e.exercise===n);return f&&f.muscle===allMuscles[0];});
+      const exs=allExercises.filter(n=>exMuscleMap.get(n)===allMuscles[0]);
       if(exs.length>0) setAEx(exs[0]);
     }
   },[liftHistory.length]);
-  const exsForMuscle=allExercises.filter(n=>{const f=liftHistory.find(e=>e.exercise===n);return f&&f.muscle===aMuscle;});
+  const exsForMuscle=useMemo(()=>allExercises.filter(n=>exMuscleMap.get(n)===aMuscle),[allExercises,exMuscleMap,aMuscle]);
   const pickMuscle=m=>{
     setAMuscle(m);
-    const exs=allExercises.filter(n=>{const f=liftHistory.find(e=>e.exercise===n);return f&&f.muscle===m;});
+    const exs=allExercises.filter(n=>exMuscleMap.get(n)===m);
     if(exs.length>0) setAEx(exs[0]);
   };
   const allChartData=buildChartData(liftHistory,aEx);
@@ -4207,7 +4223,7 @@ export default function App(){
     }
     const s=document.createElement('style');
     s.id='hyper-global';
-    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;background:#131313;}button,input,textarea,select{font-family:'Inter',sans-serif}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}`;
+    s.textContent=`*{box-sizing:border-box}html,body{overscroll-behavior:none;background:#131313;}button,input,textarea,select{font-family:'Inter',sans-serif}button{touch-action:manipulation;-webkit-tap-highlight-color:transparent;}:focus-visible{outline:2px solid #f59e0b;outline-offset:2px;}input::placeholder{color:#534434}input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#d8c3ad;border-radius:2px}@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}`;
     if(!document.getElementById('hyper-global')) document.head.appendChild(s);
 
 
@@ -4394,21 +4410,18 @@ export default function App(){
       const snapshot={profile,meso,program,history:updatedHistory,liftHistory:[...liftHistory,...newEntries],mesoCount,library,isDark};
       gdriveBackup(snapshot).catch(()=>{showToast("Drive backup failed — data saved locally.",false);});
     }
+    const isSessionsCardLog=!!activeLog.targetWeek;
     if(isDeload){
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
-      else setTab("home");
+      else setTab(isSessionsCardLog?"progress":"home");
     } else {
-      // Never advance week counter when logging via Sessions card (targetWeek is explicitly set)
-      // Let the calendar-based week advancement on app load handle progression
-      // Only advance when logging organically from the home screen (no targetWeek)
-      const isSessionsCardLog=!!activeLog.targetWeek;
       if(!isSessionsCardLog){
         const nextWeek=Math.min(effectiveWeek+(allDone?1:0),meso.totalWeeks);
         const calNextWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
         const advancedWeek=Math.max(nextWeek,calNextWeek||1);
         if(advancedWeek!==meso.week) setMeso(m=>({...m,week:advancedWeek}));
       }
-      setTab("home");
+      setTab(isSessionsCardLog?"progress":"home");
     }
   };
 
@@ -4588,7 +4601,7 @@ export default function App(){
     }
   };
 
-  const [confirmStart,setConfirmStart]=useState(null);
+  const [confirmStart,setConfirmStart]=useState(null); // {day, targetWeek}
   const [showProfile,setShowProfile]=useState(false);
   const [showResetConfirm,setShowResetConfirm]=useState(false);
   const [toast,setToast]=useState(null);
@@ -4935,7 +4948,7 @@ export default function App(){
                 {isDark?<IcoMoon sz={14} col={C.muted2}/>:<IcoSun sz={14} col={C.muted2}/>}
                 <span style={{fontSize:13,color:C.text,fontWeight:600}}>{isDark?"Dark mode":"Light mode"}</span>
               </div>
-              <button onClick={()=>setIsDark(p=>!p)} style={{width:44,height:24,borderRadius:12,background:isDark?C.accent:C.border2,border:"none",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
+              <button aria-label={isDark?"Switch to light mode":"Switch to dark mode"} onClick={()=>setIsDark(p=>!p)} style={{width:44,height:24,borderRadius:12,background:isDark?C.accent:C.border2,border:"none",cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}>
                 <span style={{position:"absolute",top:2,left:isDark?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left .2s",boxShadow:"0 1px 3px #0004"}}/>
               </button>
             </div>
@@ -5048,13 +5061,20 @@ export default function App(){
             <div style={{fontSize:12,color:C.muted2,lineHeight:1.6,marginBottom:16}}>You have <strong style={{color:C.text}}>{activeLog?.name}</strong> in progress. Starting a new session will discard it.</div>
             <div style={{display:"flex",gap:6}}>
               <button onClick={()=>setConfirmStart(null)} style={{flex:1,padding:"10px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:12,fontWeight:600}}>Keep Current</button>
-              <button onClick={()=>{setActiveLog({...confirmStart,startedAt:Date.now()});setActiveLogExs(null);setLoggerOpen(true);setConfirmStart(null);}} style={{flex:1,padding:"10px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:4,color:C.red,cursor:"pointer",fontSize:12,fontWeight:800}}>Start New</button>
+              <button onClick={()=>{
+                const newLog={...confirmStart,startedAt:Date.now(),targetWeek:confirmStart.targetWeek||null};
+                setActiveLog(newLog);
+                setActiveLogExs(null);
+                setExUpdateKey(0);
+                setLoggerOpen(true);
+                setConfirmStart(null);
+              }} style={{flex:1,padding:"10px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:4,color:C.red,cursor:"pointer",fontSize:12,fontWeight:800}}>Start New</button>
             </div>
           </div>
         </div>
       ):null}
       {mesoComplete?<MesoCompleteScreen meso={mesoComplete.meso} liftHistory={liftHistory} mesoNum={mesoComplete.mesoNum} program={program} onStartNext={(r)=>handleStartNextMeso(false,r)} onReview={(r)=>handleStartNextMeso(true,r)} onSpecialize={handleSpecialize} onDismiss={()=>setMesoComplete(null)}/>:null}
-      {activeLog?(()=>{const _lastNote=(history.find(h=>h.day===activeLog.name&&h.note)||{}).note||null;return(<Logger workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs} exUpdateKey={exUpdateKey} lastSessionNote={_lastNote}/>);})():null}
+      {activeLog?(()=>{const _lastNote=(history.find(h=>h.day===activeLog.name&&h.note)||{}).note||null;return(<Logger key={activeLog.id+'_'+activeLog.startedAt} workout={activeLog} wk={meso?meso.week:1} totalWeeks={meso?meso.totalWeeks:5} isDeload={meso?meso.week===meso.totalWeeks:false} deloadStyle={meso?.deloadStyle||"volume"} onComplete={handleComplete} onMinimize={()=>setLoggerOpen(false)} visible={loggerOpen} liftHistory={liftHistory} savedExs={activeLogExs} onExsChange={setActiveLogExs} exUpdateKey={exUpdateKey} lastSessionNote={_lastNote}/>);})():null}
       {showGlossary?<GlossaryModal onClose={()=>setShowGlossary(false)}/>:null}
       <div style={{display:tab==="home"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         {(meso&&program&&program.length>0)?(
@@ -5077,7 +5097,7 @@ export default function App(){
         )}
       </div>
       <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={(d,targetWeek)=>{if(!d) return;if(activeLog){setConfirmStart(d);return;}setActiveLog({...d,startedAt:Date.now(),targetWeek:targetWeek||null});setLoggerOpen(true);}}/>
+        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={(d,targetWeek)=>{if(!d) return;if(activeLog){setConfirmStart({...d,targetWeek:targetWeek||null});return;}setActiveLog({...d,startedAt:Date.now(),targetWeek:targetWeek||null});setLoggerOpen(true);}}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)} onRenameLabel={label=>setMeso(m=>({...m,label}))}/>
