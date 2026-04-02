@@ -4605,11 +4605,16 @@ export default function App(){
 
   const handleEditSession=(note,exs)=>{
     if(!editingSession) return;
-    // Capture idx and session synchronously before any setState calls
     const {idx,session:s}=editingSession;
     const cleanedExs=exs?exs.map(ex=>({
       ...ex,
-      sets:ex.sets.map(s=>s.incomplete&&s.weight&&s.reps?{...s,done:true,incomplete:false}:s)
+      sets:ex.sets.map(set=>{
+        // Mark any set with weight+reps as done, whether it was incomplete or just unfilled
+        if(set.weight&&set.reps&&parseFloat(set.weight)>0&&parseFloat(set.reps)>0){
+          return {...set,done:true,incomplete:false};
+        }
+        return set;
+      })
     })):exs;
     setHistory(prev=>{
       const updated=prev.map((h,i)=>{
@@ -4629,10 +4634,11 @@ export default function App(){
           return {...day,exercises:day.exercises.map(pex=>{
             const logged=cleanedExs.find(e=>e.name===pex.name);
             if(!logged) return pex;
-            // Use updated history (not stale closure) to check for later sessions
-            const laterSession=updated.find((h,hi)=>hi<idx&&h.day===s.day&&h.exercises&&h.exercises.some(e=>e.name===pex.name));
+            // Only skip update if there's a session from a LATER week for this exercise
+            // Same-week or earlier sessions should not block the update
+            const laterSession=updated.find((h,hi)=>hi<idx&&h.day===s.day&&h.week>s.week&&h.exercises&&h.exercises.some(e=>e.name===pex.name));
             if(laterSession) return pex;
-            const doneSets=logged.sets.filter(s=>s.done&&!s.incomplete&&s.weight&&s.reps);
+            const doneSets=logged.sets.filter(s=>s.done&&!s.incomplete&&parseFloat(s.weight)>0&&parseFloat(s.reps)>0);
             const normalSets=doneSets.filter(s=>s.type!=="drop");
             if(!normalSets.length) return pex;
             const topSet=normalSets.reduce((best,s)=>parseFloat(s.weight)>parseFloat(best.weight)?s:best,normalSets[0]);
@@ -4648,6 +4654,7 @@ export default function App(){
       }
       return updated;
     });
+    showToast("Session saved");
     setEditingSession(null);
   };
 
