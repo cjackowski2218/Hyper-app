@@ -613,8 +613,8 @@ const AUTO_SPLITS={
       "Romanian Deadlift","Lying Leg Curl",
       // Glutes
       "Hip Thrust",
-      // Calves
-      "Calf Raise",
+      // Calves: standing (gastrocnemius) + seated (soleus)
+      "Calf Raise","Seated Calf Raise",
     ]},
   ],
   "Upper/Lower":[
@@ -647,10 +647,8 @@ const AUTO_SPLITS={
     {name:"Lower B",exs:[
       // Unilateral quad + glute dominant
       "Bulgarian Split Squat","Hip Thrust",
-      // Hamstring: seated curl (different feel from lying)
-      "Seated Leg Curl",
-      // Glute isolation
-      "Glute Bridge",
+      // Hamstrings: hinge (stretch) + knee flexion — complete stimulus
+      "Romanian Deadlift","Seated Leg Curl",
       // Calves: seated for soleus emphasis
       "Seated Calf Raise",
     ]},
@@ -662,6 +660,8 @@ const AUTO_SPLITS={
       "Back Squat","Romanian Deadlift",
       // Arms
       "Tricep Pushdown","Barbell Curl",
+      // Shoulder: lateral delt (front delt gets indirect from bench)
+      "Cable Lateral Raise",
     ]},
     {name:"Full Body B",exs:[
       // Different angles from A
@@ -670,6 +670,8 @@ const AUTO_SPLITS={
       // Isolation variety
       "Overhead Tricep Extension","Hammer Curl",
       "Calf Raise",
+      // Shoulder: rear delt coverage
+      "Face Pull",
     ]},
     {name:"Full Body C",exs:[
       // Machine/cable variation for variety
@@ -684,8 +686,8 @@ const AUTO_SPLITS={
       // Push: one compound + isolation (not two compounds)
       "Machine Press","Cable Fly",
       "Cable Lateral Raise","Tricep Pushdown",
-      // Legs: squat + isolation
-      "Back Squat","Leg Extension","Calf Raise",
+      // Legs: squat + isolation + calves seated (gastrocnemius on Legs day)
+      "Back Squat","Leg Extension","Seated Calf Raise",
     ]},
     {name:"Pull + Legs",exs:[
       // Pull: vertical + horizontal
@@ -709,20 +711,20 @@ const AUTO_SPLITS={
   ],
   "Bro Split":[
     {name:"Chest",exs:[
-      // One compound + stretch isolations only (no redundant compounds)
+      // Compound + stretch isolation + different angle compound
       "Flat Barbell Bench",
-      "Cable Fly","Pec Deck",
+      "Cable Fly",
       "Incline Dumbbell Press",
     ]},
     {name:"Back",exs:[
       // Vertical pull + horizontal row + stretch isolation
       "Lat Pulldown","Barbell Row",
-      "Seated Cable Row","Straight Arm Pulldown",
+      "Straight Arm Pulldown",
     ]},
     {name:"Shoulders",exs:[
       // Press + lateral + rear delt (all three heads)
       "Dumbbell Shoulder Press",
-      "Cable Lateral Raise","Lateral Machine",
+      "Cable Lateral Raise",
       "Face Pull","Rear Delt Fly",
     ]},
     {name:"Arms",exs:[
@@ -735,7 +737,9 @@ const AUTO_SPLITS={
       // Complete legs
       "Back Squat","Leg Extension",
       "Romanian Deadlift","Lying Leg Curl",
-      "Hip Thrust","Calf Raise",
+      "Hip Thrust",
+      // Calves: standing (gastrocnemius) + seated (soleus)
+      "Calf Raise","Seated Calf Raise",
     ]},
     {name:"Specialization",exs:[
       // Upper body weak points + stretch focus
