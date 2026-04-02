@@ -4339,9 +4339,8 @@ export default function App(){
     const dateStr=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
     // Use calendar week if available, fall back to meso.week counter
     const calWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
-    // Use targetWeek if logging a past session from the Sessions card
-    // Otherwise use calendar-based effectiveWeek (max of stored and calendar)
     const effectiveWeek=activeLog.targetWeek||(calWeek?Math.max(meso.week,calWeek):meso.week);
+    showToast(`DEBUG: targetWeek=${activeLog.targetWeek} calWeek=${calWeek} meso.week=${meso.week} → stamping week ${effectiveWeek}`,true);
     const isDeload=effectiveWeek===meso.totalWeeks;
     const newSession={day:dayName,date:dateStr,week:effectiveWeek,mesoNum:mesoCount,sets,planned,note:sessionNote||"",exercises:exs,isDeload};
     const updatedHistory=[newSession,...history];
