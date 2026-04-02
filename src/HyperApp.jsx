@@ -1315,8 +1315,10 @@ const SLbl=({children,style})=>{const C=useContext(ThemeCtx);return(<div style={
 // Section — the core layout primitive. Replaces Card. Tonal depth + optional left accent.
 const Section=({children,style,accent,marginBottom})=>{
   const C=useContext(ThemeCtx);
+  const isLight=C.bg==="#f8f9fb";
+  const shadow=isLight?"0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04)":undefined;
   return(
-    <div style={{background:C.card,marginBottom:marginBottom!==undefined?marginBottom:8,borderLeft:accent?"3px solid "+accent:"3px solid transparent",...(style||{})}}>
+    <div style={{background:C.card,marginBottom:marginBottom!==undefined?marginBottom:8,borderLeft:accent?"3px solid "+accent:"3px solid transparent",boxShadow:shadow,...(style||{})}}>
       <div style={{padding:"16px 15px"}}>{children}</div>
     </div>
   );
