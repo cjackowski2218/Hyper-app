@@ -2781,7 +2781,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
   );
 }
 
-function MesoTab({meso,mesoCount,onGlossary,history,program,muscles,onEdit,onStart}){
+function MesoTab({meso,mesoCount,onGlossary,history,program,muscles,onEdit,onStart,activeLog,onResume}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const exp=P.experience||"intermediate";
@@ -2893,6 +2893,8 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles,onEdit,onSta
                           </div>
                           {onEdit&&d.session?<button onClick={()=>onEdit(d.session,d.sessionIdx)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 9px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer"}}>Edit</button>:null}
                         </div>
+                      ):activeLog&&activeLog.name===d.name?(
+                        <button onClick={()=>onResume&&onResume()} style={{background:C.green+"18",border:"1px solid "+C.green+"44",borderRadius:4,padding:"4px 10px",color:C.green,fontSize:10,fontWeight:700,cursor:"pointer",letterSpacing:"0.04em"}}>Resume</button>
                       ):(
                         <button onClick={()=>{const pd=program.find(p=>p.name===d.name);if(pd)onStart&&onStart(pd,weekNum);}} style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:4,padding:"4px 10px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.04em"}}>Log</button>
                       )}
@@ -3182,7 +3184,7 @@ function HistoryTab({liftHistory}){
   );
 }
 
-function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,muscles,onEdit,onStart}){
+function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,muscles,onEdit,onStart,activeLog,onResume}){
   const C=useContext(ThemeCtx);
   const hasData=liftHistory&&liftHistory.length>0;
   const hasMeso=meso&&program&&program.length>0;
@@ -3204,7 +3206,7 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
       </div>
       <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
         <div style={{padding:"6px 14px 100px"}}>
-          {sub==="meso"&&hasMeso?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles} onEdit={onEdit} onStart={onStart}/>:null}
+          {sub==="meso"&&hasMeso?<MesoTab meso={meso} mesoCount={mesoCount} onGlossary={onGlossary} history={history} program={program} muscles={muscles} onEdit={onEdit} onStart={onStart} activeLog={activeLog} onResume={onResume}/>:null}
           {sub==="meso"&&!hasMeso?<div style={{padding:"40px 0",textAlign:"center",color:C.muted,fontSize:13,lineHeight:1.7}}>No active mesocycle. Your lift history is in the History tab.</div>:null}
           {sub==="history"?<HistoryTab liftHistory={liftHistory}/>:null}
         </div>
@@ -5097,7 +5099,7 @@ export default function App(){
         )}
       </div>
       <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={(d,targetWeek)=>{if(!d) return;if(activeLog){setConfirmStart({...d,targetWeek:targetWeek||null});return;}setActiveLog({...d,startedAt:Date.now(),targetWeek:targetWeek||null});setLoggerOpen(true);}}/>
+        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={(d,targetWeek)=>{if(!d) return;if(activeLog){setConfirmStart({...d,targetWeek:targetWeek||null});return;}setActiveLog({...d,startedAt:Date.now(),targetWeek:targetWeek||null});setLoggerOpen(true);}} activeLog={activeLog} onResume={()=>setLoggerOpen(true)}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)} onRenameLabel={label=>setMeso(m=>({...m,label}))}/>
