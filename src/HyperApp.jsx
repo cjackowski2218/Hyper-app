@@ -2533,25 +2533,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
   const todayIdx=FULL.indexOf(TODAY);
   const dmap={};
   program.forEach(d=>{dmap[d.day]=d;});
-  const completedDayNames=new Set(history.filter(s=>{
-    if(s.week!==meso.week||(s.mesoNum!=null&&s.mesoNum!==mesoCount)) return false;
-    // Only count sessions from the current calendar week (Mon-Sun)
-    // This prevents past-week backfilled sessions from marking this week as done
-    if(meso.rawStartDate&&s.date){
-      try{
-        const sessionWeekStart=new Date(meso.rawStartDate+'T00:00:00');
-        sessionWeekStart.setDate(sessionWeekStart.getDate()+(s.week-1)*7);
-        // Start of current calendar week (Monday)
-        const now=new Date();
-        const nowDay=now.getDay()===0?6:now.getDay()-1; // 0=Mon
-        const weekStart=new Date(now);weekStart.setDate(now.getDate()-nowDay);weekStart.setHours(0,0,0,0);
-        const weekEnd=new Date(weekStart);weekEnd.setDate(weekStart.getDate()+7);
-        // Session week start should be within current calendar week
-        return sessionWeekStart>=weekStart&&sessionWeekStart<weekEnd;
-      }catch(_){}
-    }
-    return true;
-  }).map(s=>s.day));
+  const completedDayNames=new Set(history.filter(s=>s.week===meso.week&&(s.mesoNum==null||s.mesoNum===mesoCount)).map(s=>s.day));
   const nextTraining=(()=>{
     const sorted=program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day));
     const next=sorted.find(d=>FULL.indexOf(d.day)>todayIdx);
@@ -4416,10 +4398,11 @@ export default function App(){
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
       else setTab("home");
     } else {
-      // Only advance week counter when logging current week or later
-      // Don't advance if logging a past week (targetWeek < meso.week)
-      const isPastWeek=activeLog.targetWeek&&activeLog.targetWeek<meso.week;
-      if(!isPastWeek){
+      // Never advance week counter when logging via Sessions card (targetWeek is explicitly set)
+      // Let the calendar-based week advancement on app load handle progression
+      // Only advance when logging organically from the home screen (no targetWeek)
+      const isSessionsCardLog=!!activeLog.targetWeek;
+      if(!isSessionsCardLog){
         const nextWeek=Math.min(effectiveWeek+(allDone?1:0),meso.totalWeeks);
         const calNextWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
         const advancedWeek=Math.max(nextWeek,calNextWeek||1);
