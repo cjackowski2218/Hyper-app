@@ -970,32 +970,70 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
       return {...found,...repOverride,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets,mrvSets,mvSets,sets};
     }).filter(Boolean);
 
-    // ── Post-build weekly volume cap ────────────────────────────────────────
-    // The minimum-set floor can cause weekly totals to exceed MAV when a muscle
-    // appears 2+ times per day at high frequency. Trim proportionally if needed.
+    // ── Post-build volume corrections ───────────────────────────────────────
     const perMuscleSets={};
     exercises.forEach(ex=>{
       perMuscleSets[ex.muscle]=(perMuscleSets[ex.muscle]||0)+ex.mevSets;
     });
     Object.entries(perMuscleSets).forEach(([m,dayTotal])=>{
       const lm=muscles&&muscles[m];
-      if(!lm||!lm.mav) return;
+      if(!lm) return;
       const freq=muscleFreq[m]||1;
-      const weeklyProjected=dayTotal*freq;
-      if(weeklyProjected<=lm.mav) return;
-      // Scale down sets for this muscle proportionally, minimum 1 set per exercise
-      const scale=lm.mav/(weeklyProjected);
-      let remaining=Math.round(lm.mav/freq); // target per-day total
       const exsForMuscle=exercises.filter(e=>e.muscle===m);
-      exsForMuscle.forEach((ex,i)=>{
-        const isLast=i===exsForMuscle.length-1;
-        const trimmed=isLast?Math.max(1,remaining):Math.max(1,Math.round(ex.mevSets*scale));
-        remaining-=trimmed;
-        ex.mevSets=trimmed;
-        ex.sets=Array(trimmed).fill(null).map(()=>newSet("","normal"));
-        // Keep mrvSets >= mevSets+1
-        ex.mrvSets=Math.max(ex.mevSets+1,ex.mrvSets);
-      });
+
+      // 1. Weekly MAV cap — trim if projected weekly volume exceeds MAV
+      if(lm.mav){
+        const weeklyProjected=dayTotal*freq;
+        if(weeklyProjected>lm.mav){
+          const scale=lm.mav/(weeklyProjected);
+          let remaining=Math.round(lm.mav/freq);
+          exsForMuscle.forEach((ex,i)=>{
+            const isLast=i===exsForMuscle.length-1;
+            const trimmed=isLast?Math.max(1,remaining):Math.max(1,Math.round(ex.mevSets*scale));
+            remaining-=trimmed;
+            ex.mevSets=trimmed;
+            ex.sets=Array(trimmed).fill(null).map(()=>newSet("","normal"));
+            ex.mrvSets=Math.max(ex.mevSets+1,ex.mrvSets);
+          });
+        }
+      }
+
+      // 2. Per-session muscle cap on mrvSets — combined mrvSets across exercises
+      //    for the same muscle cannot exceed MAX_SETS_PER_MUSCLE_PER_SESSION
+      const combinedMrv=exsForMuscle.reduce((a,e)=>a+e.mrvSets,0);
+      if(combinedMrv>MAX_SETS_PER_MUSCLE_PER_SESSION){
+        const scale=MAX_SETS_PER_MUSCLE_PER_SESSION/combinedMrv;
+        let remaining=MAX_SETS_PER_MUSCLE_PER_SESSION;
+        exsForMuscle.forEach((ex,i)=>{
+          const isLast=i===exsForMuscle.length-1;
+          const trimmed=isLast?Math.max(ex.mevSets+1,remaining):Math.max(ex.mevSets+1,Math.round(ex.mrvSets*scale));
+          remaining-=trimmed;
+          ex.mrvSets=trimmed;
+        });
+      }
+
+      // 3. MEV floor — if week 1 total is below MEV, boost primary exercise sets
+      //    This closes the ~20% undershoot caused by expCap on 2-exercise muscles
+      if(lm.mev>0&&exsForMuscle.length>1){
+        const perSessionMev=Math.round(lm.mev/freq);
+        const currentTotal=exsForMuscle.reduce((a,e)=>a+e.mevSets,0);
+        if(currentTotal<perSessionMev){
+          const boost=perSessionMev-currentTotal;
+          const primary=exsForMuscle[0];
+          primary.mevSets=Math.min(MAX_SETS_PER_MUSCLE_PER_SESSION,primary.mevSets+boost);
+          primary.sets=Array(primary.mevSets).fill(null).map(()=>newSet("","normal"));
+          primary.mrvSets=Math.max(primary.mevSets+1,primary.mrvSets);
+        }
+      }
+
+      // 4. Indirect volume muscles (Glutes, Core) — cap mrvSets at 5
+      //    These start at MEV=0 so the minSets floor drives them artificially high
+      if(INDIRECT_VOLUME_MUSCLES.has(m)){
+        exsForMuscle.forEach(ex=>{
+          ex.mrvSets=Math.min(5,ex.mrvSets);
+          ex.mrvSets=Math.max(ex.mevSets+1,ex.mrvSets);
+        });
+      }
     });
     // ────────────────────────────────────────────────────────────────────────
 
@@ -2220,16 +2258,14 @@ function Logger({workout,wk,totalWeeks,isDeload,deloadStyle,onComplete,onMinimiz
     prevUpdateKey.current=exUpdateKey;
     if(!savedExs||savedExs.length===0) return;
     setExsRaw(prev=>{
-      // For each incoming exercise: if it exists in prev (same name), keep its logged sets
-      // If it's new (swap/add), use the incoming exercise fresh
-      const merged=savedExs.map(incoming=>{
-        const existing=prev.find(e=>e.name===incoming.name);
-        return existing||incoming;
-      });
-      return merged;
+      // Keep all existing logged exercises
+      // Add any new exercises from savedExs not already in prev
+      const newExs=savedExs.filter(incoming=>!prev.find(e=>e.name===incoming.name));
+      // Remove any exercises from prev that were removed from savedExs
+      const kept=prev.filter(e=>savedExs.find(s=>s.name===e.name));
+      return [...kept,...newExs];
     });
-    onExsChange&&onExsChange(savedExs);
-  },[exUpdateKey,savedExs]);
+  },[exUpdateKey]);
   const [expId,setExpId]=useState(null);
   const [phase,setPhase]=useState("log");
   const [elapsed,setElapsed]=useState(0);
@@ -2548,9 +2584,9 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
               const isDone=dp&&completedDayNames.has(dp.name);
               return(
                 <div key={full} style={{textAlign:"center"}}>
-                  <div style={{fontSize:8,fontWeight:isT?800:500,color:isT?C.accent:C.muted,letterSpacing:"0.1em",marginBottom:4,textTransform:"uppercase"}}>{SHORT[i]}</div>
+                  <div style={{fontSize:10,fontWeight:isT?800:500,color:isT?C.accent:C.muted,letterSpacing:"0.08em",marginBottom:4,textTransform:"uppercase"}}>{SHORT[i]}</div>
                   <div style={{height:38,background:isDone?C.green+"28":isT&&cat?C.accent+"22":cat?C.card2:C.bg,borderBottom:isDone?"2px solid "+C.green:isT?"2px solid "+C.accent:"2px solid transparent",display:"flex",alignItems:"center",justifyContent:"center",opacity:isPast&&!isDone?0.3:1}}>
-                    {isDone?<IcoCheck sz={10} col={C.green}/>:cat?<span style={{fontSize:8,fontWeight:800,color:isT?C.accent:C.muted2}}>{cat}</span>:<div style={{width:10,height:1,background:C.border}}/>}
+                    {isDone?<IcoCheck sz={10} col={C.green}/>:cat?<span style={{fontSize:9,fontWeight:800,color:isT?C.accent:C.muted2}}>{cat}</span>:<div style={{width:10,height:1,background:C.border}}/>}
                   </div>
                 </div>
               );
@@ -2651,7 +2687,21 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
 
           return(
             <Section accent={accentColor}>
-              <SLbl>Today</SLbl>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:0}}>
+                <SLbl>Today</SLbl>
+                {activeLog?(
+                  <button onClick={()=>setConfirmAbandon(true)} style={{background:"none",border:"none",padding:"2px 4px",color:C.muted,cursor:"pointer",fontSize:16,lineHeight:1,marginTop:-2}}>✕</button>
+                ):null}
+              </div>
+              {confirmAbandon?(
+                <div style={{background:C.card2,padding:"12px 14px",marginBottom:12,borderLeft:"3px solid "+C.red}}>
+                  <div style={{fontSize:11,color:C.muted2,marginBottom:8}}>Abandon this session? All progress will be lost.</div>
+                  <div style={{display:"flex",gap:6}}>
+                    <button onClick={()=>setConfirmAbandon(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:11,fontWeight:600}}>Keep Going</button>
+                    <button onClick={()=>{setConfirmAbandon(false);onAbandon();}} style={{flex:1,padding:"9px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:4,color:C.red,cursor:"pointer",fontSize:11,fontWeight:700}}>Yes, Abandon</button>
+                  </div>
+                </div>
+              ):null}
               <div style={{fontSize:18,fontWeight:900,letterSpacing:"0.03em",textTransform:"uppercase",marginBottom:14}}>{new Date().toLocaleDateString("en-US",{weekday:"long",month:"short",day:"numeric"})}</div>
               {todayWorkout?(
                 <div>
@@ -2664,20 +2714,18 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
                       </div>
                     ))}
                   </div>
+                  {(()=>{
+                    const muscles=[...new Set(todayWorkout.exercises.map(e=>e.muscle).filter(Boolean))];
+                    if(!muscles.length) return null;
+                    return(
+                      <div style={{fontSize:11,color:C.muted2,letterSpacing:"0.08em",textTransform:"uppercase",fontWeight:500,marginBottom:14,textAlign:"center"}}>
+                        {muscles.join(" · ")}
+                      </div>
+                    );
+                  })()}
                   {inProgress?(
                     <div>
                       <button onClick={onResume} style={{width:"100%",padding:"13px",background:C.green+"18",color:C.green,border:"none",borderBottom:"2px solid "+C.green,fontSize:12,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",textTransform:"uppercase"}}>Resume Workout</button>
-                      {confirmAbandon?(
-                        <div style={{background:C.card2,padding:"12px 14px",marginTop:6}}>
-                          <div style={{fontSize:11,color:C.muted2,marginBottom:8}}>Abandon this session? All progress will be lost.</div>
-                          <div style={{display:"flex",gap:6}}>
-                            <button onClick={()=>setConfirmAbandon(false)} style={{flex:1,padding:"9px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:11,fontWeight:600}}>Keep Going</button>
-                            <button onClick={()=>{setConfirmAbandon(false);onAbandon();}} style={{flex:1,padding:"9px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:4,color:C.red,cursor:"pointer",fontSize:11,fontWeight:700}}>Yes, Abandon</button>
-                          </div>
-                        </div>
-                      ):(
-                        <button onClick={()=>setConfirmAbandon(true)} style={{width:"100%",padding:"8px",background:"none",border:"none",color:C.muted,fontSize:11,cursor:"pointer",letterSpacing:"0.06em",marginTop:4}}>Abandon session</button>
-                      )}
                     </div>
                   ):(
                     <button onClick={()=>onStart(null)} style={{width:"100%",padding:"13px",background:C.accent,color:"#000",border:"none",fontSize:12,fontWeight:900,letterSpacing:"0.12em",cursor:"pointer",textTransform:"uppercase"}}>Start Workout</button>
@@ -2687,7 +2735,7 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
                 <div>
                   <div style={{fontSize:15,fontWeight:800,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.04em",color:C.muted2}}>Rest Day</div>
                   <div style={{fontSize:11,color:C.muted,lineHeight:1.6,marginBottom:14}}>{nextTraining?"Next up: "+nextTraining.day+" — "+nextTraining.name:"Next session starts next week."}</div>
-                  <SLbl>Train anyway</SLbl>
+                  <SLbl>Additional Session</SLbl>
                   <div style={{display:"flex",flexDirection:"column",gap:4}}>
                     {program.slice().sort((a,b)=>FULL.indexOf(a.day)-FULL.indexOf(b.day)).map(d=>{
                       const done=completedDayNames.has(d.name);
@@ -2705,20 +2753,13 @@ function HomeScreen({meso,mesoCount,program,history,onStart,profile,activeLog,on
           );
         })()}
 
-        {/* Drive nudge — shown after first session if not connected, one-time */}
+        {/* Drive nudge — thin banner after first session */}
         {history.length>0&&!driveConnected&&!driveNudgeDismissed?(
-          <Section accent={C.blue}>
-            <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:800,color:C.blue,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:4}}>Back up your data</div>
-                <div style={{fontSize:11,color:C.muted2,lineHeight:1.6,marginBottom:10}}>Connect Google Drive so your training history is never lost — even if the app is reinstalled.</div>
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={onOpenProfile} style={{padding:"7px 14px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:11,fontWeight:800,cursor:"pointer",letterSpacing:"0.06em"}}>Connect</button>
-                  <button onClick={onDriveNudgeDismiss} style={{padding:"7px 12px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted,fontSize:11,cursor:"pointer"}}>Maybe later</button>
-                </div>
-              </div>
-            </div>
-          </Section>
+          <div style={{display:"flex",alignItems:"center",gap:10,background:C.card,borderLeft:"3px solid "+C.blue,padding:"10px 14px"}}>
+            <div style={{flex:1,fontSize:11,color:C.muted2}}>Back up your data to <strong style={{color:C.text}}>Google Drive</strong></div>
+            <button onClick={onOpenProfile} style={{padding:"5px 12px",background:C.blue,border:"none",borderRadius:4,color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer",flexShrink:0}}>Connect</button>
+            <button onClick={onDriveNudgeDismiss} style={{background:"none",border:"none",padding:"4px",color:C.muted,fontSize:14,cursor:"pointer",lineHeight:1,flexShrink:0}}>✕</button>
+          </div>
         ):null}
 
       </div>
@@ -3152,13 +3193,15 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
   );
 }
 
-function PlanCurrent({meso,program,library,setLibrary,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary}){
+function PlanCurrent({meso,program,library,setLibrary,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,onRenameLabel}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
   const [expDay,setExpDay]=useState(null);
   const [confirmNew,setConfirmNew]=useState(false);
   const [picker,setPicker]=useState(null);
+  const [editingLabel,setEditingLabel]=useState(false);
+  const [labelDraft,setLabelDraft]=useState("");
 
   // Compute week-1 planned volume per muscle to surface pre-session warnings
   const weeklyVol=useMemo(()=>{
@@ -3194,7 +3237,18 @@ function PlanCurrent({meso,program,library,setLibrary,onNewMeso,onUpdateDay,onSw
             <div>
               <SLbl>Active Mesocycle</SLbl>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <div style={{fontSize:18,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em"}}>{meso.label}</div>
+                {editingLabel?(
+                  <input
+                    autoFocus
+                    value={labelDraft}
+                    onChange={e=>setLabelDraft(e.target.value)}
+                    onBlur={()=>{if(labelDraft.trim())onRenameLabel&&onRenameLabel(labelDraft.trim());setEditingLabel(false);}}
+                    onKeyDown={e=>{if(e.key==="Enter"){if(labelDraft.trim())onRenameLabel&&onRenameLabel(labelDraft.trim());setEditingLabel(false);}if(e.key==="Escape")setEditingLabel(false);}}
+                    style={{background:"transparent",border:"none",borderBottom:"2px solid "+C.accent,padding:"2px 0",color:C.text,fontSize:18,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em",outline:"none",width:"100%",maxWidth:240}}
+                  />
+                ):(
+                  <div onClick={()=>{setLabelDraft(meso.label||"");setEditingLabel(true);}} style={{fontSize:18,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.04em",cursor:"text"}}>{meso.label}</div>
+                )}
                 {meso.mode==="specialization"?<Tag label="Spec" color={C.blue}/>:null}
               </div>
               {meso.mode==="specialization"&&meso.spec?(
@@ -3755,7 +3809,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
   );
 }
 
-function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,autoOpenSpec,onAutoOpenConsumed}){
+function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,autoOpenSpec,onAutoOpenConsumed,onRenameLabel}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
@@ -3799,7 +3853,7 @@ function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onS
       </div>
     );
   }
-  return(<PlanCurrent meso={meso} program={program} library={library} setLibrary={setLibrary} onNewMeso={()=>setShowBuilder(true)} onUpdateDay={onUpdateDay} onSwapExercise={onSwapExercise} onRemoveExercise={onRemoveExercise} onAddExercise={onAddExercise} onGlossary={onGlossary}/>);
+  return(<PlanCurrent meso={meso} program={program} library={library} setLibrary={setLibrary} onNewMeso={()=>setShowBuilder(true)} onUpdateDay={onUpdateDay} onSwapExercise={onSwapExercise} onRemoveExercise={onRemoveExercise} onAddExercise={onAddExercise} onGlossary={onGlossary} onRenameLabel={onRenameLabel}/>);
 }
 
 function ExRow({ex,onToggleFav}){
@@ -4424,7 +4478,9 @@ export default function App(){
     const siblings=day.exercises.filter(e=>e.muscle===exMuscle&&(isSwap?e.name!==oldName:true)).map(e=>e.name);
     if(!siblings.includes(exName)) siblings.push(exName);
     const freq=program.reduce((a,d)=>a+(d.exercises.some(e=>e.muscle===exMuscle)?1:0),0)||1;
-    const muscleFreqActual=program.filter(d=>d.exercises.some(e=>e.muscle===exMuscle)).length||1;
+    // Include the current day in frequency count since we're adding this muscle to it
+    const currentDayHasMuscle=day.exercises.some(e=>e.muscle===exMuscle&&(isSwap?e.name!==oldName:true));
+    const muscleFreqActual=(program.filter(d=>d.exercises.some(e=>e.muscle===exMuscle)).length+(currentDayHasMuscle?0:1))||1;
     const totalExs=siblings.length;
     const pos=siblings.indexOf(exName);
     const getTW=(n)=>{if(n===1)return[1.0];if(n===2)return[0.55,0.45];if(n===3)return[0.50,0.32,0.18];return Array(n).fill(null).map((_,i)=>Math.pow(0.6,i)).map((w,_,arr)=>w/arr.reduce((a,b)=>a+b,0));};
@@ -4432,9 +4488,16 @@ export default function App(){
     const weight=tw[Math.min(pos,tw.length-1)]||tw[tw.length-1];
     const minSets=exType==="compound"?3:2;
     const mevRaw=Math.max(minSets,Math.round((lm.mev/muscleFreqActual)*weight));
-    const mevS=totalExs===1?mevRaw:Math.min(expCap,mevRaw);
+    const mevS=Math.min(MAX_SETS_PER_MUSCLE_PER_SESSION,totalExs===1?mevRaw:Math.min(expCap,mevRaw));
     const mrvRaw=Math.max(mevS+1,Math.round((lm.mav/muscleFreqActual)*weight));
-    const mrvS=totalExs===1?mrvRaw:Math.min(expCap+2,mrvRaw);
+    let mrvS=Math.min(MAX_SETS_PER_MUSCLE_PER_SESSION,totalExs===1?mrvRaw:Math.min(expCap+2,mrvRaw));
+    // Per-session cap: ensure combined mrvSets with existing exercises for same muscle ≤ MAX_SETS
+    const existingMrv=day.exercises
+      .filter(e=>e.muscle===exMuscle&&e.name!==exName&&(isSwap?e.name!==oldName:true))
+      .reduce((a,e)=>a+(e.mrvSets||e.mevSets+1),0);
+    mrvS=Math.min(mrvS,Math.max(mevS+1,MAX_SETS_PER_MUSCLE_PER_SESSION-existingMrv));
+    // Indirect volume muscles (Glutes, Core) — cap mrvSets at 5
+    if(INDIRECT_VOLUME_MUSCLES.has(exMuscle)) mrvS=Math.min(5,Math.max(mevS+1,mrvS));
     const mvS=Math.max(1,Math.round((lm.mv/muscleFreqActual)*weight));
     return {mevS,mrvS,mvS};
   };
@@ -4463,10 +4526,10 @@ export default function App(){
       return {...al,exercises:al.exercises.map(e=>e.name!==oldName?e:makeSwapped(e))};
     });
     setActiveLogExs(exs=>{
-      if(!exs) return exs;
-      const matchesDayId=activeLog&&activeLog.id===dayId;
+      const base=exs||(activeLog?activeLog.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s}))})):[]);
+      const matchesDayId=activeLog&&(activeLog.id===dayId||activeLog.name===(program.find(d=>d.id===dayId)?.name));
       if(!matchesDayId) return exs;
-      return exs.map(e=>e.name!==oldName?e:makeSwapped(e));
+      return base.map(e=>e.name!==oldName?e:makeSwapped(e));
     });
     if(activeLog&&activeLog.id===dayId){showToast("Session updated");setExUpdateKey(k=>k+1);}
   };
@@ -4481,14 +4544,21 @@ export default function App(){
       ?{minReps:rrScale.compoundMin,maxReps:rrScale.compoundMax}
       :{minReps:rrScale.isoMin,maxReps:rrScale.isoMax};
     const nx={...newEx,...repOverride,id:uid("ex"),lastScheme:"",lastWeight:"",lastRIR:null,lastReps:"",note:"",mevSets:mevS,mrvSets:mrvS,mvSets:mvS,sets:Array(mevS).fill(null).map(()=>newSet("","normal"))};
+    const targetDay=program.find(d=>d.id===dayId);
     setProgram(p=>p.map(d=>{
       if(d.id!==dayId) return d;
       if(d.exercises.find(e=>e.name===newEx.name)) return d;
       return {...d,exercises:[...d.exercises,nx]};
     }));
-    if(activeLog&&activeLog.id===dayId&&!activeLog.exercises.find(e=>e.name===newEx.name)){
-      setActiveLog(al=>al&&al.id===dayId?{...al,exercises:[...al.exercises,nx]}:al);
-      setActiveLogExs(exs=>exs?[...exs,nx]:exs);
+    // Match by id OR by day name to handle IDB-restored sessions
+    const sessionMatches=activeLog&&(activeLog.id===dayId||(targetDay&&activeLog.name===targetDay.name));
+    if(sessionMatches&&!(activeLogExs||[]).find(e=>e.name===newEx.name)){
+      setActiveLog(al=>al?{...al,exercises:[...al.exercises,nx]}:al);
+      // If activeLogExs is null (session not yet interacted with), seed it from activeLog first
+      setActiveLogExs(exs=>{
+        const base=exs||(activeLog?activeLog.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s}))})):[]);
+        return [...base.filter(e=>e.name!==newEx.name),nx];
+      });
       showToast("Exercise added to session");
       setExUpdateKey(k=>k+1);
     }
@@ -4497,8 +4567,11 @@ export default function App(){
   const handleRemoveExercise=(dayId,exName)=>{
     setProgram(p=>p.map(d=>d.id!==dayId?d:{...d,exercises:d.exercises.filter(e=>e.name!==exName)}));
     if(activeLog&&activeLog.id===dayId){
-      setActiveLog(al=>al&&al.id===dayId?{...al,exercises:al.exercises.filter(e=>e.name!==exName)}:al);
-      setActiveLogExs(exs=>exs?exs.filter(e=>e.name!==exName):exs);
+      setActiveLog(al=>al&&(al.id===dayId||al.name===(program.find(d=>d.id===dayId)?.name))?{...al,exercises:al.exercises.filter(e=>e.name!==exName)}:al);
+      setActiveLogExs(exs=>{
+        const base=exs||(activeLog?activeLog.exercises.map(e=>({...e,sets:e.sets.map(s=>({...s}))})):[]);
+        return base.filter(e=>e.name!==exName);
+      });
       showToast("Exercise removed from session");
       setExUpdateKey(k=>k+1);
     }
@@ -4989,7 +5062,7 @@ export default function App(){
         <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={d=>{if(activeLog){setConfirmStart(d||program[0]);return;}setActiveLog({...(d||program[0]),startedAt:Date.now()});setLoggerOpen(true);}}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)}/>
+        <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)} onRenameLabel={label=>setMeso(m=>({...m,label}))}/>
       </div>
       <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
