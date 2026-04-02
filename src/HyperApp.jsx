@@ -2880,7 +2880,7 @@ function MesoTab({meso,mesoCount,onGlossary,history,program,muscles,onEdit,onSta
                           {onEdit&&d.session?<button onClick={()=>onEdit(d.session,d.sessionIdx)} style={{background:"none",border:"1px solid "+C.border2,borderRadius:4,padding:"4px 9px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer"}}>Edit</button>:null}
                         </div>
                       ):(
-                        <button onClick={()=>onStart&&onStart(program.find(p=>p.name===d.name))} style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:4,padding:"4px 10px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.04em"}}>Log</button>
+                        <button onClick={()=>onStart&&onStart(program.find(p=>p.name===d.name),weekNum)} style={{background:C.card2,border:"1px solid "+C.border2,borderRadius:4,padding:"4px 10px",color:C.muted2,fontSize:10,fontWeight:600,cursor:"pointer",letterSpacing:"0.04em"}}>Log</button>
                       )}
                     </div>
                   ))}
@@ -4335,7 +4335,9 @@ export default function App(){
     const dateStr=new Date().toLocaleDateString("en-US",{month:"short",day:"numeric"});
     // Use calendar week if available, fall back to meso.week counter
     const calWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
-    const effectiveWeek=calWeek?Math.max(meso.week,calWeek):meso.week;
+    // Use targetWeek if logging a past session from the Sessions card
+    // Otherwise use calendar-based effectiveWeek (max of stored and calendar)
+    const effectiveWeek=activeLog.targetWeek||(calWeek?Math.max(meso.week,calWeek):meso.week);
     const isDeload=effectiveWeek===meso.totalWeeks;
     const newSession={day:dayName,date:dateStr,week:effectiveWeek,mesoNum:mesoCount,sets,planned,note:sessionNote||"",exercises:exs,isDeload};
     const updatedHistory=[newSession,...history];
@@ -4392,11 +4394,15 @@ export default function App(){
       if(allDone) setMesoComplete({meso,mesoNum:mesoCount});
       else setTab("home");
     } else {
-      // Advance week: use whichever is higher — calendar or completion-based
-      const nextWeek=Math.min(effectiveWeek+(allDone?1:0),meso.totalWeeks);
-      const calNextWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
-      const advancedWeek=Math.max(nextWeek,calNextWeek||1);
-      if(advancedWeek!==meso.week) setMeso(m=>({...m,week:advancedWeek}));
+      // Only advance week counter when logging current week or later
+      // Don't advance if logging a past week (targetWeek < meso.week)
+      const isPastWeek=activeLog.targetWeek&&activeLog.targetWeek<meso.week;
+      if(!isPastWeek){
+        const nextWeek=Math.min(effectiveWeek+(allDone?1:0),meso.totalWeeks);
+        const calNextWeek=meso.rawStartDate?getMesoWeekFromDate(meso.rawStartDate,meso.totalWeeks):null;
+        const advancedWeek=Math.max(nextWeek,calNextWeek||1);
+        if(advancedWeek!==meso.week) setMeso(m=>({...m,week:advancedWeek}));
+      }
       setTab("home");
     }
   };
@@ -5059,7 +5065,7 @@ export default function App(){
         )}
       </div>
       <div style={{display:tab==="progress"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={d=>{if(activeLog){setConfirmStart(d||program[0]);return;}setActiveLog({...(d||program[0]),startedAt:Date.now()});setLoggerOpen(true);}}/>
+        <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={(d,targetWeek)=>{if(activeLog){setConfirmStart(d||program[0]);return;}setActiveLog({...(d||program[0]),startedAt:Date.now(),targetWeek:targetWeek||null});setLoggerOpen(true);}}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)} onRenameLabel={label=>setMeso(m=>({...m,label}))}/>
