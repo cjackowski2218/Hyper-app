@@ -887,7 +887,7 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
     const needsSuffix=tmplCount[ti]>1&&!alreadyLabeled;
     const suffix=needsSuffix?(tmplSeen[ti]===1?" A":" B"):"";
 
-    const isNovice=experience==="new"||experience==="returning";
+    const isNovice=experience==="new"; // returning users get full program — they have training history
     // Cap per exercise per session — scales with experience
     const expCap={new:3,returning:3,intermediate:4,advanced:5}[experience]||4;
 
@@ -3397,6 +3397,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
   const [picker,setPicker]=useState(null);
   const [splitInfoOpen,setSplitInfoOpen]=useState(null);
   const [startDate,setStartDate]=useState("");
+  const [confirmRegen,setConfirmRegen]=useState(false);
 
   const needsPriority=splitNeedsPriority(qSplit,availDays.length);
 
@@ -3822,7 +3823,17 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
                 Week 1 is your baseline. Start conservative — RIR 3 or higher. Log your RIR and the app takes over from Week 2.
               </div>
               <div style={{display:"flex",gap:8,marginTop:4}}>
-                <button onClick={()=>{if(mode==="quick"){setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}else setStep(1);}} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:6,color:C.muted2,cursor:"pointer",fontSize:13}}>Regenerate</button>
+                {confirmRegen?(
+                  <div style={{flex:1,background:C.card2,borderLeft:"3px solid "+C.red,padding:"10px 12px"}}>
+                    <div style={{fontSize:11,color:C.muted2,marginBottom:8}}>This will replace all your current exercises. Continue?</div>
+                    <div style={{display:"flex",gap:6}}>
+                      <button onClick={()=>setConfirmRegen(false)} style={{flex:1,padding:"8px",background:"none",border:"1px solid "+C.border2,borderRadius:4,color:C.muted2,cursor:"pointer",fontSize:11,fontWeight:600}}>Cancel</button>
+                      <button onClick={()=>{setConfirmRegen(false);if(mode==="quick"){setBDays(autoGen(qSplit,availDays.length,library,qPriority,muscles,P.experience||"intermediate",availDays,repRange));setStep(2);}else setStep(1);}} style={{flex:1,padding:"8px",background:C.red+"22",border:"1px solid "+C.red+"44",borderRadius:4,color:C.red,cursor:"pointer",fontSize:11,fontWeight:700}}>Yes, Regenerate</button>
+                    </div>
+                  </div>
+                ):(
+                  <button onClick={()=>setConfirmRegen(true)} style={{flex:1,padding:"13px",background:"none",border:"1px solid "+C.border,borderRadius:6,color:C.muted2,cursor:"pointer",fontSize:13}}>Regenerate</button>
+                )}
                 <button onClick={doLaunch} disabled={!canLaunch} style={{flex:2,padding:"13px",background:canLaunch?C.accent:C.card,color:canLaunch?"#000":C.muted,border:"none",borderRadius:6,fontFamily:"'Inter',sans-serif",fontSize:15,fontWeight:900,letterSpacing:"0.12em",cursor:canLaunch?"pointer":"default",transition:"all .2s"}}>LAUNCH MESO</button>
               </div>
             </div>
