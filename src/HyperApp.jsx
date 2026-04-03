@@ -887,7 +887,7 @@ function autoGen(split,n,lib,priority,muscles,experience,availDays,repRange){
     const needsSuffix=tmplCount[ti]>1&&!alreadyLabeled;
     const suffix=needsSuffix?(tmplSeen[ti]===1?" A":" B"):"";
 
-    const isNovice=experience==="new"; // returning users get full program — they have training history
+    const isNovice=experience==="new"||experience==="returning";
     // Cap per exercise per session — scales with experience
     const expCap={new:3,returning:3,intermediate:4,advanced:5}[experience]||4;
 
@@ -3385,6 +3385,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
+  const isNovice=(P.experience||"intermediate")==="new"||(P.experience||"intermediate")==="returning";
   const [step,setStep]=useState(0);
   const [mode,setMode]=useState(null);
   const [bName,setBName]=useState("");
@@ -3758,7 +3759,13 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
           ):null}
           {step===2?(
             <div>
-              <div style={{fontSize:11,color:C.muted2,marginBottom:16,lineHeight:1.6}}>Review your program. Swap or remove any exercises before launching. Weights start blank — Week 1 is your baseline.</div>
+              <div style={{fontSize:11,color:C.muted2,marginBottom:isNovice?8:16,lineHeight:1.6}}>Review your program. Swap or remove any exercises before launching. Weights start blank — Week 1 is your baseline.</div>
+              {isNovice?(
+                <div style={{display:"flex",alignItems:"flex-start",gap:8,background:C.blue+"12",borderLeft:"3px solid "+C.blue,padding:"10px 12px",marginBottom:16}}>
+                  <IcoInfo/>
+                  <div style={{fontSize:11,color:C.muted2,lineHeight:1.6}}>We've started you with compound movements only to minimize soreness and build your baseline. You can tap <strong style={{color:C.text}}>+ Add Exercise</strong> on any day to add isolation work when you're ready.</div>
+                </div>
+              ):null}
               <Card>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
                   {bName?(
