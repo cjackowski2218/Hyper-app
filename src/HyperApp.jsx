@@ -3217,7 +3217,7 @@ function ProgressScreen({meso,mesoCount,onGlossary,liftHistory,history,program,m
   );
 }
 
-function PlanCurrent({meso,program,library,setLibrary,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,onRenameLabel}){
+function PlanCurrent({meso,program,library,setLibrary,onNewMeso,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onAddDay,onGlossary,onRenameLabel}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
@@ -3372,6 +3372,11 @@ function PlanCurrent({meso,program,library,setLibrary,onNewMeso,onUpdateDay,onSw
           ))}
         </div>
 
+        {program.length<7?(
+          <button onClick={onAddDay} style={{width:"100%",padding:"10px",background:"none",border:"1px dashed "+C.border2,color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:"0.06em",textTransform:"uppercase",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:4}}>
+            <IcoPlus sz={11} col={C.accent}/> Add Training Day
+          </button>
+        ):null}
         <div style={{padding:"8px 0 4px",fontSize:10,color:C.muted2,lineHeight:1.6,display:"flex",alignItems:"flex-start",gap:7}}>
           <IcoWarn sz={12} col={C.muted2}/>
           Week 1 is your baseline. Start conservative — RIR 3 or higher. Log your RIR and the app takes over from Week 2.
@@ -3851,7 +3856,7 @@ function PlanBuilder({meso,library,setLibrary,onLaunch,onBack,onCancel}){
   );
 }
 
-function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onGlossary,autoOpenSpec,onAutoOpenConsumed,onRenameLabel}){
+function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onSwapExercise,onRemoveExercise,onAddExercise,onAddDay,onGlossary,autoOpenSpec,onAutoOpenConsumed,onRenameLabel}){
   const C=useContext(ThemeCtx);
   const P=useContext(ProfileCtx);
   const muscles=getMuscles(P.experience||"intermediate",P.sex||"male");
@@ -3895,7 +3900,7 @@ function PlannerScreen({meso,program,library,setLibrary,onLaunch,onUpdateDay,onS
       </div>
     );
   }
-  return(<PlanCurrent meso={meso} program={program} library={library} setLibrary={setLibrary} onNewMeso={()=>setShowBuilder(true)} onUpdateDay={onUpdateDay} onSwapExercise={onSwapExercise} onRemoveExercise={onRemoveExercise} onAddExercise={onAddExercise} onGlossary={onGlossary} onRenameLabel={onRenameLabel}/>);
+  return(<PlanCurrent meso={meso} program={program} library={library} setLibrary={setLibrary} onNewMeso={()=>setShowBuilder(true)} onUpdateDay={onUpdateDay} onSwapExercise={onSwapExercise} onRemoveExercise={onRemoveExercise} onAddExercise={onAddExercise} onAddDay={onAddDay} onGlossary={onGlossary} onRenameLabel={onRenameLabel}/>);
 }
 
 function ExRow({ex,onToggleFav}){
@@ -4623,6 +4628,14 @@ export default function App(){
     }
   };
 
+  const handleAddDay=()=>{
+    const usedDays=new Set(program.map(d=>d.day));
+    const nextDay=WEEK_DAYS.find(d=>!usedDays.has(d))||"Monday";
+    const newDay={id:uid("d"),day:nextDay,name:"Day "+(program.length+1),exercises:[]};
+    setProgram(p=>[...p,newDay]);
+    showToast("Training day added — add exercises to get started");
+  };
+
   const [confirmStart,setConfirmStart]=useState(null); // {day, targetWeek}
   const [showProfile,setShowProfile]=useState(false);
   const [showResetConfirm,setShowResetConfirm]=useState(false);
@@ -5122,7 +5135,7 @@ export default function App(){
         <ProgressScreen meso={meso} mesoCount={mesoCount} onGlossary={()=>setShowGlossary(true)} liftHistory={liftHistory} history={history} program={program} muscles={muscles} onEdit={(session,idx)=>setEditingSession({session,idx})} onStart={(d,targetWeek)=>{if(!d) return;if(activeLog){setConfirmStart({...d,targetWeek:targetWeek||null});return;}setActiveLog({...d,startedAt:Date.now(),targetWeek:targetWeek||null});setLoggerOpen(true);}} activeLog={activeLog} onResume={()=>setLoggerOpen(true)}/>
       </div>
       <div style={{display:tab==="plan"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
-        <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)} onRenameLabel={label=>setMeso(m=>({...m,label}))}/>
+        <PlannerScreen meso={meso} program={program} library={library} setLibrary={setLibrary} onLaunch={handleLaunch} onUpdateDay={handleUpdateDay} onSwapExercise={handleSwapExercise} onRemoveExercise={handleRemoveExercise} onAddExercise={handleAddExercise} onAddDay={handleAddDay} onGlossary={()=>setShowGlossary(true)} autoOpenSpec={pendingSpecOpen} onAutoOpenConsumed={()=>setPendingSpecOpen(false)} onRenameLabel={label=>setMeso(m=>({...m,label}))}/>
       </div>
       <div style={{display:tab==="library"?"flex":"none",flex:1,flexDirection:"column",overflow:"hidden"}}>
         <LibraryScreen library={library} setLibrary={setLibrary}/>
